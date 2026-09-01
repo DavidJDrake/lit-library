@@ -45,7 +45,7 @@ export class Api extends Construct {
     });
     props.booksBucket.grantRead(downloadFn);
     props.siteBucket.grantRead(downloadFn, "catalog.json");
-    this.table.grantWriteData(downloadFn);
+    this.table.grant(downloadFn, "dynamodb:PutItem");
 
     const authorizer = new HttpJwtAuthorizer("Jwt", `https://cognito-idp.${Stack.of(this).region}.amazonaws.com/${props.userPool.userPoolId}`, {
       jwtAudience: [props.client.userPoolClientId],

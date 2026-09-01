@@ -44,7 +44,10 @@ describe("Api", () => {
     t.hasResourceProperties("AWS::IAM::Policy", {
       PolicyDocument: Match.objectLike({ Statement: Match.arrayWith([
         Match.objectLike({ Action: Match.arrayWith(["s3:GetObject*"]) }),
-        Match.objectLike({ Action: Match.arrayWith(["dynamodb:PutItem"]) }),
+        Match.objectLike({
+          Action: "dynamodb:PutItem",
+          Resource: Match.anyValue(),
+        }),
       ]) }),
     });
   });
