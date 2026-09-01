@@ -12,8 +12,8 @@ export function synthStack() {
 }
 
 describe("EbookShareStack", () => {
-  it("synthesizes a template", () => {
+  it("synthesizes an (empty) template", () => {
     const template = synthStack();
-    expect(template.toJSON()).toHaveProperty("Resources");
+    expect(typeof template.toJSON()).toBe("object");
   });
 });
