@@ -22,7 +22,11 @@ export function findFormat(catalog: Catalog, req: DownloadRequest): { book: Cata
   return book && format ? { book, format } : undefined;
 }
 
-export function downloadFilename(title: string, type: string): string {
-  const safe = title.replace(/[^A-Za-z0-9 ._-]+/g, "").trim().slice(0, 100);
-  return `${safe || "book"}.${type}`;
+export function downloadFilename(title: string, type: string, bookId: string): string {
+  const safe = title
+    .replace(/[^A-Za-z0-9 ._-]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+  return `${safe || `book-${bookId}`}.${type}`;
 }

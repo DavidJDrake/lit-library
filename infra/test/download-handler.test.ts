@@ -59,4 +59,14 @@ describe("handle", () => {
     const d = deps({ loadCatalog: vi.fn().mockRejectedValue(new Error("s3 down")) });
     expect(parse(await handle(event('{"bookId":"abc","format":"epub"}'), d)).status).toBe(502);
   });
+  it("502 when presigning fails", async () => {
+    const d = deps({ presign: vi.fn().mockRejectedValue(new Error("kms down")) });
+    const { status, json } = parse(await handle(event('{"bookId":"abc","format":"epub"}'), d));
+    expect(status).toBe(502);
+    expect(json).toEqual({ error: "Download unavailable" });
+  });
+  it("502 when logging the download fails", async () => {
+    const d = deps({ logDownload: vi.fn().mockRejectedValue(new Error("ddb down")) });
+    expect(parse(await handle(event('{"bookId":"abc","format":"epub"}'), d)).status).toBe(502);
+  });
 });

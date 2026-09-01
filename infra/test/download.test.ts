@@ -36,11 +36,11 @@ describe("findFormat", () => {
 });
 
 describe("downloadFilename", () => {
-  it("strips unsafe characters and appends the extension", () => {
-    expect(downloadFilename('Hack: The "Art" of Exploitation / 2e', "pdf")).toBe("Hack The Art of Exploitation  2e.pdf");
+  it("strips unsafe characters, collapses whitespace, and appends the extension", () => {
+    expect(downloadFilename('Hack: The "Art" of Exploitation / 2e', "pdf", "abc")).toBe("Hack The Art of Exploitation 2e.pdf");
   });
-  it("falls back to 'book' and caps length", () => {
-    expect(downloadFilename("///", "epub")).toBe("book.epub");
-    expect(downloadFilename("x".repeat(500), "epub")).toBe("x".repeat(100) + ".epub");
+  it("falls back to 'book-<bookId>' and caps length", () => {
+    expect(downloadFilename("///", "epub", "abc")).toBe("book-abc.epub");
+    expect(downloadFilename("x".repeat(500), "epub", "abc")).toBe("x".repeat(100) + ".epub");
   });
 });

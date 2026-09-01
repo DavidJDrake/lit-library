@@ -2,7 +2,7 @@ import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Api } from "../lib/api";
 import { CONFIG } from "../lib/config";
 
@@ -43,16 +43,35 @@ describe("Api", () => {
     });
     t.hasResourceProperties("AWS::IAM::Policy", {
       PolicyDocument: Match.objectLike({ Statement: Match.arrayWith([
-        Match.objectLike({ Action: Match.arrayWith(["s3:GetObject*"]) }),
+        Match.objectLike({ Action: "s3:GetObject", Resource: Match.anyValue() }),
         Match.objectLike({
           Action: "dynamodb:PutItem",
           Resource: Match.anyValue(),
         }),
       ]) }),
     });
+    // The statement scoped to the books bucket grants exactly s3:GetObject on
+    // object ARNs only — no s3:List*/GetBucket* on that bucket.
+    const json = t.toJSON();
+    const booksBucketLogicalId = Object.keys(json.Resources).find(
+      (id) => json.Resources[id].Type === "AWS::S3::Bucket" && id.startsWith("Books"),
+    );
+    expect(booksBucketLogicalId).toBeDefined();
+    const policies = Object.values(json.Resources).filter((r: any) => r.Type === "AWS::IAM::Policy") as any[];
+    const booksStatements = policies
+      .flatMap((p) => p.Properties.PolicyDocument.Statement)
+      .filter((s: any) => JSON.stringify(s.Resource).includes(booksBucketLogicalId));
+    expect(booksStatements).toHaveLength(1);
+    expect(booksStatements[0].Action).toBe("s3:GetObject");
   });
 
-  it("exposes POST /download behind a Cognito JWT authorizer with CORS for the site and localhost", () => {
+  it("sets a one-month log retention on the download function", () => {
+    const t = synth();
+    t.resourceCountIs("Custom::LogRetention", 1);
+    t.hasResourceProperties("Custom::LogRetention", { RetentionInDays: 30 });
+  });
+
+  it("exposes POST /download behind a Cognito user-pool JWT authorizer with CORS for the site and localhost", () => {
     const t = synth();
     t.hasResourceProperties("AWS::ApiGatewayV2::Api", {
       ProtocolType: "HTTP",
@@ -62,11 +81,29 @@ describe("Api", () => {
         AllowHeaders: Match.arrayWith(["authorization", "content-type"]),
       }),
     });
-    t.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
-      AuthorizerType: "JWT",
-      IdentitySource: ["$request.header.Authorization"],
-      JwtConfiguration: Match.objectLike({ Audience: [Match.anyValue()] }),
-    });
+    const json = t.toJSON();
+    const authorizers = json.Resources
+      ? Object.values(json.Resources).filter((r: any) => r.Type === "AWS::ApiGatewayV2::Authorizer")
+      : [];
+    expect(authorizers).toHaveLength(1);
+    const authorizer = authorizers[0] as any;
+    expect(authorizer.Properties.AuthorizerType).toBe("JWT");
+    expect(authorizer.Properties.IdentitySource).toEqual(["$request.header.Authorization"]);
+    // Audience must be a Ref to the actual UserPoolClient logical id (not anyValue()).
+    const clientLogicalId = Object.keys(json.Resources).find(
+      (id) => json.Resources[id].Type === "AWS::Cognito::UserPoolClient",
+    );
+    expect(clientLogicalId).toBeDefined();
+    expect(authorizer.Properties.JwtConfiguration.Audience).toEqual([{ Ref: clientLogicalId }]);
+    // Issuer is built from the pool id via Fn::Join, referencing the actual pool.
+    const poolLogicalId = Object.keys(json.Resources).find(
+      (id) => json.Resources[id].Type === "AWS::Cognito::UserPool",
+    );
+    expect(poolLogicalId).toBeDefined();
+    const issuer = authorizer.Properties.JwtConfiguration.Issuer;
+    expect(JSON.stringify(issuer)).toContain("cognito-idp.us-east-1.amazonaws.com/");
+    expect(JSON.stringify(issuer)).toContain(poolLogicalId);
+
     t.hasResourceProperties("AWS::ApiGatewayV2::Route", {
       RouteKey: "POST /download",
       AuthorizationType: "JWT",

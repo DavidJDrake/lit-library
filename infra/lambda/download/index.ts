@@ -40,14 +40,18 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
   const hit = findFormat(catalog, req);
   if (!hit) return json(404, { error: "Unknown book or format" });
 
-  const filename = downloadFilename(hit.book.title, hit.format.type);
+  const filename = downloadFilename(hit.book.title, hit.format.type, hit.book.id);
   const timestamp = deps.now().toISOString();
-  await deps.logDownload({
-    email, sk: `${timestamp}#${req.bookId}`, bookId: req.bookId,
-    format: req.format, title: hit.book.title, timestamp,
-  });
-  const url = await deps.presign(hit.format.s3Key, filename);
-  return json(200, { url, expiresIn: URL_TTL_SECONDS, filename });
+  try {
+    await deps.logDownload({
+      email, sk: `${timestamp}#${req.bookId}`, bookId: req.bookId,
+      format: req.format, title: hit.book.title, timestamp,
+    });
+    const url = await deps.presign(hit.format.s3Key, filename);
+    return json(200, { url, expiresIn: URL_TTL_SECONDS, filename });
+  } catch {
+    return json(502, { error: "Download unavailable" });
+  }
 }
 
 // ---- production wiring (never exercised by tests) ----

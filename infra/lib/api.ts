@@ -1,11 +1,13 @@
-import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
+import { Duration, RemovalPolicy } from "aws-cdk-lib";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
-import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
+import { HttpUserPoolAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { Construct } from "constructs";
 import * as path from "node:path";
@@ -37,18 +39,23 @@ export class Api extends Construct {
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
       memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_MONTH,
       environment: {
         BOOKS_BUCKET: props.booksBucket.bucketName,
         SITE_BUCKET: props.siteBucket.bucketName,
         DOWNLOADS_TABLE: this.table.tableName,
       },
     });
-    props.booksBucket.grantRead(downloadFn);
+    // Read-only, object-scoped access only — no s3:List*/GetBucket* on the bucket.
+    downloadFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["s3:GetObject"],
+      resources: [props.booksBucket.arnForObjects("*")],
+    }));
     props.siteBucket.grantRead(downloadFn, "catalog.json");
     this.table.grant(downloadFn, "dynamodb:PutItem");
 
-    const authorizer = new HttpJwtAuthorizer("Jwt", `https://cognito-idp.${Stack.of(this).region}.amazonaws.com/${props.userPool.userPoolId}`, {
-      jwtAudience: [props.client.userPoolClientId],
+    const authorizer = new HttpUserPoolAuthorizer("Jwt", props.userPool, {
+      userPoolClients: [props.client],
     });
 
     this.httpApi = new apigw.HttpApi(this, "HttpApi", {
