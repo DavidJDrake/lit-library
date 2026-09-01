@@ -8,3 +8,5 @@ metadata/publish-state.json
 node_modules/
 cdk.out/
 dist/
+infra/cdk.out/
+infra/outputs.json
