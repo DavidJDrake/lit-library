@@ -4,7 +4,6 @@ __pycache__/
 *.egg-info/
 out/
 metadata/cache/
-metadata/added.json
 metadata/publish-state.json
 node_modules/
 cdk.out/

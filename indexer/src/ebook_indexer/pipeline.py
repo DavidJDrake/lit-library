@@ -1,14 +1,15 @@
-import json
 import re
 from datetime import date
 from pathlib import Path, PurePosixPath
 
 from .categorize import apply_overrides, derive_category, load_overrides
+from .covers import thumbnail_webp
 from .enrich import Enricher
 from .extract_archive import classify_archive
 from .extract_epub import extract_epub
 from .extract_pdf import extract_pdf
-from .group import group_files, normalize_name
+from .group import group_files
+from .jsonio import read_json_or, write_json_atomic
 from .models import Book, BookFormat, ExtractedMeta, ScannedFile
 from .scan import scan_library
 
@@ -34,12 +35,12 @@ def _publisher_from_bundle(bundle: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-def build_books(root: Path, cache_dir: Path, overrides_path: Path,
+def build_books(root: Path, overrides_path: Path,
                 added_path: Path, enricher: Enricher | None = None,
                 limit: int | None = None) -> tuple[list[Book], dict[str, bytes]]:
     groups = group_files(scan_library(root))
     overrides = load_overrides(overrides_path)
-    added = json.loads(added_path.read_text()) if added_path.exists() else {}
+    added = read_json_or(added_path, {})
     today = date.today().isoformat()
 
     books: list[Book] = []
@@ -72,10 +73,11 @@ def build_books(root: Path, cache_dir: Path, overrides_path: Path,
         )
         apply_overrides(book, overrides)
         if meta.cover:
-            covers[bid] = meta.cover
+            thumb = thumbnail_webp(meta.cover)
+            if thumb:
+                covers[bid] = thumb
         added.setdefault(bid, today)
         books.append(book)
 
-    added_path.parent.mkdir(parents=True, exist_ok=True)
-    added_path.write_text(json.dumps(added, indent=0, sort_keys=True))
+    write_json_atomic(added_path, added)
     return books, covers

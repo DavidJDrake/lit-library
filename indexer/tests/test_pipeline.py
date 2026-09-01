@@ -19,7 +19,7 @@ def make_library(tmp_path, make_epub, make_pdf) -> Path:
 def test_build_books_groups_and_extracts(tmp_path, make_epub, make_pdf):
     root = make_library(tmp_path, make_epub, make_pdf)
     books, covers = build_books(
-        root=root, cache_dir=tmp_path / "cache",
+        root=root,
         overrides_path=tmp_path / "overrides.yaml",
         added_path=tmp_path / "added.json",
     )
@@ -29,6 +29,7 @@ def test_build_books_groups_and_extracts(tmp_path, make_epub, make_pdf):
     assert paired.formats[0].s3_key == "books/Hacking by No Starch Press/EPUB/attacking_network_protocols.epub"
     assert paired.category == "Security & Hacking"
     assert paired.id in covers  # embedded epub cover captured
+    assert covers[paired.id][:4] == b"RIFF"  # thumbnailed to webp inside build_books
     fiction = next(b for b in books if b.title == "The Black Company")
     assert fiction.category == "Fiction"
     assert fiction.authors == ["Glen Cook"]
@@ -37,7 +38,7 @@ def test_build_books_groups_and_extracts(tmp_path, make_epub, make_pdf):
 def test_added_dates_are_sticky(tmp_path, make_epub, make_pdf):
     root = make_library(tmp_path, make_epub, make_pdf)
     added_path = tmp_path / "added.json"
-    args = dict(root=root, cache_dir=tmp_path / "cache",
+    args = dict(root=root,
                 overrides_path=tmp_path / "overrides.yaml", added_path=added_path)
     books1, _ = build_books(**args)
     added_path.write_text(json.dumps({b.id: "2020-01-01" for b in books1}))
@@ -45,10 +46,23 @@ def test_added_dates_are_sticky(tmp_path, make_epub, make_pdf):
     assert all(b.added_at == "2020-01-01" for b in books2)
 
 
+def test_corrupt_added_json_treated_as_empty(tmp_path, make_epub, make_pdf):
+    root = make_library(tmp_path, make_epub, make_pdf)
+    added_path = tmp_path / "added.json"
+    added_path.write_text('{"a": "2020-01-01"')  # truncated/corrupt JSON
+    books, _ = build_books(
+        root=root,
+        overrides_path=tmp_path / "overrides.yaml",
+        added_path=added_path,
+    )  # must not raise; run proceeds with fresh added-dates
+    assert len(books) == 2
+    assert json.loads(added_path.read_text())  # rewritten with valid JSON
+
+
 def test_write_outputs_produces_catalog_and_covers(tmp_path, make_epub, make_pdf):
     root = make_library(tmp_path, make_epub, make_pdf)
     books, covers = build_books(
-        root=root, cache_dir=tmp_path / "cache",
+        root=root,
         overrides_path=tmp_path / "overrides.yaml",
         added_path=tmp_path / "added.json",
     )

@@ -1,5 +1,4 @@
 import hashlib
-import json
 import re
 import time
 import urllib.parse
@@ -7,12 +6,15 @@ from pathlib import Path
 
 import requests
 
+from .jsonio import read_json_or, write_json_atomic
 from .models import ExtractedMeta
+
+_USER_AGENT = "ebook-share-indexer/0.1 (personal library indexer)"
 
 
 def _default_fetch_json(url: str) -> dict | None:
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, timeout=10, headers={"User-Agent": _USER_AGENT})
         r.raise_for_status()
         return r.json()
     except Exception:
@@ -21,7 +23,7 @@ def _default_fetch_json(url: str) -> dict | None:
 
 def _default_fetch_bytes(url: str) -> bytes | None:
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, timeout=10, headers={"User-Agent": _USER_AGENT})
         r.raise_for_status()
         return r.content
     except Exception:
@@ -71,38 +73,42 @@ class Enricher:
 
     def _cached_lookup(self, key: str, meta: ExtractedMeta, fallback_title: str) -> dict:
         cache_file = self.cache_dir / (hashlib.sha1(key.encode()).hexdigest() + ".json")
-        if cache_file.exists():
-            return json.loads(cache_file.read_text())
+        cached = read_json_or(cache_file, None)
+        if cached is not None:
+            return cached
         data = self._lookup(meta, fallback_title)
-        cache_file.write_text(json.dumps(data))
+        write_json_atomic(cache_file, data)
         self.sleep(0.5)  # politeness delay, only on cache miss
         return data
 
     def _lookup(self, meta: ExtractedMeta, fallback_title: str) -> dict:
-        data = {"found": False}
-        if meta.isbn:
-            data = self._open_library_isbn(meta.isbn)
-        if not data.get("found"):
-            title = meta.title or fallback_title
-            data = self._google_books(title, meta.authors)
-        elif not data.get("description"):
-            gb = self._google_books(data.get("title") or meta.title or fallback_title, meta.authors)
-            if gb.get("found") and gb.get("description"):
-                data["description"] = gb["description"]
-        return data
+        try:
+            data = {"found": False}
+            if meta.isbn:
+                data = self._open_library_isbn(meta.isbn)
+            if not data.get("found"):
+                title = meta.title or fallback_title
+                data = self._google_books(title, meta.authors)
+            elif not data.get("description"):
+                gb = self._google_books(data.get("title") or meta.title or fallback_title, meta.authors)
+                if gb.get("found") and gb.get("description"):
+                    data["description"] = gb["description"]
+            return data
+        except Exception:
+            return {"found": False}
 
     def _open_library_isbn(self, isbn: str) -> dict:
         url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
         resp = self.fetch_json(url)
-        entry = (resp or {}).get(f"ISBN:{isbn}")
+        entry = resp.get(f"ISBN:{isbn}") if isinstance(resp, dict) else None
         if not entry:
             return {"found": False}
         return {
             "found": True,
             "title": entry.get("title"),
-            "authors": [a["name"] for a in entry.get("authors", []) if a.get("name")],
+            "authors": [a["name"] for a in (entry.get("authors") or []) if a.get("name")],
             "description": None,  # data API has no description; Google Books fills it
-            "subjects": [s["name"] for s in entry.get("subjects", [])[:10] if s.get("name")],
+            "subjects": [s["name"] for s in (entry.get("subjects") or [])[:10] if s.get("name")],
             "publisher": (entry.get("publishers") or [{}])[0].get("name"),
             "year": _year_from(entry.get("publish_date")),
             "cover_url": (entry.get("cover") or {}).get("large"),
@@ -114,17 +120,17 @@ class Enricher:
             q += f" inauthor:{authors[0]}"
         url = "https://www.googleapis.com/books/v1/volumes?q=" + urllib.parse.quote(q)
         resp = self.fetch_json(url)
-        items = (resp or {}).get("items")
+        items = resp.get("items") if isinstance(resp, dict) else None
         if not items:
             return {"found": False}
-        v = items[0].get("volumeInfo", {})
+        v = items[0].get("volumeInfo") or {}
         thumb = (v.get("imageLinks") or {}).get("thumbnail")
         return {
             "found": True,
             "title": v.get("title"),
-            "authors": v.get("authors", []),
+            "authors": v.get("authors") or [],
             "description": v.get("description"),
-            "subjects": v.get("categories", []),
+            "subjects": v.get("categories") or [],
             "publisher": v.get("publisher"),
             "year": _year_from(v.get("publishedDate")),
             "cover_url": thumb.replace("http://", "https://") if thumb else None,

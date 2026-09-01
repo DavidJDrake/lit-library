@@ -1,16 +1,12 @@
-import json
 import time
 from pathlib import Path
 
+from .jsonio import read_json_or, write_json_atomic
 from .models import ScannedFile
 
 
-def _load_state(path: Path) -> dict:
-    return json.loads(path.read_text()) if path.exists() else {}
-
-
 def sync_books(s3, bucket: str, files: list[ScannedFile], state_path: Path) -> int:
-    state = _load_state(state_path)
+    state = read_json_or(state_path, {})
     uploaded = 0
     for f in files:
         key = f"books/{f.rel_path}"
@@ -19,7 +15,7 @@ def sync_books(s3, bucket: str, files: list[ScannedFile], state_path: Path) -> i
         s3.upload_file(str(f.path), bucket, key,
                        ExtraArgs={"StorageClass": "INTELLIGENT_TIERING"})
         state[key] = f.size
-        state_path.write_text(json.dumps(state, indent=0, sort_keys=True))
+        write_json_atomic(state_path, state)
         uploaded += 1
     return uploaded
 

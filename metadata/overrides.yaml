@@ -1,0 +1,8 @@
+# Manual metadata overrides. Keyed by book id (from catalog.json).
+# Editable fields: category, title, authors, year, publisher, description.
+# Valid categories: Tech & Programming, Security & Hacking, Fiction,
+#   Comics, TTRPG, Certification, Other/Lifestyle
+# Example:
+# 0123456789abcdef:
+#   category: Fiction
+#   title: Better Title

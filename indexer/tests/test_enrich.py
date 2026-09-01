@@ -88,6 +88,43 @@ def test_cache_hit_makes_no_network_calls(tmp_path):
     assert meta.authors == ["James Forshaw"]  # still enriched from cache
 
 
+def test_corrupt_cache_file_treated_as_miss(tmp_path):
+    fetcher = FakeFetcher({"openlibrary.org/api/books": OL_ISBN_RESPONSE})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta(isbn="9781593277505")
+    key = meta.isbn
+    import hashlib
+    cache_file = tmp_path / (hashlib.sha1(key.encode()).hexdigest() + ".json")
+    cache_file.write_text('{"found": true, "title": "Trunc')  # truncated/corrupt
+    e.enrich(meta, fallback_title="x")  # must not raise; re-fetches instead
+    assert meta.authors == ["James Forshaw"]
+    assert json.loads(cache_file.read_text())["found"] is True  # cache repaired
+
+
+def test_null_authors_degrade_gracefully(tmp_path):
+    resp = {
+        "ISBN:9781593277505": {
+            "title": "Attacking Network Protocols",
+            "authors": None,
+            "subjects": None,
+        }
+    }
+    fetcher = FakeFetcher({"openlibrary.org/api/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta(isbn="9781593277505")
+    e.enrich(meta, fallback_title="x")  # must not raise
+    assert meta.title == "Attacking Network Protocols"
+    assert meta.authors == []
+
+
+def test_list_response_degrades_gracefully(tmp_path):
+    fetcher = FakeFetcher({"openlibrary.org/api/books": [], "googleapis.com/books": ["not", "a", "dict"]})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta(isbn="9781593277505")
+    e.enrich(meta, fallback_title="x")  # must not raise
+    assert meta.title is None
+
+
 def test_total_miss_is_cached_and_harmless(tmp_path):
     fetcher = FakeFetcher({})
     e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)

@@ -50,6 +50,17 @@ def test_sync_uploads_new_and_changed_only(tmp_path):
     assert json.loads(state.read_text())["books/B/EPUB/a.epub"] == 6
 
 
+def test_sync_truncated_state_file_treated_as_empty(tmp_path):
+    s3 = FakeS3()
+    state = tmp_path / "state.json"
+    state.write_text('{"books/B/EPUB/a.epub": 4')  # truncated/corrupt JSON
+    files = [sf(tmp_path, "B/EPUB/a.epub", b"aaaa")]
+    # must not crash on the corrupt state file, and must re-upload rather
+    # than treating the corrupt file as "nothing to do"
+    assert sync_books(s3, "bkt", files, state) == 1
+    assert json.loads(state.read_text())["books/B/EPUB/a.epub"] == 4
+
+
 def test_publish_site_uploads_catalog_and_covers(tmp_path):
     out = tmp_path / "out"
     (out / "covers").mkdir(parents=True)
