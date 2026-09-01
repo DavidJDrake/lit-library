@@ -41,19 +41,24 @@ describe("Site", () => {
   it("creates A and AAAA alias records in the hosted zone", () => {
     const { t } = synth();
     t.resourceCountIs("AWS::Route53::RecordSet", 2);
+    // Verify both records link to CloudFront distribution
+    const cloudFrontAliasTarget = Match.objectLike({
+      DNSName: { "Fn::GetAtt": [Match.stringLikeRegexp("^SiteDistribution"), "DomainName"] },
+      HostedZoneId: Match.objectLike({ "Fn::FindInMap": Match.anyValue() }),
+    });
     // Check A record
     t.hasResourceProperties("AWS::Route53::RecordSet", {
       Type: "A",
       Name: `${CONFIG.siteDomain}.`,
       HostedZoneId: CONFIG.hostedZoneId,
-      AliasTarget: Match.objectLike({ DNSName: Match.anyValue() }),
+      AliasTarget: cloudFrontAliasTarget,
     });
     // Check AAAA record
     t.hasResourceProperties("AWS::Route53::RecordSet", {
       Type: "AAAA",
       Name: `${CONFIG.siteDomain}.`,
       HostedZoneId: CONFIG.hostedZoneId,
-      AliasTarget: Match.objectLike({ DNSName: Match.anyValue() }),
+      AliasTarget: cloudFrontAliasTarget,
     });
   });
 
