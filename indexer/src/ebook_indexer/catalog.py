@@ -2,7 +2,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .covers import thumbnail_webp
 from .models import Book
 
 
@@ -11,8 +10,7 @@ def write_outputs(books: list[Book], covers_by_id: dict[str, bytes],
     covers_dir = out_dir / "covers"
     covers_dir.mkdir(parents=True, exist_ok=True)
     for book in books:
-        raw = covers_by_id.get(book.id)
-        thumb = thumbnail_webp(raw) if raw else None
+        thumb = covers_by_id.get(book.id)
         if thumb:
             (covers_dir / f"{book.id}.webp").write_bytes(thumb)
             book.cover_url = f"/covers/{book.id}.webp"
