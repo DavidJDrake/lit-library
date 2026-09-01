@@ -21,3 +21,13 @@ def test_never_upscales_small_images():
 
 def test_garbage_bytes_return_none():
     assert thumbnail_webp(b"not an image") is None
+
+
+def test_encode_failure_returns_none_instead_of_raising(monkeypatch):
+    data = jpeg_bytes(size=(200, 300))
+
+    def boom(self, *args, **kwargs):
+        raise OSError("encoder error")
+
+    monkeypatch.setattr(Image.Image, "save", boom)
+    assert thumbnail_webp(data) is None

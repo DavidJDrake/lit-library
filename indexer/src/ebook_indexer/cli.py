@@ -9,6 +9,24 @@ from .pipeline import build_books
 from .publish import invalidate_catalog, publish_site, sync_books
 from .scan import scan_library
 
+OVERRIDES_STUB = """\
+# Manual metadata overrides. Keyed by book id (from catalog.json).
+# Editable fields: category, title, authors, year, publisher, description.
+# Valid categories: Tech & Programming, Security & Hacking, Fiction,
+#   Comics, TTRPG, Certification, Other/Lifestyle
+# Example:
+# 0123456789abcdef:
+#   category: Fiction
+#   title: Better Title
+"""
+
+
+def _seed_overrides_stub(path: Path) -> None:
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(OVERRIDES_STUB)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ebook-indexer")
@@ -26,12 +44,12 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
 
     if args.command == "index":
+        _seed_overrides_stub(cfg.metadata_dir / "overrides.yaml")
         enricher = None
         if not args.skip_enrich:
             enricher = Enricher(cfg.metadata_dir / "cache")
         books, covers = build_books(
             root=cfg.library_root,
-            cache_dir=cfg.metadata_dir / "cache",
             overrides_path=cfg.metadata_dir / "overrides.yaml",
             added_path=cfg.metadata_dir / "added.json",
             enricher=enricher,

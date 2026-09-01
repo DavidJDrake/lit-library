@@ -39,6 +39,29 @@ def test_index_command_end_to_end(tmp_path, make_epub, capsys):
     assert "Indexed 1 books" in capsys.readouterr().out
 
 
+def test_index_seeds_overrides_stub_when_missing(tmp_path, make_epub):
+    root = tmp_path / "lib"
+    make_epub(dest=root / "Hacking by No Starch Press" / "EPUB" / "attacking_network_protocols.epub")
+    cfg = write_config(tmp_path, root)
+    rc = main(["index", "--config", str(cfg), "--skip-enrich"])
+    assert rc == 0
+    overrides_path = tmp_path / "metadata" / "overrides.yaml"
+    assert overrides_path.exists()
+    assert "Manual metadata overrides" in overrides_path.read_text()
+
+
+def test_index_does_not_overwrite_existing_overrides(tmp_path, make_epub):
+    root = tmp_path / "lib"
+    make_epub(dest=root / "Hacking by No Starch Press" / "EPUB" / "attacking_network_protocols.epub")
+    cfg = write_config(tmp_path, root)
+    overrides_path = tmp_path / "metadata" / "overrides.yaml"
+    overrides_path.parent.mkdir(parents=True)
+    overrides_path.write_text("abc123:\n  category: Fiction\n")
+    rc = main(["index", "--config", str(cfg), "--skip-enrich"])
+    assert rc == 0
+    assert overrides_path.read_text() == "abc123:\n  category: Fiction\n"
+
+
 def test_publish_requires_buckets(tmp_path, capsys):
     cfg = write_config(tmp_path, tmp_path / "lib")
     (tmp_path / "lib").mkdir()

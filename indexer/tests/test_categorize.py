@@ -47,3 +47,21 @@ def test_overrides_roundtrip(tmp_path):
 
 def test_missing_overrides_file(tmp_path):
     assert load_overrides(tmp_path / "nope.yaml") == {}
+
+
+def test_string_authors_override_coerced_to_list():
+    b = book()
+    apply_overrides(b, {"abc123": {"authors": "Jane Doe"}})
+    assert b.authors == ["Jane Doe"]
+
+
+def test_invalid_category_override_is_ignored():
+    b = book(category="Tech & Programming")
+    apply_overrides(b, {"abc123": {"category": "Not A Real Category"}})
+    assert b.category == "Tech & Programming"  # derived category kept
+
+
+def test_valid_category_override_applied():
+    b = book(category="Tech & Programming")
+    apply_overrides(b, {"abc123": {"category": "Fiction"}})
+    assert b.category == "Fiction"
