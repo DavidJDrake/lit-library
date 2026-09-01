@@ -111,7 +111,7 @@ class Enricher:
     def _google_books(self, title: str, authors: list[str]) -> dict:
         q = f"intitle:{title}"
         if authors:
-            q += f"+inauthor:{authors[0]}"
+            q += f" inauthor:{authors[0]}"
         url = "https://www.googleapis.com/books/v1/volumes?q=" + urllib.parse.quote(q)
         resp = self.fetch_json(url)
         items = (resp or {}).get("items")

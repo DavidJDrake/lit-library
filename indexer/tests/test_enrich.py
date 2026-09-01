@@ -63,11 +63,16 @@ def test_isbn_lookup_fills_missing_fields_only(tmp_path):
 def test_google_books_fallback_when_no_isbn(tmp_path):
     fetcher = FakeFetcher({"googleapis.com/books": GB_RESPONSE})
     e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
-    meta = ExtractedMeta()
+    meta = ExtractedMeta(authors=["A. Writer"])
     e.enrich(meta, fallback_title="Mystery Novel")
     assert meta.title == "Mystery Novel"
     assert meta.description == "A gripping tale."
     assert meta.year == 2019
+    # Verify URL encoding uses %20 (space) for term separator, not %2B (+)
+    assert any("%20inauthor" in url for url in fetcher.json_calls), \
+        f"Expected %20inauthor in URLs, got: {fetcher.json_calls}"
+    assert not any("%2B" in url for url in fetcher.json_calls), \
+        f"URL should not contain %2B (malformed + encoding), got: {fetcher.json_calls}"
 
 
 def test_cache_hit_makes_no_network_calls(tmp_path):
