@@ -26,6 +26,14 @@ export function _resetCacheForTests(): void {
 }
 
 export function decide(event: PreSignUpTriggerEvent, allowlist: string[]): PreSignUpTriggerEvent {
+  // Only federated (Google) sign-ins may reach this far. Native Cognito sign-up
+  // (PreSignUp_SignUp) and admin-created users (PreSignUp_AdminCreateUser) must be
+  // rejected outright, even for an allowlisted email — otherwise anyone who knows a
+  // friend's email can self-register a password account and mint their own tokens,
+  // bypassing the "Google sign-in only" intent of the allowlist entirely.
+  if (event.triggerSource !== "PreSignUp_ExternalProvider") {
+    throw new Error(REJECT_MESSAGE);
+  }
   if (!isAllowed(event.request.userAttributes.email, allowlist)) {
     throw new Error(REJECT_MESSAGE);
   }

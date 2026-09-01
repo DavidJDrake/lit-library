@@ -2,6 +2,7 @@ import { Duration, RemovalPolicy } from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+import * as logs from "aws-cdk-lib/aws-logs";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
@@ -17,6 +18,12 @@ export class Auth extends Construct {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
+    // IMPORTANT: this parameter's resource properties (name, description, seed value)
+    // must never change after first deploy. It is deliberately CDK-seeded so the
+    // first sign-in has an allowlist to check, but ANY edit here makes CloudFormation
+    // reset `Value` on the next deploy, silently evicting every friend added since via
+    // `aws ssm put-parameter --overwrite`. Add/remove friends only through that CLI
+    // command (see infra/README.md) — never by editing `stringValue` below.
     const allowedEmails = new ssm.StringParameter(this, "AllowedEmails", {
       parameterName: CONFIG.allowedEmailsParam,
       stringValue: CONFIG.seedAllowedEmail,
@@ -27,6 +34,7 @@ export class Auth extends Construct {
       entry: path.join(__dirname, "../lambda/pre-signup/index.ts"),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
+      logRetention: logs.RetentionDays.ONE_MONTH,
       environment: { ALLOWED_EMAILS_PARAM: CONFIG.allowedEmailsParam },
     });
     allowedEmails.grantRead(preSignUp);
@@ -37,6 +45,7 @@ export class Auth extends Construct {
       standardAttributes: { email: { required: true, mutable: true } },
       lambdaTriggers: { preSignUp },
       removalPolicy: RemovalPolicy.RETAIN,
+      featurePlan: cognito.FeaturePlan.LITE,
     });
 
     const googleSecret = secretsmanager.Secret.fromSecretNameV2(this, "GoogleSecret", CONFIG.googleOAuthSecretName);
@@ -63,6 +72,11 @@ export class Auth extends Construct {
         logoutUrls: callbackUrls,
       },
       preventUserExistenceErrors: true,
+      // Close the native SignUp/SRP path at the client too: only Google (hosted-UI
+      // authorization code grant) plus refresh-token renewal are permitted. Without
+      // this, the client still supports USER_SRP_AUTH/USER_PASSWORD_AUTH, which lets
+      // anyone call cognito-idp sign-up/initiate-auth directly against this client id.
+      authFlows: { userSrp: false, userPassword: false, adminUserPassword: false, custom: false },
     });
     this.client.node.addDependency(google);
 

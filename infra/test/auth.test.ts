@@ -70,6 +70,26 @@ describe("Auth", () => {
     });
   });
 
+  it("closes the native sign-up/SRP path at the client — only refresh-token auth remains", () => {
+    const { t } = synth();
+    t.hasResourceProperties("AWS::Cognito::UserPoolClient", {
+      ExplicitAuthFlows: ["ALLOW_REFRESH_TOKEN_AUTH"],
+    });
+  });
+
+  it("uses the Lite feature plan", () => {
+    const { t } = synth();
+    t.hasResourceProperties("AWS::Cognito::UserPool", {
+      UserPoolTier: "LITE",
+    });
+  });
+
+  it("sets a one-month log retention on the pre-signup function", () => {
+    const { t } = synth();
+    t.resourceCountIs("Custom::LogRetention", 1);
+    t.hasResourceProperties("Custom::LogRetention", { RetentionInDays: 30 });
+  });
+
   it("uses the fixed hosted-UI domain prefix", () => {
     const { t, auth } = synth();
     t.hasResourceProperties("AWS::Cognito::UserPoolDomain", { Domain: CONFIG.cognitoDomainPrefix });
