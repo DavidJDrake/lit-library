@@ -2,6 +2,7 @@ import io
 import zipfile
 from pathlib import Path
 
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -69,6 +70,23 @@ def make_epub(tmp_path):
             zf.writestr("OEBPS/chap1.xhtml", "<html><body>hi</body></html>")
             if with_cover:
                 zf.writestr("OEBPS/cover.jpg", jpeg_bytes())
+        return dest
+
+    return _make
+
+
+@pytest.fixture
+def make_pdf(tmp_path):
+    def _make(dest: Path | None = None, title="Test PDF Book",
+              author="Jane Doe, John Roe") -> Path:
+        dest = dest or tmp_path / "book.pdf"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        doc = pymupdf.open()
+        page = doc.new_page()
+        page.insert_text((72, 72), "Hello")
+        doc.set_metadata({"title": title, "author": author})
+        doc.save(str(dest))
+        doc.close()
         return dest
 
     return _make
