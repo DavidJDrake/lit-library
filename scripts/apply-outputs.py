@@ -24,11 +24,14 @@ def main(argv: list[str]) -> int:
     text = config_path.read_text()
     for yaml_key, output_name in KEY_MAP.items():
         value = outputs[output_name]
-        pattern = re.compile(rf"^{yaml_key}:.*$", re.MULTILINE)
+        pattern = re.compile(rf'^({yaml_key}:)[ \t]*(?:"[^"]*"|\'[^\']*\'|[^#\n]*?)[ \t]*(#.*)?$', re.MULTILINE)
         if not pattern.search(text):
             print(f"config.yaml has no '{yaml_key}' line", file=sys.stderr)
             return 1
-        text = pattern.sub(f'{yaml_key}: "{value}"', text)
+        def repl(m):
+            comment = f"  {m.group(2)}" if m.group(2) else ""
+            return f'{m.group(1)} "{value}"{comment}'
+        text = pattern.sub(repl, text)
     config_path.write_text(text)
     print(f"updated {config_path} from {outputs_path}")
     return 0
