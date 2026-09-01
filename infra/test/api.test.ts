@@ -60,7 +60,7 @@ describe("Api", () => {
     const policies = Object.values(json.Resources).filter((r: any) => r.Type === "AWS::IAM::Policy") as any[];
     const booksStatements = policies
       .flatMap((p) => p.Properties.PolicyDocument.Statement)
-      .filter((s: any) => JSON.stringify(s.Resource).includes(booksBucketLogicalId));
+      .filter((s: any) => JSON.stringify(s.Resource).includes(booksBucketLogicalId as string));
     expect(booksStatements).toHaveLength(1);
     expect(booksStatements[0].Action).toBe("s3:GetObject");
   });
