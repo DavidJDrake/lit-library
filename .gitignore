@@ -1,1 +1,10 @@
-.worktrees/
+.venv/
+__pycache__/
+*.egg-info/
+out/
+metadata/cache/
+metadata/added.json
+.publish-state.json
+node_modules/
+cdk.out/
+dist/
