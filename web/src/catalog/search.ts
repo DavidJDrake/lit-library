@@ -21,13 +21,45 @@ export function applyFilters(books: Book[], filters: Filters): Book[] {
 export function searchBooks(books: Book[], query: string): Book[] {
   const q = query.trim();
   if (!q) return books;
+
+  const terms = q.split(/\s+/).filter((t) => t.length >= 2);
+  if (terms.length === 0) return books;
+
   const fuse = new Fuse(books, {
     keys: [{ name: "title", weight: 2 }, { name: "authors", weight: 1 }, { name: "description", weight: 1 }],
     threshold: 0.35,
     ignoreLocation: true,
     minMatchCharLength: 2,
   });
-  return fuse.search(q).map((r) => r.item);
+
+  const scoreMap = new Map<string, number>();
+  for (const term of terms) {
+    const results = fuse.search(term);
+    const termScores = new Map(results.map((r) => [r.item.id, r.score ?? 0]));
+
+    if (scoreMap.size === 0) {
+      for (const result of results) {
+        scoreMap.set(result.item.id, result.score ?? 0);
+      }
+    } else {
+      for (const [id] of scoreMap) {
+        if (!termScores.has(id)) {
+          scoreMap.delete(id);
+        } else {
+          scoreMap.set(id, (scoreMap.get(id) ?? 0) + (termScores.get(id) ?? 0));
+        }
+      }
+    }
+
+    if (scoreMap.size === 0) return [];
+  }
+
+  const sortedIds = Array.from(scoreMap.entries())
+    .sort((a, b) => a[1] - b[1])
+    .map((e) => e[0]);
+
+  const idToBook = new Map(books.map((b) => [b.id, b]));
+  return sortedIds.map((id) => idToBook.get(id)!);
 }
 
 const byTitle = (a: Book, b: Book) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" });

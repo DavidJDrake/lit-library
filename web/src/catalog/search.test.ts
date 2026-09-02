@@ -44,17 +44,12 @@ describe("searchBooks", () => {
     expect(searchBooks(books, "  ")).toBe(books);
   });
   it("fuzzy-matches titles, authors, and descriptions", () => {
-    const results1 = searchBooks(books, "netwrok protocol");
-    expect(results1.length).toBeGreaterThan(0);
-    expect(results1.map(b => b.id)).toContain("1");
-
-    const results2 = searchBooks(books, "glen cook");
-    expect(results2.length).toBeGreaterThan(0);
-    expect(results2.map(b => b.id)).toContain("2");
-
-    const results3 = searchBooks(books, "development rust");
-    expect(results3.length).toBeGreaterThan(0);
-    expect(results3.map(b => b.id)).toContain("3");
+    expect(searchBooks(books, "netwrok protocol").map(b => b.id)).toContain("1");
+    expect(searchBooks(books, "rust backend").map(b => b.id)).toContain("3");
+  });
+  it("handles reordered query terms (word-order independent)", () => {
+    expect(searchBooks(books, "cook glen").map(b => b.id)).toContain("2");
+    expect(searchBooks(books, "protocol network").map(b => b.id)).toContain("1");
   });
   it("drops non-matches", () => {
     expect(searchBooks(books, "quantum chromodynamics")).toHaveLength(0);
