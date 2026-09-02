@@ -13,6 +13,10 @@ describe("establishSession", () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 502 });
     await expect(establishSession("/api", "tok", fetchFn)).rejects.toThrow("Could not start a session: 502");
   });
+  it("throws on the SPA-fallback 200 (auth/deploy problems resolve to index.html)", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    await expect(establishSession("/api", "tok", fetchFn)).rejects.toThrow("Could not start a session: 200");
+  });
 });
 
 describe("endSession", () => {

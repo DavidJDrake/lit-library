@@ -6,7 +6,9 @@ export async function establishSession(apiUrl: string, idToken: string, fetchFn:
     headers: { Authorization: `Bearer ${idToken}` },
     credentials: "same-origin",
   });
-  if (!res.ok) throw new Error(`Could not start a session: ${res.status}`);
+  // The SPA fallback returns 200 HTML for auth/deploy problems (unknown API
+  // paths resolve to index.html), so only a real 204 counts as success.
+  if (res.status !== 204) throw new Error(`Could not start a session: ${res.status}`);
 }
 
 export async function endSession(apiUrl: string, idToken: string, fetchFn: typeof fetch = fetch): Promise<void> {
