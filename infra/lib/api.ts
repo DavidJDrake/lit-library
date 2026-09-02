@@ -70,6 +70,9 @@ export class Api extends Construct {
         SITE_DOMAIN: config.siteDomain,
         KEY_PAIR_ID: props.keyPairId,
       },
+      // Only the Secrets Manager client is available in the Lambda runtime;
+      // @aws-sdk/cloudfront-signer must be bundled into the asset.
+      bundling: { externalModules: ["@aws-sdk/client-secrets-manager"] },
     });
     signingSecret.grantRead(sessionFn);
 
