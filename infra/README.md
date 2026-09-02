@@ -86,3 +86,11 @@ The SPA must send the Cognito **ID token** — not the access token — as the
 signed-in user's email from the token's `email` claim, which only the ID
 token carries; requests authenticated with an access token are rejected
 with 401 (no email claim).
+
+## Deploying the web app
+
+`scripts/deploy-web.sh` builds `web/` and syncs it to the site bucket (it never touches
+`catalog.json` or `covers/`, which the indexer owns). `scripts/deploy-web.sh --dry-run`
+shows what would change. Run it after any front-end change. For local development,
+`cd web && npm run dev` serves http://localhost:5173 against the live catalog and API
+(that origin is registered on the Cognito client).
