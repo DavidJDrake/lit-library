@@ -1,8 +1,10 @@
 import { App } from "aws-cdk-lib";
-import { CONFIG } from "../lib/config";
+import { loadConfig } from "../lib/config";
 import { EbookShareStack } from "../lib/ebook-share-stack";
 
+const config = loadConfig();
 const app = new App();
 new EbookShareStack(app, "EbookShare", {
-  env: { account: CONFIG.account, region: CONFIG.region },
+  config,
+  env: { account: config.account, region: config.region },
 });

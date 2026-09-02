@@ -4,13 +4,16 @@ import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { describe, expect, it } from "vitest";
 import { Api } from "../lib/api";
-import { CONFIG } from "../lib/config";
+import { EXAMPLE_CONFIG_PATH, loadConfig } from "../lib/config";
+
+const config = loadConfig(EXAMPLE_CONFIG_PATH);
 
 function synth() {
   const stack = new Stack(new App(), "Test", { env: { account: "123456789012", region: "us-east-1" } });
   const userPool = new cognito.UserPool(stack, "Pool");
   const client = userPool.addClient("Client");
   new Api(stack, "Api", {
+    config,
     userPool, client,
     booksBucket: new s3.Bucket(stack, "Books"),
     siteBucket: new s3.Bucket(stack, "Site"),
@@ -76,7 +79,7 @@ describe("Api", () => {
     t.hasResourceProperties("AWS::ApiGatewayV2::Api", {
       ProtocolType: "HTTP",
       CorsConfiguration: Match.objectLike({
-        AllowOrigins: [`https://${CONFIG.siteDomain}`, CONFIG.localDevOrigin],
+        AllowOrigins: [`https://${config.siteDomain}`, config.localDevOrigin],
         AllowMethods: Match.arrayWith(["POST"]),
         AllowHeaders: Match.arrayWith(["authorization", "content-type"]),
       }),

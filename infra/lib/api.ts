@@ -11,9 +11,10 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { Construct } from "constructs";
 import * as path from "node:path";
-import { CONFIG } from "./config";
+import type { InfraConfig } from "./config";
 
 export interface ApiProps {
+  config: InfraConfig;
   userPool: cognito.IUserPool;
   client: cognito.IUserPoolClient;
   booksBucket: s3.IBucket;
@@ -26,6 +27,7 @@ export class Api extends Construct {
 
   constructor(scope: Construct, id: string, props: ApiProps) {
     super(scope, id);
+    const { config } = props;
 
     this.table = new dynamodb.Table(this, "Downloads", {
       partitionKey: { name: "email", type: dynamodb.AttributeType.STRING },
@@ -61,7 +63,7 @@ export class Api extends Construct {
     this.httpApi = new apigw.HttpApi(this, "HttpApi", {
       defaultAuthorizer: authorizer,
       corsPreflight: {
-        allowOrigins: [`https://${CONFIG.siteDomain}`, CONFIG.localDevOrigin],
+        allowOrigins: [`https://${config.siteDomain}`, config.localDevOrigin],
         allowMethods: [apigw.CorsHttpMethod.POST, apigw.CorsHttpMethod.OPTIONS],
         allowHeaders: ["authorization", "content-type"],
         maxAge: Duration.hours(1),

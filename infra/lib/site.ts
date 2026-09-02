@@ -6,9 +6,10 @@ import * as route53 from "aws-cdk-lib/aws-route53";
 import * as targets from "aws-cdk-lib/aws-route53-targets";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { Construct } from "constructs";
-import { CONFIG } from "./config";
+import type { InfraConfig } from "./config";
 
 export interface SiteProps {
+  config: InfraConfig;
   siteBucket: s3.IBucket;
 }
 
@@ -18,20 +19,21 @@ export class Site extends Construct {
 
   constructor(scope: Construct, id: string, props: SiteProps) {
     super(scope, id);
+    const { config } = props;
 
     const zone = route53.HostedZone.fromHostedZoneAttributes(this, "Zone", {
-      hostedZoneId: CONFIG.hostedZoneId,
-      zoneName: CONFIG.hostedZoneName,
+      hostedZoneId: config.hostedZoneId,
+      zoneName: config.hostedZoneName,
     });
 
     const certificate = new acm.Certificate(this, "Certificate", {
-      domainName: CONFIG.siteDomain,
+      domainName: config.siteDomain,
       validation: acm.CertificateValidation.fromDns(zone),
     });
 
     this.distribution = new cloudfront.Distribution(this, "Distribution", {
       defaultRootObject: "index.html",
-      domainNames: [CONFIG.siteDomain],
+      domainNames: [config.siteDomain],
       certificate,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       defaultBehavior: {
@@ -47,9 +49,9 @@ export class Site extends Construct {
     });
 
     const target = route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(this.distribution));
-    new route53.ARecord(this, "ARecord", { zone, recordName: CONFIG.siteDomain, target });
-    new route53.AaaaRecord(this, "AaaaRecord", { zone, recordName: CONFIG.siteDomain, target });
+    new route53.ARecord(this, "ARecord", { zone, recordName: config.siteDomain, target });
+    new route53.AaaaRecord(this, "AaaaRecord", { zone, recordName: config.siteDomain, target });
 
-    this.url = `https://${CONFIG.siteDomain}`;
+    this.url = `https://${config.siteDomain}`;
   }
 }

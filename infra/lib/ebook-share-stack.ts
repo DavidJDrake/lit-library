@@ -2,17 +2,24 @@ import { CfnOutput, Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { Api } from "./api";
 import { Auth } from "./auth";
+import type { InfraConfig } from "./config";
 import { Site } from "./site";
 import { Storage } from "./storage";
 
+export interface EbookShareStackProps extends StackProps {
+  config: InfraConfig;
+}
+
 export class EbookShareStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: EbookShareStackProps) {
     super(scope, id, props);
+    const { config } = props;
 
     const storage = new Storage(this, "Storage");
-    const site = new Site(this, "Site", { siteBucket: storage.siteBucket });
-    const auth = new Auth(this, "Auth");
+    const site = new Site(this, "Site", { config, siteBucket: storage.siteBucket });
+    const auth = new Auth(this, "Auth", { config });
     const api = new Api(this, "Api", {
+      config,
       userPool: auth.userPool,
       client: auth.client,
       booksBucket: storage.booksBucket,

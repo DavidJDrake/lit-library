@@ -1,7 +1,0 @@
-library_root: /home/user/projects/ebooks
-output_dir: out            # catalog.json + covers/ land here (relative to repo root)
-metadata_dir: metadata     # enrichment cache, overrides.yaml, added.json
-aws_region: us-east-1
-books_bucket: "<books-bucket>"  # filled in after Plan 2 (infra) deploys
-site_bucket: "<site-bucket>"
-cloudfront_distribution_id: "E1EXAMPLEDIST"

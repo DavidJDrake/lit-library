@@ -2,11 +2,13 @@ import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { describe, expect, it } from "vitest";
 import { Auth } from "../lib/auth";
-import { CONFIG } from "../lib/config";
+import { EXAMPLE_CONFIG_PATH, loadConfig } from "../lib/config";
+
+const config = loadConfig(EXAMPLE_CONFIG_PATH);
 
 function synth() {
   const stack = new Stack(new App(), "Test", { env: { account: "123456789012", region: "us-east-1" } });
-  const auth = new Auth(stack, "Auth");
+  const auth = new Auth(stack, "Auth", { config });
   return { t: Template.fromStack(stack), auth };
 }
 
@@ -22,16 +24,16 @@ describe("Auth", () => {
     });
     t.hasResourceProperties("AWS::Lambda::Function", {
       Runtime: "nodejs22.x",
-      Environment: { Variables: { ALLOWED_EMAILS_PARAM: CONFIG.allowedEmailsParam } },
+      Environment: { Variables: { ALLOWED_EMAILS_PARAM: config.allowedEmailsParam } },
     });
   });
 
   it("seeds the allowlist SSM parameter", () => {
     const { t } = synth();
     t.hasResourceProperties("AWS::SSM::Parameter", {
-      Name: CONFIG.allowedEmailsParam,
+      Name: config.allowedEmailsParam,
       Type: "String",
-      Value: CONFIG.seedAllowedEmail,
+      Value: config.seedAllowedEmail,
     });
   });
 
@@ -52,7 +54,7 @@ describe("Auth", () => {
     // assert on the rendered template text rather than an exact string.
     const rendered = JSON.stringify(t.toJSON());
     expect(rendered).toContain("{{resolve:secretsmanager:");
-    expect(rendered).toContain(`secret:${CONFIG.googleOAuthSecretName}`);
+    expect(rendered).toContain(`secret:${config.googleOAuthSecretName}`);
     expect(rendered).toContain(":SecretString:client_id");
     expect(rendered).toContain(":SecretString:client_secret");
   });
@@ -65,8 +67,8 @@ describe("Auth", () => {
       AllowedOAuthFlowsUserPoolClient: true,
       AllowedOAuthScopes: Match.arrayWith(["openid", "email", "profile"]),
       SupportedIdentityProviders: ["Google"],
-      CallbackURLs: [`https://${CONFIG.siteDomain}/`, `${CONFIG.localDevOrigin}/`],
-      LogoutURLs: [`https://${CONFIG.siteDomain}/`, `${CONFIG.localDevOrigin}/`],
+      CallbackURLs: [`https://${config.siteDomain}/`, `${config.localDevOrigin}/`],
+      LogoutURLs: [`https://${config.siteDomain}/`, `${config.localDevOrigin}/`],
     });
   });
 
@@ -92,7 +94,7 @@ describe("Auth", () => {
 
   it("uses the fixed hosted-UI domain prefix", () => {
     const { t, auth } = synth();
-    t.hasResourceProperties("AWS::Cognito::UserPoolDomain", { Domain: CONFIG.cognitoDomainPrefix });
-    expect(auth.hostedUiBaseUrl).toBe(`https://${CONFIG.cognitoDomainPrefix}.auth.us-east-1.amazoncognito.com`);
+    t.hasResourceProperties("AWS::Cognito::UserPoolDomain", { Domain: config.cognitoDomainPrefix });
+    expect(auth.hostedUiBaseUrl).toBe(`https://${config.cognitoDomainPrefix}.auth.us-east-1.amazoncognito.com`);
   });
 });

@@ -7,7 +7,11 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
 import * as path from "node:path";
-import { CONFIG } from "./config";
+import type { InfraConfig } from "./config";
+
+export interface AuthProps {
+  config: InfraConfig;
+}
 
 export class Auth extends Construct {
   readonly userPool: cognito.UserPool;
@@ -15,8 +19,9 @@ export class Auth extends Construct {
   readonly domain: cognito.UserPoolDomain;
   readonly hostedUiBaseUrl: string;
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, props: AuthProps) {
     super(scope, id);
+    const { config } = props;
 
     // IMPORTANT: this parameter's resource properties (name, description, seed value)
     // must never change after first deploy. It is deliberately CDK-seeded so the
@@ -25,8 +30,8 @@ export class Auth extends Construct {
     // `aws ssm put-parameter --overwrite`. Add/remove accounts only through that CLI
     // command (see infra/README.md) — never by editing `stringValue` below.
     const allowedEmails = new ssm.StringParameter(this, "AllowedEmails", {
-      parameterName: CONFIG.allowedEmailsParam,
-      stringValue: CONFIG.seedAllowedEmail,
+      parameterName: config.allowedEmailsParam,
+      stringValue: config.seedAllowedEmail,
       description: "Comma-separated emails allowed to sign in to ebook-share (edit in place)",
     });
 
@@ -35,7 +40,7 @@ export class Auth extends Construct {
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
       logRetention: logs.RetentionDays.ONE_MONTH,
-      environment: { ALLOWED_EMAILS_PARAM: CONFIG.allowedEmailsParam },
+      environment: { ALLOWED_EMAILS_PARAM: config.allowedEmailsParam },
     });
     allowedEmails.grantRead(preSignUp);
 
@@ -48,7 +53,7 @@ export class Auth extends Construct {
       featurePlan: cognito.FeaturePlan.LITE,
     });
 
-    const googleSecret = secretsmanager.Secret.fromSecretNameV2(this, "GoogleSecret", CONFIG.googleOAuthSecretName);
+    const googleSecret = secretsmanager.Secret.fromSecretNameV2(this, "GoogleSecret", config.googleOAuthSecretName);
     const google = new cognito.UserPoolIdentityProviderGoogle(this, "Google", {
       userPool: this.userPool,
       clientId: googleSecret.secretValueFromJson("client_id").unsafeUnwrap(), // resolves to a CFN dynamic reference, not a literal
@@ -61,7 +66,7 @@ export class Auth extends Construct {
       },
     });
 
-    const callbackUrls = [`https://${CONFIG.siteDomain}/`, `${CONFIG.localDevOrigin}/`];
+    const callbackUrls = [`https://${config.siteDomain}/`, `${config.localDevOrigin}/`];
     this.client = this.userPool.addClient("Web", {
       generateSecret: false,
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.GOOGLE],
@@ -81,8 +86,8 @@ export class Auth extends Construct {
     this.client.node.addDependency(google);
 
     this.domain = this.userPool.addDomain("Domain", {
-      cognitoDomain: { domainPrefix: CONFIG.cognitoDomainPrefix },
+      cognitoDomain: { domainPrefix: config.cognitoDomainPrefix },
     });
-    this.hostedUiBaseUrl = `https://${CONFIG.cognitoDomainPrefix}.auth.${CONFIG.region}.amazoncognito.com`;
+    this.hostedUiBaseUrl = `https://${config.cognitoDomainPrefix}.auth.${config.region}.amazoncognito.com`;
   }
 }

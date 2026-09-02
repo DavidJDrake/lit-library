@@ -1,0 +1,7 @@
+library_root: /path/to/your/ebooks
+output_dir: out            # catalog.json + covers/ land here (relative to repo root)
+metadata_dir: metadata     # enrichment cache, overrides.yaml, added.json
+aws_region: us-east-1
+books_bucket: ""           # filled in by scripts/apply-outputs.py after `cdk deploy`
+site_bucket: ""
+cloudfront_distribution_id: ""
