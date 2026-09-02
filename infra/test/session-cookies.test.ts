@@ -45,6 +45,16 @@ describe("signSessionCookies", () => {
     verify.update(policy);
     expect(verify.verify(publicKey, signature)).toBe(true);
   });
+
+  it("also works with a PKCS#8-formatted private key", () => {
+    const pkcs8PrivateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+    const pkcs8Cookies = signSessionCookies({ siteDomain: "lit.example.com", keyPairId: "K2EXAMPLE", privateKeyPem: pkcs8PrivateKeyPem, now });
+    const policy = fromCloudFrontBase64(cookieValue(pkcs8Cookies, "CloudFront-Policy"));
+    const signature = fromCloudFrontBase64(cookieValue(pkcs8Cookies, "CloudFront-Signature"));
+    const verify = createVerify("RSA-SHA1");
+    verify.update(policy);
+    expect(verify.verify(publicKey, signature)).toBe(true);
+  });
 });
 
 describe("expiredCookies", () => {
