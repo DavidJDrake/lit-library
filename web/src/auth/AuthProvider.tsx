@@ -22,16 +22,50 @@ interface Props {
   navigate?: (url: string) => void;
 }
 
+type InitResult = { tokens: Tokens } | { error?: string };
+
 function emailOf(t: Tokens): string | undefined {
   const email = decodeJwtPayload(t.idToken).email;
   return typeof email === "string" ? email : undefined;
 }
 
-export function AuthProvider({ config, children, fetchFn = fetch, navigate = (u) => window.location.assign(u) }: Props) {
+const defaultNavigate = (u: string) => window.location.assign(u);
+
+async function initialize(config: AppConfig, fetchFn: typeof fetch): Promise<InitResult> {
+  const cb = parseCallback(window.location.search);
+  if (cb.error) {
+    window.history.replaceState({}, "", window.location.pathname);
+    return { error: cb.error };
+  }
+  if (cb.code) {
+    const pkce = takePkce();
+    window.history.replaceState({}, "", window.location.pathname);
+    if (!pkce || pkce.state !== cb.state) return { error: "Sign-in could not be verified (state mismatch). Please try again." };
+    try {
+      const t = await exchangeCode(config, cb.code, pkce.verifier, fetchFn);
+      return { tokens: t };
+    } catch (e) {
+      return { error: `Sign-in failed: ${(e as Error).message}` };
+    }
+  }
+  const stored = loadTokens();
+  if (!stored) return { error: undefined };
+  if (!isExpired(stored)) return { tokens: stored };
+  if (!stored.refreshToken) return { error: undefined };
+  try {
+    const t = await refreshTokens(config, stored.refreshToken, fetchFn);
+    return { tokens: t };
+  } catch {
+    return { error: undefined };
+  }
+}
+
+export function AuthProvider({ config, children, fetchFn = fetch, navigate = defaultNavigate }: Props) {
   const [status, setStatus] = useState<AuthState["status"]>("loading");
   const [email, setEmail] = useState<string>();
   const [error, setError] = useState<string>();
   const tokensRef = useRef<Tokens | undefined>(undefined);
+  const initRef = useRef<Promise<InitResult> | null>(null);
 
   const adopt = useCallback((t: Tokens) => {
     tokensRef.current = t;
@@ -50,35 +84,11 @@ export function AuthProvider({ config, children, fetchFn = fetch, navigate = (u)
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const cb = parseCallback(window.location.search);
-      if (cb.error) {
-        window.history.replaceState({}, "", window.location.pathname);
-        return drop(cb.error);
-      }
-      if (cb.code) {
-        const pkce = takePkce();
-        window.history.replaceState({}, "", window.location.pathname);
-        if (!pkce || pkce.state !== cb.state) return drop("Sign-in could not be verified (state mismatch). Please try again.");
-        try {
-          const t = await exchangeCode(config, cb.code, pkce.verifier, fetchFn);
-          if (!cancelled) adopt(t);
-        } catch (e) {
-          if (!cancelled) drop(`Sign-in failed: ${(e as Error).message}`);
-        }
-        return;
-      }
-      const stored = loadTokens();
-      if (!stored) return drop();
-      if (!isExpired(stored)) return adopt(stored);
-      if (!stored.refreshToken) return drop();
-      try {
-        const t = await refreshTokens(config, stored.refreshToken, fetchFn);
-        if (!cancelled) adopt(t);
-      } catch {
-        if (!cancelled) drop();
-      }
-    })();
+    initRef.current ??= initialize(config, fetchFn);
+    void initRef.current.then((r) => {
+      if (cancelled) return;
+      if ("tokens" in r) adopt(r.tokens); else drop(r.error);
+    });
     return () => { cancelled = true; };
   }, [config, fetchFn, adopt, drop]);
 

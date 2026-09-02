@@ -1,3 +1,4 @@
+import React, { StrictMode } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "../config";
@@ -100,5 +101,32 @@ describe("AuthProvider", () => {
     await act(async () => { screen.getByText("signout").click(); });
     expect(window.sessionStorage.getItem("lit.tokens")).toBeNull();
     expect(new URL(navigate.mock.calls[0][0]).pathname).toBe("/logout");
+  });
+
+  it("handles code callback under StrictMode: ends signedIn and calls fetchFn once", async () => {
+    savePkce({ verifier: "ver", state: "st1" });
+    setUrl("?code=abc&state=st1");
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({
+      id_token: jwt({ email: "strict@example.com" }), access_token: "acc", refresh_token: "ref", expires_in: 3600,
+    }) });
+    render(
+      <StrictMode>
+        <AuthProvider config={cfg} fetchFn={fetchFn}><Probe /></AuthProvider>
+      </StrictMode>
+    );
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+    expect(screen.getByTestId("email")).toHaveTextContent("strict@example.com");
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles error callback under StrictMode: preserves the error message", async () => {
+    setUrl("?error=invalid_request&error_description=PreSignUp+failed+with+error+This+library+is+invite-only.+Ask+Jay+to+add+your+email+address.+");
+    render(
+      <StrictMode>
+        <AuthProvider config={cfg}><Probe /></AuthProvider>
+      </StrictMode>
+    );
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedOut"));
+    expect(screen.getByTestId("error")).toHaveTextContent("This library is invite-only. Ask Jay to add your email address");
   });
 });
