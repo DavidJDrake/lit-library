@@ -11,7 +11,7 @@ describe("SignInPage", () => {
     expect(onSignIn).toHaveBeenCalled();
   });
   it("shows the error banner when given", () => {
-    render(<SignInPage onSignIn={() => {}} error="This library is invite-only. Ask Jay to add your email address" />);
-    expect(screen.getByRole("alert")).toHaveTextContent("invite-only");
+    render(<SignInPage onSignIn={() => {}} error="This is a private library. Access is limited to authorized accounts" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("private library");
   });
 });

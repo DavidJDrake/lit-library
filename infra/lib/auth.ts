@@ -21,8 +21,8 @@ export class Auth extends Construct {
     // IMPORTANT: this parameter's resource properties (name, description, seed value)
     // must never change after first deploy. It is deliberately CDK-seeded so the
     // first sign-in has an allowlist to check, but ANY edit here makes CloudFormation
-    // reset `Value` on the next deploy, silently evicting every friend added since via
-    // `aws ssm put-parameter --overwrite`. Add/remove friends only through that CLI
+    // reset `Value` on the next deploy, silently evicting every account added since via
+    // `aws ssm put-parameter --overwrite`. Add/remove accounts only through that CLI
     // command (see infra/README.md) — never by editing `stringValue` below.
     const allowedEmails = new ssm.StringParameter(this, "AllowedEmails", {
       parameterName: CONFIG.allowedEmailsParam,

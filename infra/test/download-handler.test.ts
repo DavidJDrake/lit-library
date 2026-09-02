@@ -10,7 +10,7 @@ const catalog: Catalog = {
 };
 
 function event(body: string | undefined, email?: string | undefined) {
-  const actualEmail = email === undefined && arguments.length < 2 ? "friend@example.com" : email;
+  const actualEmail = email === undefined && arguments.length < 2 ? "user@example.com" : email;
   return {
     body,
     requestContext: { authorizer: { jwt: { claims: actualEmail ? { email: actualEmail } : {}, scopes: [] } } },
@@ -40,7 +40,7 @@ describe("handle", () => {
     expect(json).toEqual({ url: "https://signed.example/x", expiresIn: URL_TTL_SECONDS, filename: "Attacking Network Protocols.epub" });
     expect(d.presign).toHaveBeenCalledWith("books/B/EPUB/anp.epub", "Attacking Network Protocols.epub");
     expect(d.logDownload).toHaveBeenCalledWith({
-      email: "friend@example.com", sk: "2026-09-01T12:00:00.000Z#abc", bookId: "abc",
+      email: "user@example.com", sk: "2026-09-01T12:00:00.000Z#abc", bookId: "abc",
       format: "epub", title: "Attacking Network Protocols", timestamp: "2026-09-01T12:00:00.000Z",
     });
   });

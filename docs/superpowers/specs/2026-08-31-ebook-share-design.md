@@ -1,11 +1,11 @@
-# Ebook Share — Design Spec
+# Lit Library — Design Spec
 
 **Date:** 2026-08-31
 **Status:** Approved design, pending implementation plan
 
 ## Purpose
 
-A low-cost private website where an allowlisted set of friends can log in,
+A low-cost private website where a small set of authorized accounts can log in,
 browse/search/filter Jay's ebook library, and download books directly. The
 library (~1,659 files, ~73 GB, 49 Humble Bundle folders under
 `/home/user/projects/ebooks`) is stored entirely in S3; nothing on the local
@@ -17,7 +17,7 @@ machine needs to run for the site to work.
 |---|---|
 | Storage model | Entire library in S3 with **Intelligent-Tiering** (~$0.30–0.50/mo at steady state; no retrieval fees; instant downloads). The original local-storage/upload-on-request design was dropped — it saved under $1.50/mo and cost a daemon, request queue, and notification flow. |
 | Auth | Cognito user pool with **Google sign-in only** (federated IdP). Facebook deferred; Apple rejected ($99/yr Apple Developer Program + Hide-My-Email complicates allowlisting). |
-| Access control | Pre-signup Lambda trigger rejects Google emails not on a friend allowlist. |
+| Access control | Pre-signup Lambda trigger rejects Google emails not on the allowlist. |
 | Search/browse | **Client-side** over a static `catalog.json` (~1–2 MB for ~1,000 titles). No search API. |
 | Downloads | Single Lambda mints 15-minute presigned S3 GET URLs; API Gateway JWT authorizer validates tokens. |
 | Tracking | Each download logged (user, book, format, timestamp) to DynamoDB (on-demand billing). |
@@ -126,7 +126,7 @@ Pipeline stages:
   copy of the catalog → write `{email, bookId, format, timestamp}` to
   DynamoDB → return presigned GET URL (15-minute expiry) with a
   `Content-Disposition` filename.
-- **Pre-signup Lambda** — Cognito trigger; allowlist of friend emails read
+- **Pre-signup Lambda** — Cognito trigger; allowlist of authorized emails read
   from an SSM parameter (editable without redeploy). Not listed → reject.
 - **DynamoDB `downloads`** — PK `email`, SK `timestamp#bookId`; on-demand
   capacity.
@@ -177,7 +177,7 @@ config file with secrets/parameters kept out of git.
   (+ ~$0.004/mo monitoring). First 30–90 days closer to ~$1.70/mo.
 - Transfer out: free under 100 GB/mo aggregate.
 - Cognito (Lite), Lambda, API Gateway, DynamoDB, CloudFront: free tier /
-  pennies at friend scale.
+  pennies at this scale.
 - **Total: well under $1/month at steady state.** One-time upload of 73 GB:
   free (ingress), PUT requests ~$0.01.
 
@@ -195,6 +195,6 @@ config file with secrets/parameters kept out of git.
   independent).
 - No request queue, notifications, or local daemon.
 - No Facebook/Apple sign-in (can be added later; Cognito supports both).
-- No per-user permissions beyond the allowlist; every friend sees the
+- No per-user permissions beyond the allowlist; every authorized user sees the
   whole library.
 - No in-browser reading; download only.

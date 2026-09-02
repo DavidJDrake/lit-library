@@ -51,8 +51,8 @@ describe("parseCallback", () => {
     expect(parseCallback("?code=abc&state=xyz")).toEqual({ code: "abc", state: "xyz" });
   });
   it("turns Cognito's PreSignUp error into the human message", () => {
-    const s = "?error=invalid_request&error_description=PreSignUp+failed+with+error+This+library+is+invite-only.+Ask+Jay+to+add+your+email+address.+";
-    expect(parseCallback(s)).toEqual({ error: "This library is invite-only. Ask Jay to add your email address" });
+    const s = "?error=invalid_request&error_description=PreSignUp+failed+with+error+This+is+a+private+library.+Access+is+limited+to+authorized+accounts.+";
+    expect(parseCallback(s)).toEqual({ error: "This is a private library. Access is limited to authorized accounts" });
   });
   it("falls back to the error code", () => {
     expect(parseCallback("?error=access_denied")).toEqual({ error: "access_denied" });

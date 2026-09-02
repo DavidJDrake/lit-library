@@ -65,11 +65,11 @@ describe("AuthProvider", () => {
     savePkce({ verifier: "ver", state: "st1" });
     setUrl("?code=abc&state=st1");
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({
-      id_token: jwt({ email: "friend@example.com" }), access_token: "acc", refresh_token: "ref", expires_in: 3600,
+      id_token: jwt({ email: "user@example.com" }), access_token: "acc", refresh_token: "ref", expires_in: 3600,
     }) });
     render(<AuthProvider config={cfg} fetchFn={fetchFn}><Probe /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
-    expect(screen.getByTestId("email")).toHaveTextContent("friend@example.com");
+    expect(screen.getByTestId("email")).toHaveTextContent("user@example.com");
     expect(window.location.search).toBe("");
     expect(JSON.parse(window.sessionStorage.getItem("lit.tokens")!).accessToken).toBe("acc");
   });
@@ -84,11 +84,11 @@ describe("AuthProvider", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it("surfaces the invite-only message from an error callback", async () => {
-    setUrl("?error=invalid_request&error_description=PreSignUp+failed+with+error+This+library+is+invite-only.+Ask+Jay+to+add+your+email+address.+");
+  it("surfaces the private-library message from an error callback", async () => {
+    setUrl("?error=invalid_request&error_description=PreSignUp+failed+with+error+This+is+a+private+library.+Access+is+limited+to+authorized+accounts.+");
     render(<AuthProvider config={cfg}><Probe /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedOut"));
-    expect(screen.getByTestId("error")).toHaveTextContent("This library is invite-only. Ask Jay to add your email address");
+    expect(screen.getByTestId("error")).toHaveTextContent("This is a private library. Access is limited to authorized accounts");
   });
 
   it("restores a stored session and refreshes when expired", async () => {
@@ -128,14 +128,14 @@ describe("AuthProvider", () => {
   });
 
   it("handles error callback under StrictMode: preserves the error message", async () => {
-    setUrl("?error=invalid_request&error_description=PreSignUp+failed+with+error+This+library+is+invite-only.+Ask+Jay+to+add+your+email+address.+");
+    setUrl("?error=invalid_request&error_description=PreSignUp+failed+with+error+This+is+a+private+library.+Access+is+limited+to+authorized+accounts.+");
     render(
       <StrictMode>
         <AuthProvider config={cfg}><Probe /></AuthProvider>
       </StrictMode>
     );
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedOut"));
-    expect(screen.getByTestId("error")).toHaveTextContent("This library is invite-only. Ask Jay to add your email address");
+    expect(screen.getByTestId("error")).toHaveTextContent("This is a private library. Access is limited to authorized accounts");
   });
 
   describe("getIdToken", () => {

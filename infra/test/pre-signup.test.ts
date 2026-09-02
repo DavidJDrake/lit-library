@@ -17,22 +17,22 @@ function event(
 
 describe("decide", () => {
   it("auto-confirms allowlisted users", () => {
-    const out = decide(event("Friend@Example.com"), ["friend@example.com"]);
+    const out = decide(event("User@Example.com"), ["user@example.com"]);
     expect(out.response.autoConfirmUser).toBe(true);
     expect(out.response.autoVerifyEmail).toBe(true);
   });
-  it("rejects everyone else with the invite-only message", () => {
-    expect(() => decide(event("nope@example.com"), ["friend@example.com"]))
-      .toThrow("This library is invite-only. Ask Jay to add your email address.");
-    expect(() => decide(event(undefined), ["friend@example.com"])).toThrow(/invite-only/);
+  it("rejects everyone else with the private-library message", () => {
+    expect(() => decide(event("nope@example.com"), ["user@example.com"]))
+      .toThrow("This is a private library. Access is limited to authorized accounts.");
+    expect(() => decide(event(undefined), ["user@example.com"])).toThrow(/private library/);
   });
   it("rejects native Cognito sign-up even for an allowlisted email", () => {
-    expect(() => decide(event("friend@example.com", "PreSignUp_SignUp"), ["friend@example.com"]))
-      .toThrow(/invite-only/);
+    expect(() => decide(event("user@example.com", "PreSignUp_SignUp"), ["user@example.com"]))
+      .toThrow(/private library/);
   });
   it("rejects admin-created users even for an allowlisted email", () => {
-    expect(() => decide(event("friend@example.com", "PreSignUp_AdminCreateUser"), ["friend@example.com"]))
-      .toThrow(/invite-only/);
+    expect(() => decide(event("user@example.com", "PreSignUp_AdminCreateUser"), ["user@example.com"]))
+      .toThrow(/private library/);
   });
 });
 

@@ -3,7 +3,7 @@ import type { PreSignUpTriggerEvent } from "aws-lambda";
 import { isAllowed, parseAllowlist } from "./allowlist";
 
 const CACHE_TTL_MS = 60_000;
-const REJECT_MESSAGE = "This library is invite-only. Ask Jay to add your email address.";
+const REJECT_MESSAGE = "This is a private library. Access is limited to authorized accounts.";
 
 let cache: { list: string[]; at: number } | undefined;
 let ssm: SSMClient | undefined;
@@ -29,7 +29,7 @@ export function decide(event: PreSignUpTriggerEvent, allowlist: string[]): PreSi
   // Only federated (Google) sign-ins may reach this far. Native Cognito sign-up
   // (PreSignUp_SignUp) and admin-created users (PreSignUp_AdminCreateUser) must be
   // rejected outright, even for an allowlisted email — otherwise anyone who knows a
-  // friend's email can self-register a password account and mint their own tokens,
+  // allowlisted email can self-register a password account and mint their own tokens,
   // bypassing the "Google sign-in only" intent of the allowlist entirely.
   if (event.triggerSource !== "PreSignUp_ExternalProvider") {
     throw new Error(REJECT_MESSAGE);

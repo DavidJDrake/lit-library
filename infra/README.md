@@ -1,7 +1,7 @@
 # ebook-share infra
 
 CDK app (TypeScript) for the ebook-share stack: S3 storage, CloudFront site,
-Cognito auth (Google sign-in, invite-only), and an HTTP API for signed
+Cognito auth (Google sign-in, restricted to an allowlist), and an HTTP API for signed
 download URLs.
 
 ## Deploy
@@ -30,7 +30,7 @@ fields:
 }
 ```
 
-## Inviting a friend
+## Authorizing an account
 
 Access is controlled by a comma-separated allowlist of emails in an SSM
 parameter (`/ebook-share/allowed-emails`). To add someone:
@@ -43,7 +43,7 @@ aws ssm put-parameter --region us-east-1 \
 ```
 
 This takes effect within about 60 seconds (the pre-signup Lambda caches the
-parameter for that long) and requires no redeploy. A new friend still needs
+parameter for that long) and requires no redeploy. A newly authorized account still needs
 to sign in with Google once to create their Cognito user.
 
 **SSM-parameter-freeze caveat:** the `AllowedEmails` parameter in
@@ -51,10 +51,10 @@ to sign in with Google once to create their Cognito user.
 before anyone has run the CLI command above. After that first deploy, do
 **not** change that resource's properties (name, description, or seed
 value) in code — any change makes CloudFormation reset `Value` on the next
-deploy, silently evicting every friend added via `put-parameter`. Manage
+deploy, silently evicting every account added via `put-parameter`. Manage
 the allowlist only through the AWS CLI, never by editing the CDK source.
 
-## De-inviting someone
+## Removing an account
 
 Removing an email from the allowlist parameter only blocks *new* sign-ups —
 the pre-signup trigger fires once, at account creation, so an existing
