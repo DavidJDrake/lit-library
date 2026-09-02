@@ -7,6 +7,7 @@ import * as targets from "aws-cdk-lib/aws-route53-targets";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { Construct } from "constructs";
 import type { InfraConfig } from "./config";
+import { GATE_GUARD_CODE } from "./gate-guard";
 
 export interface SiteProps {
   config: InfraConfig;
@@ -60,6 +61,17 @@ export class Site extends Construct {
       originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
     };
 
+    // CloudFront matches path patterns against the raw URI while S3 decodes
+    // it, so an encoded/mangled path (e.g. /catalog%2Ejson, //catalog.json)
+    // can dodge the gated behaviors below yet still resolve to a gated
+    // object through this default behavior. Block those on the default
+    // behavior only — the gated behaviors below match legitimate requests
+    // first and must stay reachable without this function.
+    const gateGuard = new cloudfront.Function(this, "GateGuard", {
+      code: cloudfront.FunctionCode.fromInline(GATE_GUARD_CODE),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+
     this.distribution = new cloudfront.Distribution(this, "Distribution", {
       defaultRootObject: "index.html",
       domainNames: [config.siteDomain],
@@ -69,6 +81,7 @@ export class Site extends Construct {
         origin: siteOrigin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        functionAssociations: [{ function: gateGuard, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
       },
       additionalBehaviors: {
         "/catalog.json": gated,

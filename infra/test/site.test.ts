@@ -107,4 +107,26 @@ describe("Site", () => {
     const { site } = synth();
     expect(site.url).toBe(`https://${config.siteDomain}`);
   });
+
+  it("attaches the gate-guard CloudFront Function to the default behavior only", () => {
+    const { t } = synth();
+    t.resourceCountIs("AWS::CloudFront::Function", 1);
+    const dist = Object.values(t.findResources("AWS::CloudFront::Distribution"))[0] as {
+      Properties: {
+        DistributionConfig: {
+          DefaultCacheBehavior: { FunctionAssociations?: { EventType: string }[] };
+          CacheBehaviors?: { PathPattern: string; FunctionAssociations?: unknown[] }[];
+        };
+      };
+    };
+    const defaultAssociations = dist.Properties.DistributionConfig.DefaultCacheBehavior.FunctionAssociations;
+    expect(defaultAssociations).toHaveLength(1);
+    expect(defaultAssociations?.[0].EventType).toBe("viewer-request");
+
+    for (const behavior of dist.Properties.DistributionConfig.CacheBehaviors ?? []) {
+      if (behavior.PathPattern === "/catalog.json" || behavior.PathPattern === "/covers/*") {
+        expect(behavior.FunctionAssociations).toBeUndefined();
+      }
+    }
+  });
 });
