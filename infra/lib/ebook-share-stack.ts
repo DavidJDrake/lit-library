@@ -25,6 +25,7 @@ export class EbookShareStack extends Stack {
       client: auth.client,
       booksBucket: storage.booksBucket,
       siteBucket: storage.siteBucket,
+      keyPairId: signing.publicKey.publicKeyId,
     });
     // apiEndpoint is "https://<id>.execute-api.<region>.amazonaws.com"; CloudFront needs the host only.
     const apiDomainName = Fn.select(2, Fn.split("/", api.httpApi.apiEndpoint));
