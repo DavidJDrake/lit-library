@@ -32,5 +32,11 @@ export function loadConfig(file: string = process.env.EBOOK_SHARE_CONFIG ?? LOCA
   const raw = JSON.parse(readFileSync(file, "utf8")) as Partial<InfraConfig>;
   const missing = KEYS.filter((k) => !raw[k]);
   if (missing.length) throw new Error(`Missing config keys: ${missing.join(", ")}`);
+  if (path.resolve(file) !== path.resolve(EXAMPLE_CONFIG_PATH)) {
+    const example = JSON.parse(readFileSync(EXAMPLE_CONFIG_PATH, "utf8")) as Partial<InfraConfig>;
+    if (raw.cloudfrontPublicKeyPem === example.cloudfrontPublicKeyPem) {
+      throw new Error("config.local.json still contains the EXAMPLE public key — run scripts/make-signing-key.sh first");
+    }
+  }
   return raw as InfraConfig;
 }

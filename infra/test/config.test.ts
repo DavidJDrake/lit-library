@@ -19,4 +19,16 @@ describe("loadConfig", () => {
   it("explains a missing file", () => {
     expect(() => loadConfig("/nonexistent/config.local.json")).toThrow(/copy config.example.json to config.local.json/);
   });
+  it("refuses a non-example config that still has the example public key", () => {
+    const example = loadConfig(EXAMPLE_CONFIG_PATH);
+    const dir = mkdtempSync(path.join(tmpdir(), "cfg-"));
+    const file = path.join(dir, "config.local.json");
+    writeFileSync(file, JSON.stringify(example));
+    expect(() => loadConfig(file)).toThrow(
+      /config.local.json still contains the EXAMPLE public key — run scripts\/make-signing-key.sh first/,
+    );
+  });
+  it("still loads the example config from its own path", () => {
+    expect(() => loadConfig(EXAMPLE_CONFIG_PATH)).not.toThrow();
+  });
 });
