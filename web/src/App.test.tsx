@@ -15,10 +15,10 @@ describe("App", () => {
   it("renders the privacy and terms pages without signing in", async () => {
     window.history.replaceState({}, "", "/privacy");
     const { unmount } = render(<AuthProvider config={cfg}><App /></AuthProvider>);
-    expect(screen.getByRole("heading", { name: "Privacy" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Privacy" })).toBeInTheDocument());
     unmount();
     window.history.replaceState({}, "", "/terms");
     render(<AuthProvider config={cfg}><App /></AuthProvider>);
-    expect(screen.getByRole("heading", { name: "Terms" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Terms" })).toBeInTheDocument());
   });
 });
