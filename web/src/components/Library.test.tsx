@@ -15,6 +15,7 @@ const catalog: Catalog = {
 function fetchFor(catalogBody: object, downloadBody: object = { url: "https://s3/x", filename: "f.epub", expiresIn: 900 }) {
   return vi.fn(async (url: string) => ({
     ok: true, status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
     json: async () => (String(url).endsWith("/catalog.json") ? catalogBody : downloadBody),
   })) as unknown as typeof fetch;
 }
@@ -60,7 +61,7 @@ describe("Library", () => {
 
   it("shows a toast when the download fails", async () => {
     const fetchFn = vi.fn(async (url: string) => String(url).endsWith("/catalog.json")
-      ? { ok: true, status: 200, json: async () => catalog }
+      ? { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog }
       : { ok: false, status: 404, json: async () => ({ error: "Unknown book or format" }) }) as unknown as typeof fetch;
     render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} navigate={() => {}} />);
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());

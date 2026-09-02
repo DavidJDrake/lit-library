@@ -21,4 +21,19 @@ describe("FacetGroup", () => {
     await userEvent.click(box);
     expect(onToggle).toHaveBeenCalledWith("epub");
   });
+
+  it("caps expanded options at 50 and narrows them with a type-to-filter box", async () => {
+    const manyOptions = Array.from({ length: 60 }, (_, i) => ({ value: `Author ${i}`, count: 60 - i }));
+    render(<FacetGroup title="Author" options={manyOptions} selected={new Set()} onToggle={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: /show all \(60\)/i }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(50);
+    const filterInput = screen.getByRole("searchbox", { name: /filter author/i });
+    await userEvent.type(filterInput, "Author 5");
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes.length).toBeGreaterThan(0);
+    for (const cb of checkboxes) {
+      const label = cb.closest("label")!;
+      expect(label.textContent!.toLowerCase()).toContain("author 5");
+    }
+  });
 });

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { requestDownload, startDownload } from "../catalog/download";
 import { loadCatalog } from "../catalog/load";
-import { applyFilters, facetCounts, searchBooks, sortBooks } from "../catalog/search";
+import { applyFilters, buildSearchIndex, facetCounts, searchBooks, sortBooks } from "../catalog/search";
 import { emptyFilters, FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
@@ -34,13 +34,24 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
       .catch((e: Error) => setLoadError(`Could not load the catalog (${e.message}). Try reloading the page.`));
   }, [fetchFn]);
 
+  const deferredQuery = useDeferredValue(query);
+
   const facets = useMemo(
-    () => Object.fromEntries(FACET_KEYS.map((k) => [k, books ? facetCounts(books, k) : []])) as Record<FacetKey, Array<{ value: string; count: number }>>,
-    [books],
+    () => Object.fromEntries(
+      FACET_KEYS.map((k) => [
+        k,
+        books ? facetCounts(applyFilters(books, { ...filters, [k]: new Set<string>() }), k) : [],
+      ]),
+    ) as Record<FacetKey, Array<{ value: string; count: number }>>,
+    [books, filters],
   );
   const filtered = useMemo(() => (books ? applyFilters(books, filters) : []), [books, filters]);
-  const searched = useMemo(() => searchBooks(filtered, query), [filtered, query]);
-  const visible = useMemo(() => (query.trim() ? searched : sortBooks(searched, sort)), [searched, query, sort]);
+  const index = useMemo(() => buildSearchIndex(filtered), [filtered]);
+  const searched = useMemo(() => searchBooks(filtered, deferredQuery, index), [filtered, deferredQuery, index]);
+  const visible = useMemo(
+    () => (deferredQuery.trim() ? searched : sortBooks(searched, sort)),
+    [searched, deferredQuery, sort],
+  );
 
   const toggle = useCallback((key: FacetKey, value: string) => {
     setFilters((f) => {
@@ -60,6 +71,8 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
     }
   }, [apiUrl, getIdToken, fetchFn, navigate]);
 
+  const dismissToast = useCallback(() => setToast(undefined), []);
+
   if (loadError) return <div className="error" role="alert" style={{ margin: "2rem" }}>{loadError}</div>;
   if (!books) return <p className="empty">Loading the library…</p>;
 
@@ -75,7 +88,9 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
         <div className="toolbar">
           <input type="search" placeholder="Search titles, authors, descriptions…" value={query}
             onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">
+          <select value={query.trim() ? "relevance" : sort} onChange={(e) => setSort(e.target.value as SortKey)}
+            aria-label="Sort by" disabled={query.trim().length > 0}>
+            <option value="relevance">Relevance</option>
             <option value="title">Title</option>
             <option value="author">Author</option>
             <option value="year">Year (newest)</option>
@@ -90,7 +105,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
         )}
       </section>
       <BookDetail book={selected} onClose={() => setSelected(null)} onDownload={download} />
-      <Toast message={toast} onDismiss={() => setToast(undefined)} />
+      <Toast message={toast} onDismiss={dismissToast} />
     </div>
   );
 }

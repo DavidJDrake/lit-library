@@ -8,13 +8,26 @@ interface Props {
   initialLimit?: number;
 }
 
+const EXPANDED_CAP = 50;
+
 export default function FacetGroup({ title, options, selected, onToggle, initialLimit = 8 }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [filterText, setFilterText] = useState("");
   if (options.length === 0) return null;
-  const shown = expanded ? options : options.slice(0, initialLimit);
+
+  const needsFilter = expanded && options.length > EXPANDED_CAP;
+  const expandedOptions = needsFilter
+    ? options.filter((o) => o.value.toLowerCase().includes(filterText.trim().toLowerCase())).slice(0, EXPANDED_CAP)
+    : options;
+  const shown = expanded ? expandedOptions : options.slice(0, initialLimit);
+
   return (
     <section className="facet">
       <h3>{title}</h3>
+      {needsFilter && (
+        <input type="search" placeholder="Filter…" value={filterText}
+          onChange={(e) => setFilterText(e.target.value)} aria-label={`Filter ${title}`} />
+      )}
       {shown.map((o) => (
         <label key={o.value}>
           <span>
