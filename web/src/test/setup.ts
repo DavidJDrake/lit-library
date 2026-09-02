@@ -1,3 +1,8 @@
+(import.meta.env as Record<string, string>).VITE_COGNITO_DOMAIN ??= "https://test.auth.us-east-1.amazoncognito.com";
+(import.meta.env as Record<string, string>).VITE_CLIENT_ID ??= "test-client";
+(import.meta.env as Record<string, string>).VITE_API_URL ??= "https://api.test";
+(import.meta.env as Record<string, string>).VITE_REDIRECT_URI ??= "http://localhost:5173/";
+
 import "@testing-library/jest-dom/vitest";
 import { afterEach } from "vitest";
 
