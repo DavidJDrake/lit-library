@@ -18,19 +18,23 @@ export function applyFilters(books: Book[], filters: Filters): Book[] {
   return books.filter((b) => active.every((k) => facetValues(b, k).some((v) => filters[k].has(v))));
 }
 
-export function searchBooks(books: Book[], query: string): Book[] {
+export function buildSearchIndex(books: Book[]): Fuse<Book> {
+  return new Fuse(books, {
+    keys: [{ name: "title", weight: 2 }, { name: "authors", weight: 1 }, { name: "description", weight: 1 }],
+    threshold: 0.35,
+    ignoreLocation: true,
+    minMatchCharLength: 2,
+  });
+}
+
+export function searchBooks(books: Book[], query: string, index?: Fuse<Book>): Book[] {
   const q = query.trim();
   if (!q) return books;
 
   const terms = q.split(/\s+/).filter((t) => t.length >= 2);
   if (terms.length === 0) return books;
 
-  const fuse = new Fuse(books, {
-    keys: [{ name: "title", weight: 2 }, { name: "authors", weight: 1 }, { name: "description", weight: 1 }],
-    threshold: 0.35,
-    ignoreLocation: true,
-    minMatchCharLength: 2,
-  });
+  const fuse = index ?? buildSearchIndex(books);
 
   const scoreMap = new Map<string, number>();
   for (const term of terms) {

@@ -21,8 +21,19 @@ export async function requestDownload(
   return (await res.json()) as DownloadTicket;
 }
 
-// The presigned URL carries Content-Disposition: attachment, so navigating to it
-// downloads the file without leaving the page.
-export function startDownload(url: string, navigate: (u: string) => void = (u) => window.location.assign(u)): void {
+const IFRAME_LIFETIME_MS = 60_000;
+
+// The presigned URL carries Content-Disposition: attachment. Rather than navigating
+// the top window (which would leave the page for some browsers/formats), load it in
+// a hidden iframe so the download starts without disrupting the current view.
+function iframeDownload(url: string): void {
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  setTimeout(() => iframe.remove(), IFRAME_LIFETIME_MS);
+}
+
+export function startDownload(url: string, navigate: (u: string) => void = iframeDownload): void {
   navigate(url);
 }

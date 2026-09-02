@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFilters, facetCounts, formatSize, searchBooks, sortBooks } from "./search";
+import { applyFilters, buildSearchIndex, facetCounts, formatSize, searchBooks, sortBooks } from "./search";
 import { emptyFilters, type Book } from "./types";
 
 function book(over: Partial<Book> & { id: string; title: string }): Book {
@@ -53,6 +53,11 @@ describe("searchBooks", () => {
   });
   it("drops non-matches", () => {
     expect(searchBooks(books, "quantum chromodynamics")).toHaveLength(0);
+  });
+  it("returns the same results with a prebuilt index as without one", () => {
+    const index = buildSearchIndex(books);
+    expect(searchBooks(books, "netwrok protocol", index)).toEqual(searchBooks(books, "netwrok protocol"));
+    expect(searchBooks(books, "cook glen", index)).toEqual(searchBooks(books, "cook glen"));
   });
 });
 

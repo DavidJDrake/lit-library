@@ -23,9 +23,25 @@ describe("requestDownload", () => {
 });
 
 describe("startDownload", () => {
-  it("navigates the browser to the presigned url", () => {
+  it("navigates via the injected navigate function when provided", () => {
     const navigate = vi.fn();
     startDownload("https://s3/x?sig=1", navigate);
     expect(navigate).toHaveBeenCalledWith("https://s3/x?sig=1");
+  });
+
+  it("defaults to appending a hidden iframe pointed at the url", () => {
+    vi.useFakeTimers();
+    try {
+      startDownload("https://s3/x?sig=1");
+      const iframe = document.querySelector("iframe[src='https://s3/x?sig=1']");
+      expect(iframe).not.toBeNull();
+      expect((iframe as HTMLIFrameElement).style.display).toBe("none");
+      expect(document.body.contains(iframe)).toBe(true);
+
+      vi.advanceTimersByTime(60_000);
+      expect(document.body.contains(iframe)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
