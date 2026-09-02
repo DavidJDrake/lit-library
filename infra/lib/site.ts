@@ -48,7 +48,7 @@ export class Site extends Construct {
     const apiCachePolicy = new cloudfront.CachePolicy(this, "ApiCachePolicy", {
       minTtl: Duration.seconds(0),
       defaultTtl: Duration.seconds(0),
-      maxTtl: Duration.seconds(0),
+      maxTtl: Duration.seconds(1), // CloudFront rejects a header allowlist when max TTL is 0 ("caching disabled"); 1 s with default 0 is effectively uncached
       headerBehavior: cloudfront.CacheHeaderBehavior.allowList("Authorization"),
       queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
       cookieBehavior: cloudfront.CacheCookieBehavior.none(),

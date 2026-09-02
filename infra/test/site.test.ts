@@ -69,7 +69,7 @@ describe("Site", () => {
     const { t } = synth();
     t.hasResourceProperties("AWS::CloudFront::CachePolicy", {
       CachePolicyConfig: Match.objectLike({
-        MinTTL: 0, DefaultTTL: 0, MaxTTL: 0,
+        MinTTL: 0, DefaultTTL: 0, MaxTTL: 1,
         ParametersInCacheKeyAndForwardedToOrigin: Match.objectLike({
           HeadersConfig: { HeaderBehavior: "whitelist", Headers: ["Authorization"] },
           QueryStringsConfig: { QueryStringBehavior: "all" },
