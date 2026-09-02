@@ -6,6 +6,8 @@ import { defineConfig, loadEnv } from "vite";
 const REQUIRED_ENV_KEYS = ["VITE_COGNITO_DOMAIN", "VITE_CLIENT_ID", "VITE_API_URL", "VITE_REDIRECT_URI"] as const;
 
 export default defineConfig(({ command, mode }) => {
+  const proxyTarget = loadEnv(mode, process.cwd(), "VITE_").VITE_DEV_PROXY_TARGET;
+
   if (command === "build") {
     const env = loadEnv(mode, process.cwd(), "VITE_");
     const missing = REQUIRED_ENV_KEYS.filter((k) => !env[k]);
@@ -17,10 +19,13 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: 5173,
       strictPort: true,
-      proxy: {
-        "/catalog.json": { target: "https://lit.example.com", changeOrigin: true },
-        "/covers": { target: "https://lit.example.com", changeOrigin: true },
-      },
+      proxy: proxyTarget
+        ? {
+            "/api": { target: proxyTarget, changeOrigin: true },
+            "/catalog.json": { target: proxyTarget, changeOrigin: true },
+            "/covers": { target: proxyTarget, changeOrigin: true },
+          }
+        : undefined,
     },
     test: {
       environment: "jsdom",

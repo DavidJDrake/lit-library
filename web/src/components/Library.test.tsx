@@ -13,11 +13,14 @@ const catalog: Catalog = {
 };
 
 function fetchFor(catalogBody: object, downloadBody: object = { url: "https://s3/x", filename: "f.epub", expiresIn: 900 }) {
-  return vi.fn(async (url: string) => ({
-    ok: true, status: 200,
-    headers: new Headers({ "content-type": "application/json" }),
-    json: async () => (String(url).endsWith("/catalog.json") ? catalogBody : downloadBody),
-  })) as unknown as typeof fetch;
+  return vi.fn(async (url: string) => {
+    if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+    return {
+      ok: true, status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => (String(url).endsWith("/catalog.json") ? catalogBody : downloadBody),
+    };
+  }) as unknown as typeof fetch;
 }
 
 beforeAll(() => {
@@ -60,9 +63,12 @@ describe("Library", () => {
   });
 
   it("shows a toast when the download fails", async () => {
-    const fetchFn = vi.fn(async (url: string) => String(url).endsWith("/catalog.json")
-      ? { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog }
-      : { ok: false, status: 404, json: async () => ({ error: "Unknown book or format" }) }) as unknown as typeof fetch;
+    const fetchFn = vi.fn(async (url: string) => {
+      if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      return String(url).endsWith("/catalog.json")
+        ? { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog }
+        : { ok: false, status: 404, json: async () => ({ error: "Unknown book or format" }) };
+    }) as unknown as typeof fetch;
     render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} navigate={() => {}} />);
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /The Black Company/ }));
@@ -71,8 +77,37 @@ describe("Library", () => {
   });
 
   it("shows an error when the catalog cannot load", async () => {
-    const fetchFn = vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) })) as unknown as typeof fetch;
+    const fetchFn = vi.fn(async (url: string) => {
+      if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      return { ok: false, status: 503, json: async () => ({}) };
+    }) as unknown as typeof fetch;
     render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/catalog/i));
+  });
+
+  it("establishes a session before loading the catalog", async () => {
+    const calls: string[] = [];
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
+    }) as unknown as typeof fetch;
+    render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(calls.indexOf("GET /api/session")).toBeLessThan(calls.indexOf("GET /catalog.json"));
+  });
+
+  it("re-establishes the session and retries once when the catalog fetch is rejected", async () => {
+    let catalogCalls = 0;
+    const fetchFn = vi.fn(async (url: string) => {
+      if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      catalogCalls += 1;
+      if (catalogCalls === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "text/html" }), json: async () => ({}) };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
+    }) as unknown as typeof fetch;
+    render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(catalogCalls).toBe(2);
+    expect((fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).endsWith("/session"))).toHaveLength(2);
   });
 });

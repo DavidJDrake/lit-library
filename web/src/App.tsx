@@ -1,11 +1,24 @@
+import { useCallback } from "react";
 import { useAuth } from "./auth/AuthProvider";
+import { endSession } from "./catalog/session";
 import Header from "./components/Header";
 import Library from "./components/Library";
 import SignInPage from "./components/SignInPage";
 import StaticPage from "./components/StaticPage";
 
-export default function App() {
+interface Props { fetchFn?: typeof fetch }
+
+export default function App({ fetchFn = fetch }: Props) {
   const auth = useAuth();
+  const signOut = useCallback(async () => {
+    try {
+      await endSession(auth.apiUrl, await auth.getIdToken(), fetchFn);
+    } catch {
+      // no valid token — nothing to end
+    }
+    auth.signOut();
+  }, [auth, fetchFn]);
+
   const path = window.location.pathname.replace(/\/+$/, "");
   if (path === "/privacy") return <StaticPage kind="privacy" />;
   if (path === "/terms") return <StaticPage kind="terms" />;
@@ -14,8 +27,8 @@ export default function App() {
   if (auth.status === "signedOut") return <SignInPage onSignIn={() => void auth.signIn()} error={auth.error} />;
   return (
     <>
-      <Header email={auth.email} onSignOut={auth.signOut} />
-      <Library apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} />
+      <Header email={auth.email} onSignOut={() => void signOut()} />
+      <Library apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} />
     </>
   );
 }

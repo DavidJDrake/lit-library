@@ -11,13 +11,16 @@ ROOT = Path(__file__).resolve().parent.parent
 LOCAL_REDIRECT = "http://localhost:5173/"
 
 
-def render(outputs: dict, redirect_uri: str) -> str:
-    return (
-        f"VITE_COGNITO_DOMAIN={outputs['CognitoDomain']}\n"
-        f"VITE_CLIENT_ID={outputs['UserPoolClientId']}\n"
-        f"VITE_API_URL={outputs['ApiUrl']}\n"
-        f"VITE_REDIRECT_URI={redirect_uri}\n"
-    )
+def render(outputs: dict, redirect_uri: str, dev_proxy_target: str | None = None) -> str:
+    lines = [
+        f"VITE_COGNITO_DOMAIN={outputs['CognitoDomain']}",
+        f"VITE_CLIENT_ID={outputs['UserPoolClientId']}",
+        "VITE_API_URL=/api",
+        f"VITE_REDIRECT_URI={redirect_uri}",
+    ]
+    if dev_proxy_target:
+        lines.append(f"VITE_DEV_PROXY_TARGET={dev_proxy_target}")
+    return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str]) -> int:
@@ -25,7 +28,7 @@ def main(argv: list[str]) -> int:
     web_dir = Path(argv[2]) if len(argv) > 2 else ROOT / "web"
     outputs = next(iter(json.loads(outputs_path.read_text()).values()))
     site_redirect = outputs["SiteUrl"].rstrip("/") + "/"
-    (web_dir / ".env.development.local").write_text(render(outputs, LOCAL_REDIRECT))
+    (web_dir / ".env.development.local").write_text(render(outputs, LOCAL_REDIRECT, outputs["SiteUrl"].rstrip("/")))
     (web_dir / ".env.production.local").write_text(render(outputs, site_redirect))
     print(f"wrote {web_dir}/.env.development.local and .env.production.local")
     return 0

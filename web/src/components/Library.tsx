@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { requestDownload, startDownload } from "../catalog/download";
 import { loadCatalog } from "../catalog/load";
+import { establishSession } from "../catalog/session";
 import { applyFilters, buildSearchIndex, facetCounts, searchBooks, sortBooks } from "../catalog/search";
 import { emptyFilters, FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
 import BookCard from "./BookCard";
@@ -29,10 +30,25 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
   const [toast, setToast] = useState<string>();
 
   useEffect(() => {
-    loadCatalog(fetchFn)
-      .then((c) => setBooks(c.books))
-      .catch((e: Error) => setLoadError(`Could not load the catalog (${e.message}). Try reloading the page.`));
-  }, [fetchFn]);
+    let cancelled = false;
+    (async () => {
+      try {
+        await establishSession(apiUrl, await getIdToken(), fetchFn);
+        let catalog;
+        try {
+          catalog = await loadCatalog(fetchFn);
+        } catch {
+          // A stale/missing cookie makes CloudFront serve index.html instead; refresh once and retry.
+          await establishSession(apiUrl, await getIdToken(), fetchFn);
+          catalog = await loadCatalog(fetchFn);
+        }
+        if (!cancelled) setBooks(catalog.books);
+      } catch (e) {
+        if (!cancelled) setLoadError(`Could not load the catalog (${(e as Error).message}). Try reloading the page.`);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [apiUrl, getIdToken, fetchFn]);
 
   const deferredQuery = useDeferredValue(query);
 
