@@ -6,10 +6,10 @@ import { defineConfig, loadEnv } from "vite";
 const REQUIRED_ENV_KEYS = ["VITE_COGNITO_DOMAIN", "VITE_CLIENT_ID", "VITE_API_URL", "VITE_REDIRECT_URI"] as const;
 
 export default defineConfig(({ command, mode }) => {
-  const proxyTarget = loadEnv(mode, process.cwd(), "VITE_").VITE_DEV_PROXY_TARGET;
+  const env = loadEnv(mode, process.cwd(), "VITE_");
+  const proxyTarget = env.VITE_DEV_PROXY_TARGET;
 
   if (command === "build") {
-    const env = loadEnv(mode, process.cwd(), "VITE_");
     const missing = REQUIRED_ENV_KEYS.filter((k) => !env[k]);
     if (missing.length) throw new Error(`Missing ${missing.join(", ")}`);
   }
