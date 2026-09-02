@@ -27,9 +27,12 @@ describe("session handler", () => {
     const r = (await handle(event("POST"), { loadPrivateKey: vi.fn(), now: () => new Date() }, env)) as Result;
     expect(r.statusCode).toBe(405);
   });
-  it("502s when the key cannot be loaded", async () => {
+  it("502s when the key cannot be loaded, logging only the error name/message (never key material)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const r = (await handle(event("GET"), { loadPrivateKey: async () => { throw new Error("nope"); }, now: () => new Date() }, env)) as Result;
     expect(r.statusCode).toBe(502);
     expect(JSON.parse(r.body!)).toEqual({ error: "Session unavailable" });
+    expect(errorSpy).toHaveBeenCalledWith("signing key load failed:", "Error", "nope");
+    errorSpy.mockRestore();
   });
 });

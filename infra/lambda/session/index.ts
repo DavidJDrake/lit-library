@@ -15,7 +15,9 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
   let privateKeyPem: string;
   try {
     privateKeyPem = await deps.loadPrivateKey();
-  } catch {
+  } catch (e) {
+    // Never log the key/secret value itself — only the error's name and message.
+    console.error("signing key load failed:", (e as Error).name, (e as Error).message);
     return { statusCode: 502, headers: { "content-type": "application/json" }, body: JSON.stringify({ error: "Session unavailable" }) };
   }
   return {
