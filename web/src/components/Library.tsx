@@ -1,0 +1,96 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { requestDownload, startDownload } from "../catalog/download";
+import { loadCatalog } from "../catalog/load";
+import { applyFilters, facetCounts, searchBooks, sortBooks } from "../catalog/search";
+import { emptyFilters, FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
+import BookCard from "./BookCard";
+import BookDetail from "./BookDetail";
+import FacetGroup from "./FacetGroup";
+import Toast from "./Toast";
+
+interface Props {
+  apiUrl: string;
+  getIdToken: () => Promise<string>;
+  fetchFn?: typeof fetch;
+  navigate?: (url: string) => void;
+}
+
+const FACET_TITLES: Record<FacetKey, string> = {
+  category: "Category", format: "Format", publisher: "Publisher", bundle: "Bundle", author: "Author", year: "Year",
+};
+
+export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate }: Props) {
+  const [books, setBooks] = useState<Book[] | null>(null);
+  const [loadError, setLoadError] = useState<string>();
+  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [sort, setSort] = useState<SortKey>("title");
+  const [selected, setSelected] = useState<Book | null>(null);
+  const [toast, setToast] = useState<string>();
+
+  useEffect(() => {
+    loadCatalog(fetchFn)
+      .then((c) => setBooks(c.books))
+      .catch((e: Error) => setLoadError(`Could not load the catalog (${e.message}). Try reloading the page.`));
+  }, [fetchFn]);
+
+  const facets = useMemo(
+    () => Object.fromEntries(FACET_KEYS.map((k) => [k, books ? facetCounts(books, k) : []])) as Record<FacetKey, Array<{ value: string; count: number }>>,
+    [books],
+  );
+  const filtered = useMemo(() => (books ? applyFilters(books, filters) : []), [books, filters]);
+  const searched = useMemo(() => searchBooks(filtered, query), [filtered, query]);
+  const visible = useMemo(() => (query.trim() ? searched : sortBooks(searched, sort)), [searched, query, sort]);
+
+  const toggle = useCallback((key: FacetKey, value: string) => {
+    setFilters((f) => {
+      const next = new Set(f[key]);
+      next.has(value) ? next.delete(value) : next.add(value);
+      return { ...f, [key]: next };
+    });
+  }, []);
+
+  const download = useCallback(async (book: Book, format: string) => {
+    try {
+      const token = await getIdToken();
+      const ticket = await requestDownload(apiUrl, token, book.id, format, fetchFn);
+      startDownload(ticket.url, navigate);
+    } catch (e) {
+      setToast((e as Error).message);
+    }
+  }, [apiUrl, getIdToken, fetchFn, navigate]);
+
+  if (loadError) return <div className="error" role="alert" style={{ margin: "2rem" }}>{loadError}</div>;
+  if (!books) return <p className="empty">Loading the library…</p>;
+
+  return (
+    <div className="library">
+      <aside className="sidebar">
+        {FACET_KEYS.map((key) => (
+          <FacetGroup key={key} title={FACET_TITLES[key]} options={facets[key]}
+            selected={filters[key]} onToggle={(v) => toggle(key, v)} />
+        ))}
+      </aside>
+      <section>
+        <div className="toolbar">
+          <input type="search" placeholder="Search titles, authors, descriptions…" value={query}
+            onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
+          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">
+            <option value="title">Title</option>
+            <option value="author">Author</option>
+            <option value="year">Year (newest)</option>
+            <option value="added">Recently added</option>
+          </select>
+          <span className="count">{visible.length} {visible.length === 1 ? "book" : "books"}</span>
+        </div>
+        {visible.length === 0 ? <p className="empty">No books match.</p> : (
+          <div className="grid">
+            {visible.map((b) => <BookCard key={b.id} book={b} onOpen={setSelected} />)}
+          </div>
+        )}
+      </section>
+      <BookDetail book={selected} onClose={() => setSelected(null)} onDownload={download} />
+      <Toast message={toast} onDismiss={() => setToast(undefined)} />
+    </div>
+  );
+}
