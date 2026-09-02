@@ -10,3 +10,5 @@ cdk.out/
 dist/
 infra/cdk.out/
 infra/outputs.json
+web/.env*.local
+web/dist/
