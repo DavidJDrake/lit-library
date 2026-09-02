@@ -1,4 +1,4 @@
-import React, { StrictMode } from "react";
+import React, { StrictMode, useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "../config";
@@ -17,13 +17,21 @@ function jwt(payload: object): string {
 
 function Probe() {
   const a = useAuth();
+  const [tokenResult, setTokenResult] = useState("");
   return (
     <div>
       <span data-testid="status">{a.status}</span>
       <span data-testid="email">{a.email ?? ""}</span>
       <span data-testid="error">{a.error ?? ""}</span>
+      <span data-testid="token-result">{tokenResult}</span>
       <button onClick={() => void a.signIn()}>signin</button>
       <button onClick={() => a.signOut()}>signout</button>
+      <button onClick={() => {
+        a.getIdToken().then(
+          (t) => setTokenResult(t),
+          (e: Error) => setTokenResult(`ERROR: ${e.message}`),
+        );
+      }}>getToken</button>
     </div>
   );
 }
@@ -128,5 +136,68 @@ describe("AuthProvider", () => {
     );
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedOut"));
     expect(screen.getByTestId("error")).toHaveTextContent("This library is invite-only. Ask Jay to add your email address");
+  });
+
+  describe("getIdToken", () => {
+    it("returns the current id token without refreshing when it is still valid", async () => {
+      const idToken = jwt({ email: "x@example.com" });
+      saveTokens({ idToken, accessToken: "a", expiresAt: Date.now() + 3_600_000 });
+      const fetchFn = vi.fn();
+      render(<AuthProvider config={cfg} fetchFn={fetchFn}><Probe /></AuthProvider>);
+      await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+      await act(async () => { screen.getByText("getToken").click(); });
+      await waitFor(() => expect(screen.getByTestId("token-result")).toHaveTextContent(idToken));
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it("refreshes an expired stored token and returns the new id token", async () => {
+      vi.useFakeTimers();
+      try {
+        const start = Date.now();
+        saveTokens({ idToken: jwt({ email: "x@example.com" }), accessToken: "old", refreshToken: "ref", expiresAt: start + 120_000 });
+        const freshIdToken = jwt({ email: "x@example.com" });
+        const fetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({
+          id_token: freshIdToken, access_token: "fresh-access", refresh_token: "ref2", expires_in: 3600,
+        }) });
+        render(<AuthProvider config={cfg} fetchFn={fetchFn}><Probe /></AuthProvider>);
+        await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+        expect(screen.getByTestId("status")).toHaveTextContent("signedIn");
+        expect(fetchFn).not.toHaveBeenCalled();
+
+        vi.setSystemTime(start + 120_000); // now inside the 60s expiry skew
+        await act(async () => {
+          screen.getByText("getToken").click();
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId("token-result")).toHaveTextContent(freshIdToken);
+        expect(JSON.parse(window.sessionStorage.getItem("lit.tokens")!).accessToken).toBe("fresh-access");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("rejects and signs the user out when the refresh fails", async () => {
+      vi.useFakeTimers();
+      try {
+        const start = Date.now();
+        saveTokens({ idToken: jwt({ email: "x@example.com" }), accessToken: "old", refreshToken: "ref", expiresAt: start + 120_000 });
+        const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({}) });
+        render(<AuthProvider config={cfg} fetchFn={fetchFn}><Probe /></AuthProvider>);
+        await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+        expect(screen.getByTestId("status")).toHaveTextContent("signedIn");
+
+        vi.setSystemTime(start + 120_000);
+        await act(async () => {
+          screen.getByText("getToken").click();
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(screen.getByTestId("status")).toHaveTextContent("signedOut");
+        expect(screen.getByTestId("error")).toHaveTextContent("Your session expired. Please sign in again.");
+        expect(screen.getByTestId("token-result")).toHaveTextContent("ERROR: Session expired");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

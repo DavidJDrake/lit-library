@@ -3,7 +3,6 @@ import Header from "./components/Header";
 import Library from "./components/Library";
 import SignInPage from "./components/SignInPage";
 import StaticPage from "./components/StaticPage";
-import { CONFIG } from "./config";
 
 export default function App() {
   const auth = useAuth();
@@ -16,7 +15,7 @@ export default function App() {
   return (
     <>
       <Header email={auth.email} onSignOut={auth.signOut} />
-      <Library apiUrl={CONFIG.apiUrl} getIdToken={auth.getIdToken} />
+      <Library apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} />
     </>
   );
 }

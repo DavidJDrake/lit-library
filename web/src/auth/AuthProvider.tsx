@@ -8,6 +8,7 @@ export interface AuthState {
   status: "loading" | "signedOut" | "signedIn";
   email?: string;
   error?: string;
+  apiUrl: string;
   signIn(): Promise<void>;
   signOut(): void;
   getIdToken(): Promise<string>;
@@ -118,8 +119,8 @@ export function AuthProvider({ config, children, fetchFn = fetch, navigate = def
     }
   }, [config, fetchFn, adopt, drop]);
 
-  const value = useMemo<AuthState>(() => ({ status, email, error, signIn, signOut, getIdToken }),
-    [status, email, error, signIn, signOut, getIdToken]);
+  const value = useMemo<AuthState>(() => ({ status, email, error, apiUrl: config.apiUrl, signIn, signOut, getIdToken }),
+    [status, email, error, config.apiUrl, signIn, signOut, getIdToken]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
