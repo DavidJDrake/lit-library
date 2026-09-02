@@ -13,5 +13,5 @@ infra/outputs.json
 web/.env*.local
 web/dist/
 metadata/publish.log
-config.yaml
+/config.yaml
 infra/config.local.json
