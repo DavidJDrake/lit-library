@@ -13,6 +13,7 @@ export default function BookDetail({ book, onClose, onDownload }: Props) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    setBusy(false);
     const el = ref.current;
     if (!el) return;
     if (book && !el.open) el.showModal();

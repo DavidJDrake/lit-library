@@ -14,8 +14,8 @@ const book: Book = {
 describe("BookCard", () => {
   it("shows cover, title, author, and format badges, and opens on click", async () => {
     const onOpen = vi.fn();
-    render(<BookCard book={book} onOpen={onOpen} />);
-    expect(screen.getByRole("img")).toHaveAttribute("src", "/covers/1.webp");
+    const { container } = render(<BookCard book={book} onOpen={onOpen} />);
+    expect(container.querySelector("img")).toHaveAttribute("src", "/covers/1.webp");
     expect(screen.getByText("Attacking Network Protocols")).toBeInTheDocument();
     expect(screen.getByText("James Forshaw")).toBeInTheDocument();
     expect(screen.getByText("epub")).toBeInTheDocument();
@@ -24,8 +24,8 @@ describe("BookCard", () => {
     expect(onOpen).toHaveBeenCalledWith(book);
   });
   it("renders a text placeholder when there is no cover", () => {
-    render(<BookCard book={{ ...book, coverUrl: null }} onOpen={() => {}} />);
-    expect(screen.queryByRole("img")).toBeNull();
+    const { container } = render(<BookCard book={{ ...book, coverUrl: null }} onOpen={() => {}} />);
+    expect(container.querySelector("img")).toBeNull();
     expect(screen.getAllByText("Attacking Network Protocols")).toHaveLength(2); // placeholder + title
   });
 });

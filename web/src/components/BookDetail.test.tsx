@@ -43,4 +43,14 @@ describe("BookDetail", () => {
     await userEvent.click(screen.getByRole("button", { name: /close/i }));
     expect(onClose).toHaveBeenCalled();
   });
+  it("resets busy state when book changes", async () => {
+    let resolve!: () => void;
+    const onDownload = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
+    const bookB: Book = { ...book, id: "2", title: "Another Book" };
+    const { rerender } = render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} />);
+    await userEvent.click(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" }));
+    expect(screen.getByRole("button", { name: /Download PDF/ })).toBeDisabled();
+    rerender(<BookDetail book={bookB} onClose={() => {}} onDownload={onDownload} />);
+    expect(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" })).toBeEnabled();
+  });
 });

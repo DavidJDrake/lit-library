@@ -6,7 +6,7 @@ export default function BookCard({ book, onOpen }: Props) {
   return (
     <button className="card" onClick={() => onOpen(book)}>
       <div className="cover">
-        {book.coverUrl ? <img src={book.coverUrl} alt="Cover" loading="lazy" /> : <span>{book.title}</span>}
+        {book.coverUrl ? <img src={book.coverUrl} alt="" loading="lazy" /> : <span>{book.title}</span>}
       </div>
       <div className="meta">
         <p className="title">{book.title}</p>
