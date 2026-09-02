@@ -23,13 +23,14 @@ describe("EbookShareStack", () => {
     t.resourceCountIs("AWS::Cognito::UserPool", 1);
     t.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     t.resourceCountIs("AWS::DynamoDB::Table", 1);
+    t.resourceCountIs("AWS::CloudFront::KeyGroup", 1);
   });
 
   it("exports every value the indexer and the SPA need", () => {
     const t = synthStack();
     for (const name of [
       "SiteUrl", "SiteBucketName", "BooksBucketName", "DistributionId",
-      "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable",
+      "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable", "SigningKeyPairId",
     ]) {
       expect(() => t.hasOutput(name, {})).not.toThrow();
     }

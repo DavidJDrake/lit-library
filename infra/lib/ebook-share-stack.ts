@@ -1,8 +1,9 @@
-import { CfnOutput, Stack, StackProps } from "aws-cdk-lib";
+import { CfnOutput, Fn, Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { Api } from "./api";
 import { Auth } from "./auth";
 import type { InfraConfig } from "./config";
+import { Signing } from "./signing";
 import { Site } from "./site";
 import { Storage } from "./storage";
 
@@ -16,7 +17,7 @@ export class EbookShareStack extends Stack {
     const { config } = props;
 
     const storage = new Storage(this, "Storage");
-    const site = new Site(this, "Site", { config, siteBucket: storage.siteBucket });
+    const signing = new Signing(this, "Signing", { config });
     const auth = new Auth(this, "Auth", { config });
     const api = new Api(this, "Api", {
       config,
@@ -24,6 +25,11 @@ export class EbookShareStack extends Stack {
       client: auth.client,
       booksBucket: storage.booksBucket,
       siteBucket: storage.siteBucket,
+    });
+    // apiEndpoint is "https://<id>.execute-api.<region>.amazonaws.com"; CloudFront needs the host only.
+    const apiDomainName = Fn.select(2, Fn.split("/", api.httpApi.apiEndpoint));
+    const site = new Site(this, "Site", {
+      config, siteBucket: storage.siteBucket, keyGroup: signing.keyGroup, apiDomainName,
     });
 
     new CfnOutput(this, "SiteUrl", { value: site.url });
@@ -35,5 +41,6 @@ export class EbookShareStack extends Stack {
     new CfnOutput(this, "CognitoDomain", { value: auth.hostedUiBaseUrl });
     new CfnOutput(this, "ApiUrl", { value: api.httpApi.apiEndpoint });
     new CfnOutput(this, "DownloadsTable", { value: api.table.tableName });
+    new CfnOutput(this, "SigningKeyPairId", { value: signing.publicKey.publicKeyId });
   }
 }
