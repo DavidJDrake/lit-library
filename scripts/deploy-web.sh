@@ -4,13 +4,13 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUTS="$ROOT/infra/outputs.json"
-REGION=us-east-1
+REGION=$(python3 -c "import json;print(json.load(open('$ROOT/infra/config.local.json'))['region'])")
 DRY=${1:-}
 
-read -r BUCKET DIST_ID CLIENT_ID < <(python3 - "$OUTPUTS" <<'EOF'
+read -r BUCKET DIST_ID CLIENT_ID SITE_URL < <(python3 - "$OUTPUTS" <<'EOF'
 import json, sys
 o = next(iter(json.load(open(sys.argv[1])).values()))
-print(o["SiteBucketName"], o["DistributionId"], o["UserPoolClientId"])
+print(o["SiteBucketName"], o["DistributionId"], o["UserPoolClientId"], o["SiteUrl"])
 EOF
 )
 
@@ -40,4 +40,4 @@ aws s3 cp dist/robots.txt "s3://$BUCKET/robots.txt" --region "$REGION" \
   --cache-control "no-cache" --content-type "text/plain"
 aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" \
   --output text --query 'Invalidation.Id'
-echo "deployed to https://lit.example.com"
+echo "deployed to $SITE_URL"
