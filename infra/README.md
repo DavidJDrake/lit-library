@@ -87,6 +87,13 @@ signed-in user's email from the token's `email` claim, which only the ID
 token carries; requests authenticated with an access token are rejected
 with 401 (no email claim).
 
+## Adding books
+
+Drop new bundle folders into the library, then run `scripts/publish-new.sh`
+from the repo root: it indexes any new bundles and publishes the updated
+catalog in one step, printing how many books were newly added and
+confirming the CloudFront invalidation for `catalog.json`.
+
 ## Deploying the web app
 
 `scripts/deploy-web.sh` builds `web/` and syncs it to the site bucket (it never touches

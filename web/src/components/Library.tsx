@@ -29,7 +29,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
   const [loadError, setLoadError] = useState<string>();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [sort, setSort] = useState<SortKey>("title");
+  const [sort, setSort] = useState<SortKey>("added");
   const [selected, setSelected] = useState<Book | null>(null);
   const [toast, setToast] = useState<string>();
 

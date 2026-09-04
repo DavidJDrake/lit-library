@@ -36,6 +36,14 @@ describe("Library", () => {
     expect(screen.getByText(/2 books/)).toBeInTheDocument();
   });
 
+  it("defaults to newest-added-first, with the sort select set to Recently added", async () => {
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFor(catalog)} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(screen.getByRole("combobox", { name: "Sort by" })).toHaveValue("added");
+    const cards = screen.getAllByRole("button", { name: /Attacking Network Protocols|The Black Company/ });
+    expect(cards[0]).toHaveAccessibleName(/The Black Company/);
+  });
+
   it("filters via a facet checkbox and searches via the box", async () => {
     render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFor(catalog)} />);
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
