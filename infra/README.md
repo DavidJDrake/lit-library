@@ -146,9 +146,9 @@ first to generate a real key pair (private key → Secrets Manager, public key
 ## Backups
 
 Everything that can't be regenerated — the enrichment cache and `added.json`
-in `metadata/`, `infra/outputs.json`, `infra/config.local.json`, and the
-downloads DynamoDB table — is backed up to a private `_backup/` prefix in the
-books bucket:
+in `metadata/`, `infra/outputs.json`, `infra/config.local.json`, `config.yaml`,
+and the downloads DynamoDB table — is backed up to a private `_backup/`
+prefix in the books bucket:
 
 ```
 scripts/backup.sh
@@ -163,5 +163,6 @@ To restore:
 ```
 aws s3 sync s3://<books-bucket>/_backup/metadata/ metadata/
 aws s3 cp s3://<books-bucket>/_backup/infra/outputs.json infra/outputs.json
+aws s3 cp s3://<books-bucket>/_backup/config.yaml config.yaml
 aws s3 cp s3://<books-bucket>/_backup/infra/config.local.json infra/config.local.json
 ```

@@ -4,6 +4,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DRY=${1:-}
+case "$DRY" in
+  ""|--dry-run) ;;
+  *) echo "usage: $0 [--dry-run]" >&2; exit 2;;
+esac
 REGION=$(python3 -c "import json;print(json.load(open('$ROOT/infra/config.local.json'))['region'])")
 read -r BUCKET TABLE < <(python3 -c "import json;o=next(iter(json.load(open('$ROOT/infra/outputs.json')).values()));print(o['BooksBucketName'], o['DownloadsTable'])")
 DEST="s3://$BUCKET/_backup"
@@ -20,6 +24,6 @@ else
   TMP=$(mktemp); trap 'rm -f "$TMP"' EXIT
   aws dynamodb scan --table-name "$TABLE" --region "$REGION" --output json > "$TMP"
   aws s3 cp "$TMP" "$DEST/dynamodb/downloads-$STAMP.json" --region "$REGION" >/dev/null
-  echo "exported $(python3 -c "import json;print(json.load(open('$TMP'))['Count'])") download rows"
+  echo "exported $(python3 -c "import json;print(len(json.load(open('$TMP'))['Items']))") download rows"
 fi
 echo "backup complete: $DEST"
