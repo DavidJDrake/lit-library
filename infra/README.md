@@ -142,3 +142,26 @@ placeholder key, since that key's private half is public and deploying with
 it would let anyone forge a valid session. Run `scripts/make-signing-key.sh`
 first to generate a real key pair (private key → Secrets Manager, public key
 → `config.local.json`).
+
+## Backups
+
+Everything that can't be regenerated — the enrichment cache and `added.json`
+in `metadata/`, `infra/outputs.json`, `infra/config.local.json`, and the
+downloads DynamoDB table — is backed up to a private `_backup/` prefix in the
+books bucket:
+
+```
+scripts/backup.sh
+```
+
+`scripts/backup.sh --dry-run` shows what would be uploaded without writing
+anything. The bucket is private and the download Lambda can only presign
+keys listed in the catalog, so `_backup/` is unreachable from the site.
+
+To restore:
+
+```
+aws s3 sync s3://<books-bucket>/_backup/metadata/ metadata/
+aws s3 cp s3://<books-bucket>/_backup/infra/outputs.json infra/outputs.json
+aws s3 cp s3://<books-bucket>/_backup/infra/config.local.json infra/config.local.json
+```
