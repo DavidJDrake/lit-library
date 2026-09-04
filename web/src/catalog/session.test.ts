@@ -20,9 +20,11 @@ describe("establishSession", () => {
 });
 
 describe("endSession", () => {
-  it("DELETEs /session and never throws", async () => {
+  it("DELETEs /session with same-origin credentials and no Authorization header, and never throws", async () => {
     const fetchFn = vi.fn().mockRejectedValue(new Error("offline"));
-    await expect(endSession("/api", "tok", fetchFn)).resolves.toBeUndefined();
-    expect(fetchFn).toHaveBeenCalledWith("/api/session", expect.objectContaining({ method: "DELETE" }));
+    await expect(endSession("/api", fetchFn)).resolves.toBeUndefined();
+    expect(fetchFn).toHaveBeenCalledWith("/api/session", { method: "DELETE", credentials: "same-origin" });
+    const init = fetchFn.mock.calls[0][1] as RequestInit;
+    expect(init.headers).toBeUndefined();
   });
 });

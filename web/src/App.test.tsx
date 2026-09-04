@@ -23,9 +23,16 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Terms" })).toBeInTheDocument());
   });
 
-  it("ends the CloudFront session before signing out", async () => {
+  it("ends the CloudFront session before signing out, even when the ID token can't be refreshed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const jwt = (p: object) => { const b = (o: object) => btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); return `${b({ alg: "none" })}.${b(p)}.sig`; };
-    window.sessionStorage.setItem("lit.tokens", JSON.stringify({ idToken: jwt({ email: "u@example.com" }), accessToken: "a", expiresAt: Date.now() + 100_000 }));
+    const start = Date.now();
+    // Valid at mount (so the app renders signed in), but with no refresh
+    // token. We then advance the clock past expiry before clicking sign out,
+    // so getIdToken() would reject if signOut still depended on it — it must
+    // not: the DELETE and the logout navigation must still happen.
+    window.sessionStorage.setItem("lit.tokens", JSON.stringify({ idToken: jwt({ email: "u@example.com" }), accessToken: "a", expiresAt: start + 120_000 }));
     window.history.replaceState({}, "", "/");
     const fetchFn = vi.fn(async (url: string) => {
       if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
@@ -34,10 +41,13 @@ describe("App", () => {
     const navigate = vi.fn();
     render(<AuthProvider config={cfg} fetchFn={fetchFn} navigate={navigate}><App fetchFn={fetchFn} /></AuthProvider>);
     await waitFor(() => expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: /sign out/i }));
+    vi.setSystemTime(start + 130_000);
+    await user.click(screen.getByRole("button", { name: /sign out/i }));
     await waitFor(() => expect(navigate).toHaveBeenCalled());
     const deleteCall = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.find((c) => c[1]?.method === "DELETE");
     expect(deleteCall?.[0]).toBe("https://api/session");
+    expect(deleteCall?.[1]?.headers).toBeUndefined();
     expect(new URL(navigate.mock.calls[0][0]).pathname).toBe("/logout");
+    vi.useRealTimers();
   });
 });

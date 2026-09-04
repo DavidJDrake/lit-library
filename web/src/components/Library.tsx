@@ -20,6 +20,10 @@ const FACET_TITLES: Record<FacetKey, string> = {
   category: "Category", format: "Format", publisher: "Publisher", bundle: "Bundle", author: "Author", year: "Year",
 };
 
+// The session cookie lasts 2h (SESSION_SECONDS); renew well within that
+// window so a long-open tab never hits the stale-cookie fallback.
+export const SESSION_RENEW_MS = 90 * 60 * 1000;
+
 export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate }: Props) {
   const [books, setBooks] = useState<Book[] | null>(null);
   const [loadError, setLoadError] = useState<string>();
@@ -48,6 +52,13 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
       }
     })();
     return () => { cancelled = true; };
+  }, [apiUrl, getIdToken, fetchFn]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      void getIdToken().then((t) => establishSession(apiUrl, t, fetchFn)).catch(() => { /* next catalog fetch re-establishes */ });
+    }, SESSION_RENEW_MS);
+    return () => clearInterval(id);
   }, [apiUrl, getIdToken, fetchFn]);
 
   const deferredQuery = useDeferredValue(query);

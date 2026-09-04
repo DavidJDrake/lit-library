@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { Catalog } from "../catalog/types";
-import Library from "./Library";
+import Library, { SESSION_RENEW_MS } from "./Library";
 
 const catalog: Catalog = {
   generatedAt: "t",
@@ -109,5 +109,24 @@ describe("Library", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     expect(catalogCalls).toBe(2);
     expect((fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).endsWith("/session"))).toHaveLength(2);
+  });
+
+  it("renews the session cookie on a timer while mounted", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const calls: string[] = [];
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
+    }) as unknown as typeof fetch;
+    const { unmount } = render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(SESSION_RENEW_MS + 10);
+    expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(2);
+    unmount();
+    await vi.advanceTimersByTimeAsync(SESSION_RENEW_MS + 10);
+    expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(2);
+    vi.useRealTimers();
   });
 });

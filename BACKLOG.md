@@ -8,7 +8,6 @@ Items move to "Done" with the commit or plan that closed them.
 
 | # | Item | Effort | Why |
 |---|---|---|---|
-| 1 | **Close the stale-session gap.** Make `DELETE /api/session` unauthenticated (it only clears cookies), shorten the signed cookie to ~2 h, and have the app renew it silently while signed in. | S | Today the 12 h cookie outlives both the ID token and allowlist removal: sign-out can't clear `HttpOnly` cookies once the Google session is gone, and de-inviting doesn't end an active session. |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | S | Friends return for new books; adding a bundle is currently a terminal ritual only the owner knows. |
 | 3 | **Back up what can't be regenerated.** Script that copies `metadata/` (enrichment cache, `added.json`, `overrides.yaml`, publish state), `infra/outputs.json`, `infra/config.local.json`, and a DynamoDB export to a private S3 prefix. | S | The enrichment cache is ~25 min to rebuild; `added.json` and the download log are unrecoverable. |
 
@@ -41,4 +40,6 @@ Items move to "Done" with the commit or plan that closed them.
 
 ## Done
 
-_(none yet)_
+| # | Item | Closed by |
+|---|---|---|
+| 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |

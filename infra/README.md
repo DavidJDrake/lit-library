@@ -106,9 +106,15 @@ not the Cognito JWT directly. After sign-in, the SPA calls `GET /api/session`
 signs a CloudFront custom policy with the private half of the configured
 signing key and returns it as three `HttpOnly`, `Secure`, `SameSite=Lax`
 cookies (`CloudFront-Policy`, `CloudFront-Signature`, `CloudFront-Key-Pair-Id`)
-scoped to the whole site, valid for 12 hours. Signing out calls
-`DELETE /api/session`, which clears the cookies immediately (`Max-Age=0`);
-otherwise they simply expire after 12 hours.
+scoped to the whole site, valid for 2 hours. While signed in, the app calls
+`GET /api/session` again every 90 minutes to renew the cookies silently, so a
+tab left open keeps working. `DELETE /api/session` is unauthenticated (it
+only clears cookies, via `Max-Age=0`) so sign-out can end the session even
+when the Cognito ID token has already expired and there's no refresh token
+left to renew it; short of that, the cookies simply expire on their own.
+Because renewal depends on a live ID token, removing someone from Cognito
+(see "Removing an account" above) ends their catalog access within at most
+2 hours, once their current cookie expires.
 
 **Rotating the signing key:** run `scripts/make-signing-key.sh --rotate`, then
 `npm run deploy`. The CloudFront `PublicKey` resource's name is derived from a

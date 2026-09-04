@@ -32,7 +32,8 @@ describe("signSessionCookies", () => {
     expect(cookieValue(cookies, "CloudFront-Key-Pair-Id")).toBe("K2EXAMPLE");
   });
 
-  it("embeds a policy that expires 12 hours from now", () => {
+  it("embeds a policy that expires SESSION_SECONDS from now", () => {
+    expect(SESSION_SECONDS).toBe(7200);
     const policy = JSON.parse(fromCloudFrontBase64(cookieValue(cookies, "CloudFront-Policy")).toString());
     expect(policy.Statement[0].Resource).toBe("https://lit.example.com/*");
     expect(policy.Statement[0].Condition.DateLessThan["AWS:EpochTime"]).toBe(now.getTime() / 1000 + SESSION_SECONDS);

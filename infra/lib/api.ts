@@ -88,10 +88,19 @@ export class Api extends Construct {
       methods: [apigw.HttpMethod.POST],
       integration: new HttpLambdaIntegration("DownloadIntegration", downloadFn),
     });
+    const sessionIntegration = new HttpLambdaIntegration("SessionIntegration", sessionFn);
     this.httpApi.addRoutes({
       path: "/api/session",
-      methods: [apigw.HttpMethod.GET, apigw.HttpMethod.DELETE],
-      integration: new HttpLambdaIntegration("SessionIntegration", sessionFn),
+      methods: [apigw.HttpMethod.GET],
+      integration: sessionIntegration,
+    });
+    // Unauthenticated: it only clears cookies, so sign-out can still end the
+    // CloudFront session even after the Cognito ID token is no longer valid.
+    this.httpApi.addRoutes({
+      path: "/api/session",
+      methods: [apigw.HttpMethod.DELETE],
+      integration: sessionIntegration,
+      authorizer: new apigw.HttpNoneAuthorizer(),
     });
   }
 }

@@ -11,11 +11,7 @@ interface Props { fetchFn?: typeof fetch }
 export default function App({ fetchFn = fetch }: Props) {
   const auth = useAuth();
   const signOut = useCallback(async () => {
-    try {
-      await endSession(auth.apiUrl, await auth.getIdToken(), fetchFn);
-    } catch {
-      // no valid token — nothing to end
-    }
+    await endSession(auth.apiUrl, fetchFn);
     auth.signOut();
   }, [auth, fetchFn]);
 

@@ -61,13 +61,12 @@ describe("Api", () => {
     });
   });
 
-  it("exposes exactly the /api routes behind the Cognito JWT authorizer, with no CORS", () => {
+  it("exposes the /api routes: JWT on download and session GET, none on session DELETE; no CORS", () => {
     const t = synth();
     const api = Object.values(t.findResources("AWS::ApiGatewayV2::Api"))[0] as { Properties: Record<string, unknown> };
     expect(api.Properties.CorsConfiguration).toBeUndefined();
-    t.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", { AuthorizerType: "JWT" });
     const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizationType: string } }).Properties);
-    expect(routes.map((r) => r.RouteKey).sort()).toEqual(["DELETE /api/session", "GET /api/session", "POST /api/download"]);
-    expect(routes.every((r) => r.AuthorizationType === "JWT")).toBe(true);
+    const byKey = Object.fromEntries(routes.map((r) => [r.RouteKey, r.AuthorizationType]));
+    expect(byKey).toEqual({ "POST /api/download": "JWT", "GET /api/session": "JWT", "DELETE /api/session": "NONE" });
   });
 });
