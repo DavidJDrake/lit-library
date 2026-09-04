@@ -55,10 +55,21 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
   }, [apiUrl, getIdToken, fetchFn]);
 
   useEffect(() => {
-    const id = setInterval(() => {
+    const renew = () => {
       void getIdToken().then((t) => establishSession(apiUrl, t, fetchFn)).catch(() => { /* the next tick retries; a failed request during browsing re-establishes on demand */ });
-    }, SESSION_RENEW_MS);
-    return () => clearInterval(id);
+    };
+    const id = setInterval(renew, SESSION_RENEW_MS);
+    // A tab left backgrounded past the renewal interval (throttled timers,
+    // sleeping device) can come back with an expired cookie before the next
+    // tick fires; catch up as soon as it's visible again.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") renew();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [apiUrl, getIdToken, fetchFn]);
 
   const deferredQuery = useDeferredValue(query);

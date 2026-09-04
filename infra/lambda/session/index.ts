@@ -1,5 +1,5 @@
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
+import type { APIGatewayProxyEventV2, APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
 import { expiredCookies, signSessionCookies } from "./cookies";
 
 export interface Deps {
@@ -8,7 +8,11 @@ export interface Deps {
 }
 export interface Env { siteDomain: string; keyPairId: string }
 
-export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, deps: Deps, env: Env): Promise<APIGatewayProxyResultV2> {
+// DELETE /api/session has no authorizer (see infra/lib/api.ts), so the real
+// event shape there is a plain APIGatewayProxyEventV2 with no `authorizer`.
+export type SessionEvent = APIGatewayProxyEventV2 | APIGatewayProxyEventV2WithJWTAuthorizer;
+
+export async function handle(event: SessionEvent, deps: Deps, env: Env): Promise<APIGatewayProxyResultV2> {
   const method = event.requestContext.http.method;
   if (method === "DELETE") return { statusCode: 204, cookies: expiredCookies() };
   if (method !== "GET") return { statusCode: 405, body: "" };
@@ -39,6 +43,6 @@ async function loadPrivateKeyFromSecrets(): Promise<string> {
   return cachedKey;
 }
 
-export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
+export const handler = (event: SessionEvent) =>
   handle(event, { loadPrivateKey: loadPrivateKeyFromSecrets, now: () => new Date() },
     { siteDomain: process.env.SITE_DOMAIN ?? "", keyPairId: process.env.KEY_PAIR_ID ?? "" });

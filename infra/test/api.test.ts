@@ -68,5 +68,9 @@ describe("Api", () => {
     const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizationType: string } }).Properties);
     const byKey = Object.fromEntries(routes.map((r) => [r.RouteKey, r.AuthorizationType]));
     expect(byKey).toEqual({ "POST /api/download": "JWT", "GET /api/session": "JWT", "DELETE /api/session": "NONE" });
+    t.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
+      AuthorizerType: "JWT",
+      JwtConfiguration: Match.objectLike({ Audience: [Match.anyValue()], Issuer: Match.anyValue() }),
+    });
   });
 });

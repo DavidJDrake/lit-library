@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Catalog } from "../catalog/types";
 import Library, { SESSION_RENEW_MS } from "./Library";
 
@@ -26,6 +26,10 @@ function fetchFor(catalogBody: object, downloadBody: object = { url: "https://s3
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) { this.setAttribute("open", ""); });
   HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) { this.removeAttribute("open"); });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("Library", () => {
@@ -135,6 +139,21 @@ describe("Library", () => {
     unmount();
     await vi.advanceTimersByTimeAsync(SESSION_RENEW_MS + 10);
     expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(2);
-    vi.useRealTimers();
+  });
+
+  it("re-establishes the session when the tab becomes visible again", async () => {
+    const calls: string[] = [];
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
+    }) as unknown as typeof fetch;
+    render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(1);
+    const visibilitySpy = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(2));
+    visibilitySpy.mockRestore();
   });
 });
