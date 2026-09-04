@@ -56,7 +56,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate 
 
   useEffect(() => {
     const id = setInterval(() => {
-      void getIdToken().then((t) => establishSession(apiUrl, t, fetchFn)).catch(() => { /* next catalog fetch re-establishes */ });
+      void getIdToken().then((t) => establishSession(apiUrl, t, fetchFn)).catch(() => { /* the next tick retries; a failed request during browsing re-establishes on demand */ });
     }, SESSION_RENEW_MS);
     return () => clearInterval(id);
   }, [apiUrl, getIdToken, fetchFn]);

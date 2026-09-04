@@ -17,7 +17,8 @@ be online for the site to work.
   disabled at both the client and the trigger, so the only door is Google.
 - **Everything is gated, not just the files.** The catalog and cover images
   are served by CloudFront only with a signed cookie that the site issues
-  after sign-in (12 h, `HttpOnly`); a CloudFront Function blocks
+  after sign-in (2 h, renewed silently while you're signed in, `HttpOnly`);
+  a CloudFront Function blocks
   percent-encoded and dotted-path attempts to route around the gate.
   Book downloads are 15-minute presigned S3 URLs minted by a JWT-protected
   API and logged to DynamoDB.
@@ -143,10 +144,11 @@ Every suite runs offline — no AWS credentials, no network.
 - Only `index.html`, the hashed JS/CSS bundle, `robots.txt` (`Disallow: /`),
   and the privacy/terms pages are public. Catalog, covers, and books require
   sign-in.
-- Session cookies live 12 hours; sign-out asks the API to expire them, but if
-  the Google session is already gone the `HttpOnly` cookies can't be cleared
-  client-side and simply age out. Removing someone from the allowlist stops
-  new sign-ins immediately but doesn't revoke an existing session.
+- Session cookies live 2 hours and are renewed every 90 minutes while the app
+  is open. Sign-out clears them via an unauthenticated `DELETE /api/session`
+  (it only clears cookies, so it works even without a valid Google session).
+  Removing someone from the allowlist stops new sign-ins immediately and ends
+  an existing session within at most 2 hours.
 - The books bucket is private; the only way to a file is a presigned URL
   minted for a signed-in user, and every download is logged.
 
