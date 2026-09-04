@@ -72,9 +72,9 @@ and navigates a hidden iframe to the returned presigned URL.
 | Path | What |
 |---|---|
 | `indexer/` | Python CLI (`ebook_indexer`): scan → extract → group → enrich → categorize → catalog → publish. 67 tests, all offline. |
-| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, two Lambdas. 75 tests (CDK assertions + Lambda units), all offline. |
-| `web/` | React + Vite + TypeScript SPA. 82 tests (vitest + Testing Library), all offline. |
-| `scripts/` | Glue: copy CDK outputs into config, write web env files, generate the signing key, deploy the web app. |
+| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, two Lambdas. 76 tests (CDK assertions + Lambda units), all offline. |
+| `web/` | React + Vite + TypeScript SPA. 85 tests (vitest + Testing Library), all offline. |
+| `scripts/` | Glue: copy CDK outputs into config, write web env files, generate the signing key, deploy the web app, refresh the catalog (`publish-new.sh`), and back up state (`backup.sh`). |
 | `docs/superpowers/` | The design spec and the five implementation plans that were actually executed (see below). |
 
 ## How it was built
@@ -147,8 +147,10 @@ Every suite runs offline — no AWS credentials, no network.
 - Session cookies live 2 hours and are renewed every 90 minutes while the app
   is open. Sign-out clears them via an unauthenticated `DELETE /api/session`
   (it only clears cookies, so it works even without a valid Google session).
-  Removing someone from the allowlist stops new sign-ins immediately and ends
-  an existing session within at most 2 hours.
+  Removing someone from the allowlist only stops *new* accounts from being
+  created; to revoke someone who has already signed in, delete their Cognito
+  user (`admin-delete-user`) — their session cookie then expires within at
+  most 2 hours and their tokens stop refreshing.
 - The books bucket is private; the only way to a file is a presigned URL
   minted for a signed-in user, and every download is logged.
 

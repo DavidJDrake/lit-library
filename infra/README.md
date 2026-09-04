@@ -158,6 +158,18 @@ scripts/backup.sh
 anything. The bucket is private and the download Lambda can only presign
 keys listed in the catalog, so `_backup/` is unreachable from the site.
 
+In addition to syncing the current `metadata/` contents (which a later run
+can overwrite), each run also writes a point-in-time snapshot: a
+`metadata-<stamp>.tar.gz` archive of the whole `metadata/` directory (minus
+`publish.log`) at `_backup/metadata-archives/`, so a bad enrichment run or an
+accidental edit can be rolled back to any prior backup, not just the most
+recent one.
+
+The DynamoDB export at `_backup/dynamodb/downloads-<stamp>.json` is a log of
+that run's table contents, not a restorable snapshot — restoring means
+reading it (e.g. to audit past downloads), not re-importing it into the
+table.
+
 To restore:
 
 ```
@@ -165,4 +177,12 @@ aws s3 sync s3://<books-bucket>/_backup/metadata/ metadata/
 aws s3 cp s3://<books-bucket>/_backup/infra/outputs.json infra/outputs.json
 aws s3 cp s3://<books-bucket>/_backup/config.yaml config.yaml
 aws s3 cp s3://<books-bucket>/_backup/infra/config.local.json infra/config.local.json
+```
+
+To restore `metadata/` from a specific point in time instead of the latest
+sync:
+
+```
+aws s3 cp s3://<books-bucket>/_backup/metadata-archives/metadata-<stamp>.tar.gz .
+tar -xzf metadata-<stamp>.tar.gz
 ```
