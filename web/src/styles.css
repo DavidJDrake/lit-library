@@ -96,3 +96,8 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .notif-list { list-style: none; margin: 0; padding: 0; }
 .popover-footer { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
 @media (max-width: 600px) { .bell { position: static; } .popover { left: 0.5rem; right: 0.5rem; width: auto; top: 3.4rem; } }
+.page { max-width: 48rem; margin: 1.25rem auto; padding: 0 1.25rem; }
+.page-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.page-head h2 { margin: 0.5rem 0; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin: 0.75rem 0; }
+.notifications-page .btn { margin-top: 0.5rem; }
