@@ -13,7 +13,9 @@ KEY_MAP = {
     "books_bucket": "BooksBucketName",
     "site_bucket": "SiteBucketName",
     "cloudfront_distribution_id": "DistributionId",
+    "library_table": "LibraryTable",
 }
+OPTIONAL_KEYS = {"library_table"}  # tolerated when the stack output doesn't exist yet
 
 
 def main(argv: list[str]) -> int:
@@ -23,11 +25,18 @@ def main(argv: list[str]) -> int:
     outputs = next(iter(stacks.values()))  # single stack: EbookShare
     text = config_path.read_text()
     for yaml_key, output_name in KEY_MAP.items():
-        value = outputs[output_name]
+        value = outputs.get(output_name)
+        if value is None:
+            if yaml_key in OPTIONAL_KEYS:
+                continue  # this stack output does not exist yet
+            print(f"outputs.json has no '{output_name}' output", file=sys.stderr)
+            return 1
         pattern = re.compile(rf'^({yaml_key}:)[ \t]*(?:"[^"]*"|\'[^\']*\'|[^#\n]*?)[ \t]*(#.*)?$', re.MULTILINE)
         if not pattern.search(text):
-            print(f"config.yaml has no '{yaml_key}' line", file=sys.stderr)
-            return 1
+            if not text.endswith("\n"):
+                text += "\n"
+            text += f'{yaml_key}: "{value}"\n'
+            continue
         def repl(m):
             comment = f"  {m.group(2)}" if m.group(2) else ""
             return f'{m.group(1)} "{value}"{comment}'

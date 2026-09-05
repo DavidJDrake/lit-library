@@ -22,6 +22,7 @@ function Probe() {
     <div>
       <span data-testid="status">{a.status}</span>
       <span data-testid="email">{a.email ?? ""}</span>
+      <span data-testid="admin">{String(a.isAdmin)}</span>
       <span data-testid="error">{a.error ?? ""}</span>
       <span data-testid="token-result">{tokenResult}</span>
       <button onClick={() => void a.signIn()}>signin</button>
@@ -136,6 +137,28 @@ describe("AuthProvider", () => {
     );
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedOut"));
     expect(screen.getByTestId("error")).toHaveTextContent("This is a private library. Access is limited to authorized accounts");
+  });
+
+  it("exposes isAdmin from the cognito:groups claim", async () => {
+    saveTokens({ idToken: jwt({ email: "a@example.com", "cognito:groups": ["admins"] }), accessToken: "a", expiresAt: Date.now() + 100_000 });
+    render(<AuthProvider config={cfg} fetchFn={vi.fn() as unknown as typeof fetch}><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+    expect(screen.getByTestId("admin")).toHaveTextContent("true");
+  });
+  it("isAdmin is false without the admins group", async () => {
+    saveTokens({ idToken: jwt({ email: "u@example.com", "cognito:groups": ["readers"] }), accessToken: "a", expiresAt: Date.now() + 100_000 });
+    render(<AuthProvider config={cfg} fetchFn={vi.fn() as unknown as typeof fetch} navigate={() => {}}><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+    expect(screen.getByTestId("admin")).toHaveTextContent("false");
+  });
+  it("isAdmin becomes false after signing out", async () => {
+    saveTokens({ idToken: jwt({ email: "a@example.com", "cognito:groups": ["admins"] }), accessToken: "a", expiresAt: Date.now() + 100_000 });
+    render(<AuthProvider config={cfg} fetchFn={vi.fn() as unknown as typeof fetch} navigate={() => {}}><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+    expect(screen.getByTestId("admin")).toHaveTextContent("true");
+    await act(async () => { screen.getByText("signout").click(); });
+    expect(screen.getByTestId("status")).toHaveTextContent("signedOut");
+    expect(screen.getByTestId("admin")).toHaveTextContent("false");
   });
 
   describe("getIdToken", () => {

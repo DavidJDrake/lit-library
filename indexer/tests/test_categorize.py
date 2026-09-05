@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ebook_indexer.categorize import apply_overrides, derive_category, load_overrides
+from ebook_indexer.categorize import BUILTIN_CATEGORIES, apply_overrides, derive_category, load_overrides, valid_categories
 from ebook_indexer.models import Book
 
 
@@ -70,3 +70,22 @@ def test_valid_category_override_applied():
     b = book(category="Tech & Programming")
     apply_overrides(b, {"abc123": {"category": "Fiction"}})
     assert b.category == "Fiction"
+
+
+def test_categories_key_extends_the_valid_set_and_is_not_a_book():
+    ov = {"categories": ["Cookbooks", "Poetry"], "abc123": {"category": "Cookbooks"}}
+    assert valid_categories(ov) == BUILTIN_CATEGORIES | {"Cookbooks", "Poetry"}
+    b = book()
+    apply_overrides(b, ov)
+    assert b.category == "Cookbooks"
+
+
+def test_unknown_category_override_is_still_ignored():
+    b = book()
+    apply_overrides(b, {"abc123": {"category": "Not A Category"}})
+    assert b.category == "Other/Lifestyle"
+
+
+def test_valid_categories_without_the_key_is_the_builtin_set():
+    assert valid_categories({}) == BUILTIN_CATEGORIES
+    assert valid_categories({"categories": None}) == BUILTIN_CATEGORIES

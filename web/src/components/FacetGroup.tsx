@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 interface Props {
   title: string;
@@ -6,14 +6,15 @@ interface Props {
   selected: Set<string>;
   onToggle: (value: string) => void;
   initialLimit?: number;
+  footer?: ReactNode;
 }
 
 const EXPANDED_CAP = 50;
 
-export default function FacetGroup({ title, options, selected, onToggle, initialLimit = 8 }: Props) {
+export default function FacetGroup({ title, options, selected, onToggle, initialLimit = 8, footer }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [filterText, setFilterText] = useState("");
-  if (options.length === 0) return null;
+  if (options.length === 0 && !footer) return null;
 
   const needsFilter = expanded && options.length > EXPANDED_CAP;
   const expandedOptions = needsFilter
@@ -41,6 +42,7 @@ export default function FacetGroup({ title, options, selected, onToggle, initial
           {expanded ? "Show less" : `Show all (${options.length})`}
         </button>
       )}
+      {footer}
     </section>
   );
 }

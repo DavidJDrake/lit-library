@@ -5,3 +5,4 @@ aws_region: us-east-1
 books_bucket: ""           # filled in by scripts/apply-outputs.py after `cdk deploy`
 site_bucket: ""
 cloudfront_distribution_id: ""
+library_table: ""           # category overlay table (scripts/pull-edits.py, scripts/backup.sh)

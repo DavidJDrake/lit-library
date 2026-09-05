@@ -97,4 +97,9 @@ describe("Auth", () => {
     t.hasResourceProperties("AWS::Cognito::UserPoolDomain", { Domain: config.cognitoDomainPrefix });
     expect(auth.hostedUiBaseUrl).toBe(`https://${config.cognitoDomainPrefix}.auth.us-east-1.amazoncognito.com`);
   });
+
+  it("creates the admins group on the pool", () => {
+    const { t } = synth();
+    t.hasResourceProperties("AWS::Cognito::UserPoolGroup", { GroupName: "admins" });
+  });
 });

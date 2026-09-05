@@ -13,6 +13,7 @@ class Config:
     books_bucket: str
     site_bucket: str
     cloudfront_distribution_id: str
+    library_table: str
 
 
 def load_config(path: Path) -> Config:
@@ -31,4 +32,5 @@ def load_config(path: Path) -> Config:
         books_bucket=raw.get("books_bucket") or "",
         site_bucket=raw.get("site_bucket") or "",
         cloudfront_distribution_id=raw.get("cloudfront_distribution_id") or "",
+        library_table=raw.get("library_table") or "",
     )

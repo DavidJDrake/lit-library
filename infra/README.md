@@ -68,6 +68,20 @@ Cognito user keeps working. To fully revoke someone:
 Their refresh tokens die with the user, so any cached session stops working
 once it needs to renew.
 
+## Admins (category management)
+
+Members of the Cognito group `admins` can accept category suggestions and add
+categories directly. Add someone who has already signed in with
+`scripts/make-admin.sh <email>`; remove them with
+`aws cognito-idp admin-remove-user-from-group --user-pool-id <pool> --username <username> --group-name admins`.
+Group membership is read from the ID token, so changes take effect at the next
+sign-in (or token refresh, at most an hour).
+
+Category state lives in the `Library/Table` DynamoDB table (retained). The seven
+built-in categories are seeded by custom resources on deploy; they are never
+deleted or renamed by CDK. `scripts/pull-edits.py` copies edits into
+`metadata/overrides.yaml`; `scripts/backup.sh` exports the table.
+
 ## Construct IDs that must never be renamed after first deploy
 
 These constructs use `RemovalPolicy.RETAIN` and are keyed by their CDK
@@ -78,6 +92,7 @@ delete, but stop managing) the old one:
 - `Storage/Books` — the books S3 bucket
 - `Api/Downloads` — the downloads DynamoDB table
 - `Auth/UserPool` — the Cognito user pool
+- `Library/Table` — the category overlay table
 
 ## Sending the right token to `/download`
 

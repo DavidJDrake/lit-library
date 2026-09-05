@@ -36,4 +36,13 @@ describe("FacetGroup", () => {
       expect(label.textContent!.toLowerCase()).toContain("author 5");
     }
   });
+
+  it("renders the footer after the options, even when there are no options", () => {
+    const { rerender } = render(<FacetGroup title="Category" options={[{ value: "Fiction", count: 1 }]} selected={new Set()} onToggle={() => {}} footer={<span>FOOT</span>} />);
+    expect(screen.getByText("FOOT")).toBeInTheDocument();
+    rerender(<FacetGroup title="Category" options={[]} selected={new Set()} onToggle={() => {}} footer={<span>FOOT</span>} />);
+    expect(screen.getByText("FOOT")).toBeInTheDocument();
+    rerender(<FacetGroup title="Category" options={[]} selected={new Set()} onToggle={() => {}} />);
+    expect(screen.queryByRole("heading")).toBeNull();
+  });
 });

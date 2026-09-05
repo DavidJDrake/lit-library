@@ -57,15 +57,26 @@ def load_overrides(path: Path) -> dict:
 
 
 _OVERRIDABLE = {"category", "title", "authors", "year", "publisher", "description"}
-_VALID_CATEGORIES = {TECH, SECURITY, FICTION, COMICS, TTRPG, CERT, OTHER}
+BUILTIN_CATEGORIES = frozenset({TECH, SECURITY, FICTION, COMICS, TTRPG, CERT, OTHER})
+
+
+def valid_categories(overrides: dict) -> set[str]:
+    """Built-in categories plus the top-level ``categories:`` list in overrides.yaml.
+
+    scripts/pull-edits.py maintains that list from the site's category table, so
+    categories people created through the site survive a re-index.
+    """
+    extra = overrides.get("categories") or []
+    return set(BUILTIN_CATEGORIES) | {str(c) for c in extra}
 
 
 def apply_overrides(book: Book, overrides: dict) -> None:
+    valid = valid_categories(overrides)
     for field_name, value in (overrides.get(book.id) or {}).items():
         if field_name not in _OVERRIDABLE:
             continue
-        if field_name == "category" and value not in _VALID_CATEGORIES:
-            continue  # not one of the seven exact category strings; keep derived category
+        if field_name == "category" and value not in valid:
+            continue  # not a known category string; keep the derived category
         if field_name == "authors" and isinstance(value, str):
             value = [value]
         setattr(book, field_name, value)
