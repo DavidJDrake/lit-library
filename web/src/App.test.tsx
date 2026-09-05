@@ -27,8 +27,9 @@ describe("App", () => {
     const jwt = (p: object) => { const b = (o: object) => btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); return `${b({ alg: "none" })}.${b(p)}.sig`; };
     window.sessionStorage.setItem("lit.tokens", JSON.stringify({ idToken: jwt({ email: "u@example.com" }), accessToken: "a", expiresAt: Date.now() + 100_000 }));
     window.history.replaceState({}, "", "/");
-    const fetchFn = vi.fn(async (url: string) => {
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       const u = String(url);
+      if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
       if (u.includes("/notifications")) {
@@ -54,8 +55,9 @@ describe("App", () => {
     const jwt = (p: object) => { const b = (o: object) => btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); return `${b({ alg: "none" })}.${b(p)}.sig`; };
     window.sessionStorage.setItem("lit.tokens", JSON.stringify({ idToken: jwt({ email: "u@example.com" }), accessToken: "a", expiresAt: Date.now() + 100_000 }));
     window.history.replaceState({}, "", "/");
-    const fetchFn = vi.fn(async (url: string) => {
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       const u = String(url);
+      if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
       if (u.includes("/notifications")) {
@@ -69,6 +71,13 @@ describe("App", () => {
     render(<AuthProvider config={cfg} fetchFn={fetchFn}><App fetchFn={fetchFn} /></AuthProvider>);
     await waitFor(() => expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    // Opening the popover marks the shown (unread) notification read — the badge clears
+    // and a POST /notifications/read with its id goes out (204, not the earlier bug's 200).
+    await waitFor(() => expect(document.querySelector(".bell-badge")).toBeNull());
+    const readCall = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[1]?.method === "POST" && String(c[0]).endsWith("/notifications/read"),
+    );
+    expect(readCall?.[1]?.body).toBe(JSON.stringify({ ids: ["2026-09-05T10:00:00.000Z#a"] }));
     await userEvent.click(screen.getByRole("link", { name: "See all notifications" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Notifications" })).toBeInTheDocument());
     expect(window.location.pathname).toBe("/notifications");
