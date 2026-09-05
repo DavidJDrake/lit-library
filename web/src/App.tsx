@@ -5,6 +5,7 @@ import Header from "./components/Header";
 import Library from "./components/Library";
 import SignInPage from "./components/SignInPage";
 import StaticPage from "./components/StaticPage";
+import { useRoute } from "./route";
 
 interface Props { fetchFn?: typeof fetch }
 
@@ -15,7 +16,7 @@ export default function App({ fetchFn = fetch }: Props) {
     auth.signOut();
   }, [auth, fetchFn]);
 
-  const path = window.location.pathname.replace(/\/+$/, "");
+  const { path } = useRoute();
   if (path === "/privacy") return <StaticPage kind="privacy" />;
   if (path === "/terms") return <StaticPage kind="terms" />;
 

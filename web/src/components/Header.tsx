@@ -1,10 +1,14 @@
-interface Props { email?: string; onSignOut: () => void }
+import type { ReactNode } from "react";
+import Link from "./Link";
 
-export default function Header({ email, onSignOut }: Props) {
+interface Props { email?: string; onSignOut: () => void; bell?: ReactNode }
+
+export default function Header({ email, onSignOut, bell }: Props) {
   return (
     <header className="header">
-      <h1>Lit Library</h1>
-      <div>
+      <h1><Link href="/">Lit Library</Link></h1>
+      <div className="header-right">
+        {bell}
         {email && <span className="who">{email}</span>}
         <button className="btn secondary" onClick={onSignOut}>Sign out</button>
       </div>
