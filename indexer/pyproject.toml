@@ -3,7 +3,7 @@ name = "ebook-indexer"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "pymupdf>=1.24",
+    "pymupdf>=1.28.2",
     "Pillow>=12.3.0",
     "requests>=2.34.2",
     "boto3>=1.43.87",
