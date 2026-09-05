@@ -21,6 +21,11 @@ def test_bundle_rules_win():
     assert derive_category("Robert Jordans The Wheel of Time", [], ["epub"], None) == "Fiction"
 
 
+def test_public_domain_fiction_bundles_and_horror_subjects():
+    assert derive_category("H. P. Lovecraft by Project Gutenberg", ["Horror tales"], ["epub"], None) == "Fiction"
+    assert derive_category("Some Bundle", ["Horror tales", "Short stories"], ["epub"], None) == "Fiction"
+
+
 def test_subjects_used_when_bundle_matches_nothing():
     assert derive_category("Some Bundle", ["Fiction / Fantasy"], ["epub"], None) == "Fiction"
     assert derive_category("Some Bundle", ["Computer security"], ["epub"], None) == "Security & Hacking"

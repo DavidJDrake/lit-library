@@ -21,13 +21,13 @@ _BUNDLE_RULES = [
     (r"comic|critical role|blade runner|cosplay|roll for initiative", COMICS),
     (r"hack|security|cyber|red team", SECURITY),
     (r"python|devops|linux|software|cloud|web develop|front end|raspberry|architecture|claude|project management|cicd|programmers", TECH),
-    (r"wheel of time|enders game|dune|doctorow|valdemar|black company", FICTION),
+    (r"wheel of time|enders game|dune|doctorow|valdemar|black company|lovecraft|gutenberg", FICTION),
 ]
 
 _SUBJECT_RULES = [
     (r"comic|graphic novel", COMICS),
     (r"security|hacking", SECURITY),
-    (r"fiction|fantasy|science fiction|novel", FICTION),
+    (r"fiction|fantasy|science fiction|novel|horror|short stories", FICTION),
     (r"computer|programming|software|internet", TECH),
     (r"role.?playing|games", TTRPG),
     (r"certification|study guide", CERT),
