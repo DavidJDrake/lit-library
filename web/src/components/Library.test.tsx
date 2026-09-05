@@ -264,4 +264,45 @@ describe("Library", () => {
     await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
     expect(within(screen.getByRole("dialog", { hidden: true })).queryByRole("combobox", { name: "Category" })).toBeNull();
   });
+
+  it("keeps a selected facet checkbox visible at count 0 after the last matching book is moved away", async () => {
+    let bookCategories: Record<string, string> = {};
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /books/1/category$": (_u, init) => { bookCategories = { "1": JSON.parse(String(init?.body)).category }; return { ok: true, status: 204, headers: new Headers() }; },
+      "GET /library$": () => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ ...overlay, bookCategories }) }),
+    });
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("checkbox", { name: /Security & Hacking/ }));
+    expect(screen.queryByRole("button", { name: /The Black Company/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Category" }), "TTRPG");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Moved to TTRPG"));
+    const checkbox = screen.getByRole("checkbox", { name: /Security & Hacking/ });
+    expect(checkbox).toBeChecked();
+    expect(checkbox.closest("label")).toHaveTextContent("0");
+    expect(screen.getByText("No books match.")).toBeInTheDocument();
+    await userEvent.click(checkbox);
+    expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument();
+  });
+
+  it("toasts a partial-success message when the mutation succeeds but the overlay refetch fails", async () => {
+    let libraryCalls = 0;
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /books/1/category$": () => ({ ok: true, status: 204, headers: new Headers() }),
+      "GET /library$": () => {
+        libraryCalls += 1;
+        if (libraryCalls === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
+        return { ok: false, status: 502, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
+      },
+    });
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Category" }), "TTRPG");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved, but the list could not refresh (boom)"));
+  });
 });

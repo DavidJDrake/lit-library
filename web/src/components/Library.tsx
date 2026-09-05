@@ -97,10 +97,14 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
 
   const facets = useMemo(
     () => Object.fromEntries(
-      FACET_KEYS.map((k) => [
-        k,
-        merged ? facetCounts(applyFilters(merged, { ...filters, [k]: new Set<string>() }), k) : [],
-      ]),
+      FACET_KEYS.map((k) => {
+        const counts = merged ? facetCounts(applyFilters(merged, { ...filters, [k]: new Set<string>() }), k) : [];
+        // A value the user has selected can drop out of the computed counts entirely
+        // (e.g. the last book in that category was just moved elsewhere). Keep its
+        // checkbox visible at count 0 rather than stranding a checked-but-invisible filter.
+        const missing = [...filters[k]].filter((v) => !counts.some((c) => c.value === v));
+        return [k, missing.length === 0 ? counts : [...counts, ...missing.map((value) => ({ value, count: 0 }))]];
+      }),
     ) as Record<FacetKey, Array<{ value: string; count: number }>>,
     [merged, filters],
   );
@@ -135,10 +139,15 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
   const mutate = useCallback(async (run: (token: string) => Promise<void>, success: string) => {
     try {
       await run(await getIdToken());
-      await refreshOverlay();
-      setToast(success);
     } catch (e) {
       setToast((e as Error).message);
+      return;
+    }
+    setToast(success);
+    try {
+      await refreshOverlay();
+    } catch (e) {
+      setToast(`Saved, but the list could not refresh (${(e as Error).message})`);
     }
   }, [getIdToken, refreshOverlay]);
 
