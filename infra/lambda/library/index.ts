@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
+import type { NotifyFn } from "../notifications/fanout";
 import { ADMIN_ROUTES, isAdmin, matchRoute, normalizeName, parseJsonBody, type Route } from "./lib";
 
 export interface Category { name: string; nameLower: string; createdBy: string; createdAt: string; source: "seed" | "admin" | "suggestion" }
@@ -23,7 +24,7 @@ export interface Store {
   rejectSuggestion(id: string, resolvedBy: string, resolvedAt: string): Promise<boolean>;
 }
 
-export interface Deps { store: Store; now: () => Date; newId: () => string }
+export interface Deps { store: Store; now: () => Date; newId: () => string; notify: NotifyFn }
 
 const BOOK_ID_MAX = 64;
 const BOOK_ID_RE = /^[A-Za-z0-9._-]+$/;
@@ -40,6 +41,15 @@ const noContent = (): APIGatewayProxyResultV2 => ({ statusCode: 204 });
 async function nameTaken(store: Store, nameLower: string): Promise<boolean> {
   const [categories, pending] = await Promise.all([store.listCategories(), store.listPendingSuggestions()]);
   return categories.some((c) => c.nameLower === nameLower) || pending.some((s) => s.nameLower === nameLower);
+}
+
+// Best-effort: the primary write has already succeeded; a fan-out failure is logged, never surfaced.
+async function safeNotify(deps: Deps, ...args: Parameters<NotifyFn>): Promise<void> {
+  try {
+    await deps.notify(...args);
+  } catch (e) {
+    console.error("notify failed:", args[0], e);
+  }
 }
 
 async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthorizer, email: string, deps: Deps): Promise<APIGatewayProxyResultV2> {
@@ -82,6 +92,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       await store.putSuggestion({
         id, name: n.name, nameLower: n.nameLower, ...(bookId ? { bookId } : {}), suggestedBy: email, createdAt: at, status: "pending",
       });
+      await safeNotify(deps, "suggestion_pending", { suggestionId: id, name: n.name, ...(bookId ? { bookId } : {}), suggestedBy: email }, "admins");
       return json(201, { id });
     }
     case "createCategory": {
@@ -91,6 +102,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       if (await nameTaken(store, n.nameLower)) return json(409, { error: "That category already exists or has been suggested" });
       const created = await store.putCategory({ name: n.name, nameLower: n.nameLower, createdBy: email, createdAt: at, source: "admin" });
       if (!created) return json(409, { error: "That category already exists" });
+      await safeNotify(deps, "category_created", { name: n.name, createdBy: email, source: "admin" }, "everyone");
       return json(201, { name: n.name });
     }
     case "accept": {
@@ -103,6 +115,8 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const book = s.bookId ? { bookId: s.bookId, category: s.name, changedBy: email, changedAt: at } : undefined;
       const ok = await store.acceptSuggestion(s.id, category, book, email, at);
       if (!ok) return json(409, { error: "Suggestion changed underneath you; reload and try again" });
+      await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "accepted", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
+      await safeNotify(deps, "category_created", { name: s.name, createdBy: email, source: "suggestion" }, "everyone");
       return noContent();
     }
     case "reject": {
@@ -110,6 +124,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       if (!s) return json(404, { error: "Unknown suggestion" });
       const ok = await store.rejectSuggestion(s.id, email, at);
       if (!ok) return json(409, { error: "Suggestion already resolved" });
+      await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "rejected", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
       return noContent();
     }
   }
@@ -131,21 +146,29 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
 }
 
 // ---- production wiring (never exercised by tests) ----
+import { CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "node:crypto";
+import { CognitoDirectory, DynamoNotificationWriter, notify } from "../notifications/fanout";
 import { DynamoStore } from "./store";
 
 let productionDeps: Deps | undefined;
 
 export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
-  productionDeps ??= {
-    store: new DynamoStore(
-      DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } }),
-      process.env.LIBRARY_TABLE ?? "",
-    ),
-    now: () => new Date(),
-    newId: () => randomUUID(),
-  };
+  if (!productionDeps) {
+    const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
+    const notifyDeps = {
+      directory: new CognitoDirectory(new CognitoIdentityProviderClient({}), process.env.USER_POOL_ID ?? ""),
+      writer: new DynamoNotificationWriter(ddb, process.env.NOTIFICATIONS_TABLE ?? ""),
+      now: () => new Date(), newId: () => randomUUID(),
+    };
+    productionDeps = {
+      store: new DynamoStore(ddb, process.env.LIBRARY_TABLE ?? ""),
+      now: () => new Date(),
+      newId: () => randomUUID(),
+      notify: (type, payload, recipients) => notify(type, payload, recipients, notifyDeps),
+    };
+  }
   return handle(event, productionDeps);
 };

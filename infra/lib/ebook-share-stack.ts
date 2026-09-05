@@ -30,7 +30,7 @@ export class EbookShareStack extends Stack {
       keyPairId: signing.publicKey.publicKeyId,
     });
     const notifications = new Notifications(this, "Notifications", { httpApi: api.httpApi, userPool: auth.userPool });
-    const library = new Library(this, "Library", { httpApi: api.httpApi });
+    const library = new Library(this, "Library", { httpApi: api.httpApi, notificationsTable: notifications.table, userPool: auth.userPool });
     library.table.grantReadData(notifications.fn);
     notifications.fn.addEnvironment("LIBRARY_TABLE", library.table.tableName);
     // apiEndpoint is "https://<id>.execute-api.<region>.amazonaws.com"; CloudFront needs the host only.

@@ -1,6 +1,8 @@
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
+import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { describe, expect, it } from "vitest";
 import { SEED_CATEGORIES } from "../lambda/library/constants";
 import { Library } from "../lib/library";
@@ -8,7 +10,12 @@ import { Library } from "../lib/library";
 function synth() {
   const stack = new Stack(new App(), "Test", { env: { account: "123456789012", region: "us-east-1" } });
   const httpApi = new apigw.HttpApi(stack, "HttpApi");
-  const library = new Library(stack, "Library", { httpApi });
+  const userPool = new cognito.UserPool(stack, "Pool");
+  const notificationsTable = new dynamodb.Table(stack, "Notif", {
+    partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
+    sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
+  });
+  const library = new Library(stack, "Library", { httpApi, notificationsTable, userPool });
   return { t: Template.fromStack(stack), library };
 }
 
@@ -57,5 +64,17 @@ describe("Library", () => {
     }
     t.resourceCountIs("AWS::ApiGatewayV2::Route", 6);
     t.resourceCountIs("AWS::ApiGatewayV2::Integration", 1);
+  });
+
+  it("may write notifications and list Cognito users", () => {
+    const { t } = synth();
+    t.hasResourceProperties("AWS::Lambda::Function", {
+      Environment: { Variables: Match.objectLike({ LIBRARY_TABLE: Match.anyValue(), NOTIFICATIONS_TABLE: Match.anyValue(), USER_POOL_ID: Match.anyValue() }) },
+    });
+    t.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: { Statement: Match.arrayWith([Match.objectLike({
+        Action: ["cognito-idp:ListUsers", "cognito-idp:ListUsersInGroup"],
+      })]) },
+    });
   });
 });
