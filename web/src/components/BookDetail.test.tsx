@@ -77,4 +77,15 @@ describe("BookDetail", () => {
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "New category name" })).toBeNull());
     expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("Security & Hacking");
   });
+  it("closes the suggest form when a real category is picked instead", async () => {
+    const onChangeCategory = vi.fn().mockResolvedValue(undefined);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={onChangeCategory} onSuggest={async () => {}} />);
+    const select = screen.getByRole("combobox", { name: "Category" });
+    await userEvent.selectOptions(select, "__suggest__");
+    expect(screen.getByRole("textbox", { name: "New category name" })).toBeInTheDocument();
+    await userEvent.selectOptions(select, "TTRPG");
+    expect(onChangeCategory).toHaveBeenCalledWith(book, "TTRPG");
+    expect(screen.queryByRole("textbox", { name: "New category name" })).toBeNull();
+    expect(select).toHaveValue("Security & Hacking");
+  });
 });

@@ -43,6 +43,7 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
 
   async function changeCategory(value: string) {
     if (value === SUGGEST_OPTION) { setSuggesting(true); return; }
+    setSuggesting(false);
     setBusy(true);
     try {
       await onChangeCategory(book!, value);
