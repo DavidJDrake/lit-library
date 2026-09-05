@@ -123,3 +123,23 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
     return json(500, { error: "Internal error" });
   }
 }
+
+// ---- production wiring (never exercised by tests) ----
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { randomUUID } from "node:crypto";
+import { DynamoStore } from "./store";
+
+let productionDeps: Deps | undefined;
+
+export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
+  productionDeps ??= {
+    store: new DynamoStore(
+      DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } }),
+      process.env.LIBRARY_TABLE ?? "",
+    ),
+    now: () => new Date(),
+    newId: () => randomUUID(),
+  };
+  return handle(event, productionDeps);
+};
