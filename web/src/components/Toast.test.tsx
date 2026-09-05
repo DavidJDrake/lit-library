@@ -32,4 +32,9 @@ describe("Toast", () => {
     await user.click(screen.getByRole("status"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
+
+  it("renders the ok variant with the ok class instead of the default error style", () => {
+    render(<Toast message="Moved to Fiction" variant="ok" onDismiss={() => {}} />);
+    expect(screen.getByRole("status")).toHaveClass("toast", "ok");
+  });
 });

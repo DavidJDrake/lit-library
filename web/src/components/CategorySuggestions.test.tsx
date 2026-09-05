@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import CategorySuggestions from "./CategorySuggestions";
 
 const suggestions = [
-  { id: "s1", name: "Cookbooks", bookId: "b1", suggestedBy: "zbmowrey@gmail.com", createdAt: "2026-09-04T00:00:00Z" },
+  { id: "s1", name: "Cookbooks", bookId: "b1", suggestedBy: "friend@example.com", createdAt: "2026-09-04T00:00:00Z" },
   { id: "s2", name: "Poetry", suggestedBy: "x@y", createdAt: "2026-09-04T00:00:01Z" },
 ];
 const noop = async () => {};
@@ -12,7 +12,7 @@ const noop = async () => {};
 describe("CategorySuggestions", () => {
   it("lists pending chips with the suggester's local part and hides admin controls", () => {
     render(<CategorySuggestions suggestions={suggestions} isAdmin={false} onSuggest={noop} onCreate={noop} onResolve={noop} />);
-    expect(screen.getByText("Cookbooks · suggested by zbmowrey")).toBeInTheDocument();
+    expect(screen.getByText("Cookbooks · suggested by friend")).toBeInTheDocument();
     expect(screen.getByText("Poetry · suggested by x")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accept Cookbooks" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add category" })).toBeNull();

@@ -15,7 +15,7 @@ const catalog: Catalog = {
 const overlay = {
   categories: [{ name: "Fiction", source: "seed" }, { name: "Security & Hacking", source: "seed" }, { name: "TTRPG", source: "seed" }],
   bookCategories: {},
-  suggestions: [{ id: "s1", name: "Cookbooks", suggestedBy: "zbmowrey@gmail.com", createdAt: "2026-09-04T00:00:00Z" }],
+  suggestions: [{ id: "s1", name: "Cookbooks", suggestedBy: "friend@example.com", createdAt: "2026-09-04T00:00:00Z" }],
 };
 
 type Handler = (url: string, init?: RequestInit) => Promise<unknown> | unknown;
@@ -224,7 +224,7 @@ describe("Library", () => {
       "POST /suggestions$": () => ({ ok: true, status: 201, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ id: "s2" }) }),
     });
     const { rerender } = render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
-    await waitFor(() => expect(screen.getByText("Cookbooks · suggested by zbmowrey")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Cookbooks · suggested by friend")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Accept Cookbooks" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Suggest a category" }));
     await userEvent.type(screen.getByRole("textbox", { name: "New category name" }), "Poetry");

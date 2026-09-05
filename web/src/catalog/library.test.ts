@@ -85,7 +85,7 @@ describe("mutations", () => {
 
 describe("suggesterLabel", () => {
   it("shows the local part only", () => {
-    expect(suggesterLabel("zbmowrey@gmail.com")).toBe("zbmowrey");
+    expect(suggesterLabel("friend@example.com")).toBe("friend");
     expect(suggesterLabel("weird")).toBe("weird");
   });
 });

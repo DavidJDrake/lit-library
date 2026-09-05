@@ -37,7 +37,9 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
   const [sort, setSort] = useState<SortKey>("added");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
-  const [toast, setToast] = useState<string>();
+  const [toast, setToast] = useState<{ message: string; variant: "error" | "ok" }>();
+  const fail = useCallback((message: string) => setToast({ message, variant: "error" }), []);
+  const ok = useCallback((message: string) => setToast({ message, variant: "ok" }), []);
 
   const refreshOverlay = useCallback(async () => {
     setOverlay(await fetchOverlay(apiUrl, await getIdToken(), fetchFn));
@@ -62,14 +64,14 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
           if (!cancelled) setOverlay(o);
         } catch (e) {
           // A broken library Lambda must not take the site down: render read-only.
-          if (!cancelled) setToast(`Category editing is unavailable right now (${(e as Error).message})`);
+          if (!cancelled) fail(`Category editing is unavailable right now (${(e as Error).message})`);
         }
       } catch (e) {
         if (!cancelled) setLoadError(`Could not load the catalog (${(e as Error).message}). Try reloading the page.`);
       }
     })();
     return () => { cancelled = true; };
-  }, [apiUrl, getIdToken, fetchFn]);
+  }, [apiUrl, getIdToken, fetchFn, fail]);
 
   useEffect(() => {
     const renew = () => {
@@ -130,9 +132,9 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
       const ticket = await requestDownload(apiUrl, token, book.id, format, fetchFn);
       startDownload(ticket.url, navigate);
     } catch (e) {
-      setToast((e as Error).message);
+      fail((e as Error).message);
     }
-  }, [apiUrl, getIdToken, fetchFn, navigate]);
+  }, [apiUrl, getIdToken, fetchFn, navigate, fail]);
 
   // Every mutation re-fetches the overlay rather than patching local state: one
   // code path, and the server's view always wins (which is also the "revert" on failure).
@@ -140,16 +142,16 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     try {
       await run(await getIdToken());
     } catch (e) {
-      setToast((e as Error).message);
+      fail((e as Error).message);
       return;
     }
-    setToast(success);
+    ok(success);
     try {
       await refreshOverlay();
     } catch (e) {
-      setToast(`Saved, but the list could not refresh (${(e as Error).message})`);
+      fail(`Saved, but the list could not refresh (${(e as Error).message})`);
     }
-  }, [getIdToken, refreshOverlay]);
+  }, [getIdToken, refreshOverlay, fail, ok]);
 
   const changeCategory = useCallback((book: Book, category: string) =>
     mutate((t) => setBookCategory(apiUrl, t, book.id, category, fetchFn), `Moved to ${category}`), [mutate, apiUrl, fetchFn]);
@@ -201,7 +203,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
       </section>
       <BookDetail book={selected} onClose={() => setSelectedId(null)} onDownload={download}
         categories={categoryNames} onChangeCategory={changeCategory} onSuggest={(name, bookId) => suggest(name, bookId)} />
-      <Toast message={toast} onDismiss={dismissToast} />
+      <Toast message={toast?.message} variant={toast?.variant} onDismiss={dismissToast} />
     </div>
   );
 }
