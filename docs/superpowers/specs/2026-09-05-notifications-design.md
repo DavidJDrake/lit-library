@@ -21,7 +21,7 @@ the server.
 | Read semantics | GitHub-style: opening the popover marks the rows *shown* as read; the page has "Mark all as read". Actionability is independent of read state. |
 | Freshness | Poll every 5 minutes plus on `visibilitychange`; refresh after local actions that generate notifications. No push, no email. |
 | Retention | DynamoDB TTL, 90 days. The table is disposable (`RemovalPolicy.DESTROY`) and not backed up. |
-| `books_added` source | `publish-new.sh` invokes the notifications Lambda directly (`aws lambda invoke`) after a publish with new books; the Lambda fans out. The indexer never talks to Cognito or the table. |
+| `books_added` source | `publish-new.sh` invokes the notifications Lambda directly (`aws lambda invoke`) after a publish with new books; the Lambda fans out. The indexer never talks to Cognito or the table. Implemented as `scripts/notify-books-added.py` (boto3) called by `publish-new.sh`, because the payload needs the new book ids, which a shell one-liner cannot compute. |
 | Navigation | A minimal in-app router (`useRoute`: pathname state, `pushState`, `popstate`) so "See all" and the logo navigate without a reload. `/privacy` and `/terms` are unchanged. |
 | Out of scope | Per-type mute preferences, browser push, sounds, email, notification history beyond 90 days. |
 
@@ -192,8 +192,7 @@ is an additional surface, not a replacement, and the chips are what non-admins s
   mark all, empty and error states), `useRoute` (pushState/popstate), `Library`
   `?category=` seeding and the post-action `refresh` calls, `OverlayProvider` extraction
   leaving the existing Library tests green.
-- **scripts**: `publish-new.sh` invoke branch with a stub `aws` on `PATH` — no invoke when
-  the delta is 0, correct payload when > 0, warning-and-exit-0 when the invoke fails.
+- **scripts**: `notify-books-added.py` is tested via pytest (subprocess with `--dry-run`, missing-outputs warning, delta/payload helpers).
 
 ## Rollout
 

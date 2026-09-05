@@ -13,5 +13,5 @@ before=$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))))" "
 echo "new books: $((after - before))"
 .venv/bin/python -m ebook_indexer publish --config ../config.yaml
 echo "published — CloudFront invalidation requested for catalog.json"
-REGION=$(python3 -c "import yaml;print(yaml.safe_load(open('../config.yaml')).get('aws_region','us-east-1'))" 2>/dev/null || echo us-east-1)
+REGION=$(.venv/bin/python -c "import yaml;print(yaml.safe_load(open('../config.yaml')).get('aws_region','us-east-1'))" 2>/dev/null || echo us-east-1)
 .venv/bin/python "$ROOT/scripts/notify-books-added.py" --before "$BEFORE" --added ../metadata/added.json --region "$REGION" || true
