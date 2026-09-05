@@ -22,7 +22,7 @@ describe("EbookShareStack", () => {
     t.resourceCountIs("AWS::CloudFront::Distribution", 1);
     t.resourceCountIs("AWS::Cognito::UserPool", 1);
     t.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
-    t.resourceCountIs("AWS::DynamoDB::Table", 1);
+    t.resourceCountIs("AWS::DynamoDB::Table", 2);
     t.resourceCountIs("AWS::CloudFront::KeyGroup", 1);
   });
 
@@ -30,7 +30,7 @@ describe("EbookShareStack", () => {
     const t = synthStack();
     for (const name of [
       "SiteUrl", "SiteBucketName", "BooksBucketName", "DistributionId",
-      "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable", "SigningKeyPairId",
+      "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable", "LibraryTable", "SigningKeyPairId",
     ]) {
       expect(() => t.hasOutput(name, {})).not.toThrow();
     }

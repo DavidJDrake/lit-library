@@ -7,6 +7,7 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
 import * as path from "node:path";
+import { ADMIN_GROUP } from "../lambda/library/constants";
 import type { InfraConfig } from "./config";
 
 export interface AuthProps {
@@ -51,6 +52,14 @@ export class Auth extends Construct {
       lambdaTriggers: { preSignUp },
       removalPolicy: RemovalPolicy.RETAIN,
       featurePlan: cognito.FeaturePlan.LITE,
+    });
+
+    // Members may accept category suggestions and add categories directly
+    // (see infra/lib/library.ts). Add people with scripts/make-admin.sh.
+    new cognito.CfnUserPoolGroup(this, "Admins", {
+      userPoolId: this.userPool.userPoolId,
+      groupName: ADMIN_GROUP,
+      description: "May accept category suggestions and add categories",
     });
 
     const googleSecret = secretsmanager.Secret.fromSecretNameV2(this, "GoogleSecret", config.googleOAuthSecretName);
