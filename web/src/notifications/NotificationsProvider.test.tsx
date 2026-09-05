@@ -127,6 +127,65 @@ describe("NotificationsProvider", () => {
     });
     expect(screen.getByTestId("unread")).toHaveTextContent("0");
   });
+  it("a refresh already in flight before markRead starts cannot clobber it with stale data", async () => {
+    const posted: string[] = [];
+    let getCount = 0;
+    const deferredGet = deferred<{ items: Notification[]; unread: number }>();
+    const deferredPost = deferred<{ ok: boolean; status: number; headers: Headers; json: () => Promise<unknown> }>();
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") { posted.push(String(init.body)); return deferredPost.promise; }
+      getCount += 1;
+      if (getCount === 1) {
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1 }) };
+      }
+      const page = await deferredGet.promise;
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => page };
+    }) as unknown as typeof fetch;
+
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("1"));
+
+    // A background refresh (poll/visibility) starts first and is left in flight.
+    await userEvent.click(screen.getByRole("button", { name: "refresh" }));
+    await waitFor(() => expect(getCount).toBe(2));
+
+    // markRead starts while that refresh is still pending; its own write is also left in flight.
+    await userEvent.click(screen.getByRole("button", { name: "read-first" }));
+    expect(screen.getByTestId("unread")).toHaveTextContent("0");
+
+    // The stale refresh resolves with pre-read data before the write finishes; it must be
+    // discarded (the sequence bump at the start of markRead already invalidated it), not applied.
+    await act(async () => {
+      deferredGet.resolve({ items: [n(1)], unread: 1 });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(screen.getByTestId("unread")).toHaveTextContent("0");
+    expect(screen.getByTestId("count")).toHaveTextContent("1");
+
+    // The write itself then completes normally.
+    await act(async () => {
+      deferredPost.resolve({ ok: true, status: 204, headers: new Headers({ "content-type": "application/json" }), json: async () => ({}) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    await waitFor(() => expect(posted).toEqual([JSON.stringify({ ids: [n(1).id] })]));
+    expect(screen.getByTestId("unread")).toHaveTextContent("0");
+  });
+  it("loadMore reports an error and keeps existing items when the second page fails", async () => {
+    let gets = 0;
+    const fetchFn = vi.fn(async () => {
+      gets += 1;
+      if (gets === 1) {
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1, next: "2026-09-05T10:00:01.000Z#1" }) };
+      }
+      return { ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("more")).toHaveTextContent("true"));
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("error"));
+    expect(screen.getByTestId("count")).toHaveTextContent("1");
+    expect(screen.getByTestId("more")).toHaveTextContent("true");
+  });
   it("polls every NOTIFICATIONS_POLL_MS and on visibility, and reports errors without throwing", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const { fetchFn, gets } = server([{ items: [], unread: 0 }]);

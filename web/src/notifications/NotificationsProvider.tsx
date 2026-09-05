@@ -57,6 +57,8 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
       const page = await fetchNotifications(apiUrl, await getIdToken(), { limit: PAGE_SIZE, before: next }, fetchFn);
       if (!mounted.current) return;
       setItems((cur) => [...cur, ...page.items]); setNext(page.next); setUnread(page.unread);
+    } catch (e) {
+      if (mounted.current) { setStatus("error"); setError((e as Error).message); }
     } finally {
       loadingMore.current = false;
     }
@@ -69,6 +71,7 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   const markRead = useCallback(async (ids: string[]) => {
     const targets = new Set(ids.filter(Boolean));
     if (targets.size === 0) return;
+    seqRef.current += 1;
     const prevItems = itemsRef.current;
     const prevUnread = unreadRef.current;
     const flipped = prevItems.filter((n) => targets.has(n.id) && !n.read).length;
@@ -78,20 +81,19 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
     }
     try {
       await markNotificationsRead(apiUrl, await getIdToken(), [...targets], fetchFn);
-      seqRef.current += 1;
     } catch {
       if (mounted.current) { setItems(prevItems); setUnread(prevUnread); }
     }
   }, [apiUrl, getIdToken, fetchFn]);
 
   const markAllRead = useCallback(async () => {
+    seqRef.current += 1;
     const prevItems = itemsRef.current;
     const prevUnread = unreadRef.current;
     setItems((cur) => cur.map((n) => (n.read ? n : { ...n, read: true })));
     setUnread(0);
     try {
       await markNotificationsRead(apiUrl, await getIdToken(), "all", fetchFn);
-      seqRef.current += 1;
     } catch {
       if (mounted.current) { setItems(prevItems); setUnread(prevUnread); }
     }
