@@ -76,4 +76,20 @@ describe("DynamoNotificationStore.markRead / markAllRead", () => {
     const { ddb } = client(() => { throw new Error("network"); });
     await expect(new DynamoNotificationStore(ddb, "T").markRead("a@example.com", ["2026-09-05T10:00:00.000Z#b"])).rejects.toThrow("network");
   });
+  it("bounds concurrency to 25 in-flight updates", async () => {
+    let inFlight = 0;
+    let max = 0;
+    const send = vi.fn(async () => {
+      inFlight += 1;
+      max = Math.max(max, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return {};
+    });
+    const ddb = { send } as unknown as DynamoDBDocumentClient;
+    const ids = Array.from({ length: 60 }, (_, i) => `2026-09-05T10:00:00.000Z#${i}`);
+    await new DynamoNotificationStore(ddb, "T").markRead("a@example.com", ids);
+    expect(send).toHaveBeenCalledTimes(60);
+    expect(max).toBeLessThanOrEqual(25);
+  });
 });

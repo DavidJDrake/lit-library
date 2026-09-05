@@ -3,6 +3,7 @@ import type { NotificationRecord, NotificationStore } from "./index";
 
 type Item = Record<string, unknown>;
 const pkOf = (email: string) => `USER#${email.toLowerCase()}`;
+const MARK_READ_CONCURRENCY = 25;
 
 function toRecord(i: Item): NotificationRecord {
   return {
@@ -46,7 +47,7 @@ export class DynamoNotificationStore implements NotificationStore {
   }
 
   async markRead(email: string, ids: string[]) {
-    await Promise.all(ids.map(async (sk) => {
+    const update = async (sk: string) => {
       try {
         await this.ddb.send(new UpdateCommand({
           TableName: this.table, Key: { pk: pkOf(email), sk }, UpdateExpression: "SET #read = :t",
@@ -55,7 +56,10 @@ export class DynamoNotificationStore implements NotificationStore {
       } catch (e) {
         if ((e as { name?: string }).name !== "ConditionalCheckFailedException") throw e; // a foreign or expired id is a no-op
       }
-    }));
+    };
+    for (let i = 0; i < ids.length; i += MARK_READ_CONCURRENCY) {
+      await Promise.all(ids.slice(i, i + MARK_READ_CONCURRENCY).map(update));
+    }
   }
 
   async markAllRead(email: string) {
