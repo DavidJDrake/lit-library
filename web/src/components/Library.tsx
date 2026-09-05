@@ -1,4 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import {
+  applyOverlay, createCategory, fetchOverlay, resolveSuggestion, setBookCategory, suggestCategory, type Overlay,
+} from "../catalog/library";
 import { requestDownload, startDownload } from "../catalog/download";
 import { loadCatalog } from "../catalog/load";
 import { establishSession } from "../catalog/session";
@@ -6,6 +9,7 @@ import { applyFilters, buildSearchIndex, facetCounts, searchBooks, sortBooks } f
 import { emptyFilters, FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
+import CategorySuggestions from "./CategorySuggestions";
 import FacetGroup from "./FacetGroup";
 import Toast from "./Toast";
 
@@ -31,8 +35,13 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [sort, setSort] = useState<SortKey>("added");
-  const [selected, setSelected] = useState<Book | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [toast, setToast] = useState<string>();
+
+  const refreshOverlay = useCallback(async () => {
+    setOverlay(await fetchOverlay(apiUrl, await getIdToken(), fetchFn));
+  }, [apiUrl, getIdToken, fetchFn]);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +57,13 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
           catalog = await loadCatalog(fetchFn);
         }
         if (!cancelled) setBooks(catalog.books);
+        try {
+          const o = await fetchOverlay(apiUrl, await getIdToken(), fetchFn);
+          if (!cancelled) setOverlay(o);
+        } catch (e) {
+          // A broken library Lambda must not take the site down: render read-only.
+          if (!cancelled) setToast(`Category editing is unavailable right now (${(e as Error).message})`);
+        }
       } catch (e) {
         if (!cancelled) setLoadError(`Could not load the catalog (${(e as Error).message}). Try reloading the page.`);
       }
@@ -73,18 +89,22 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     };
   }, [apiUrl, getIdToken, fetchFn]);
 
+  const merged = useMemo(() => (books && overlay ? applyOverlay(books, overlay) : books), [books, overlay]);
+  const categoryNames = useMemo(() => overlay?.categories.map((c) => c.name) ?? [], [overlay]);
+  const selected = useMemo(() => merged?.find((b) => b.id === selectedId) ?? null, [merged, selectedId]);
+
   const deferredQuery = useDeferredValue(query);
 
   const facets = useMemo(
     () => Object.fromEntries(
       FACET_KEYS.map((k) => [
         k,
-        books ? facetCounts(applyFilters(books, { ...filters, [k]: new Set<string>() }), k) : [],
+        merged ? facetCounts(applyFilters(merged, { ...filters, [k]: new Set<string>() }), k) : [],
       ]),
     ) as Record<FacetKey, Array<{ value: string; count: number }>>,
-    [books, filters],
+    [merged, filters],
   );
-  const filtered = useMemo(() => (books ? applyFilters(books, filters) : []), [books, filters]);
+  const filtered = useMemo(() => (merged ? applyFilters(merged, filters) : []), [merged, filters]);
   const index = useMemo(() => buildSearchIndex(filtered), [filtered]);
   const searched = useMemo(() => searchBooks(filtered, deferredQuery, index), [filtered, deferredQuery, index]);
   const visible = useMemo(
@@ -110,6 +130,29 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     }
   }, [apiUrl, getIdToken, fetchFn, navigate]);
 
+  // Every mutation re-fetches the overlay rather than patching local state: one
+  // code path, and the server's view always wins (which is also the "revert" on failure).
+  const mutate = useCallback(async (run: (token: string) => Promise<void>, success: string) => {
+    try {
+      await run(await getIdToken());
+      await refreshOverlay();
+      setToast(success);
+    } catch (e) {
+      setToast((e as Error).message);
+    }
+  }, [getIdToken, refreshOverlay]);
+
+  const changeCategory = useCallback((book: Book, category: string) =>
+    mutate((t) => setBookCategory(apiUrl, t, book.id, category, fetchFn), `Moved to ${category}`), [mutate, apiUrl, fetchFn]);
+  const suggest = useCallback((name: string, bookId?: string) =>
+    mutate((t) => suggestCategory(apiUrl, t, name, bookId, fetchFn), `Suggested '${name}' — waiting for approval`), [mutate, apiUrl, fetchFn]);
+  const addCategory = useCallback((name: string) =>
+    mutate((t) => createCategory(apiUrl, t, name, fetchFn), `Added category '${name}'`), [mutate, apiUrl, fetchFn]);
+  const resolve = useCallback((id: string, action: "accept" | "reject") => {
+    const name = overlay?.suggestions.find((s) => s.id === id)?.name ?? "suggestion";
+    return mutate((t) => resolveSuggestion(apiUrl, t, id, action, fetchFn), `${action === "accept" ? "Accepted" : "Rejected"} '${name}'`);
+  }, [mutate, apiUrl, fetchFn, overlay]);
+
   const dismissToast = useCallback(() => setToast(undefined), []);
 
   if (loadError) return <div className="error" role="alert" style={{ margin: "2rem" }}>{loadError}</div>;
@@ -120,7 +163,11 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
       <aside className="sidebar">
         {FACET_KEYS.map((key) => (
           <FacetGroup key={key} title={FACET_TITLES[key]} options={facets[key]}
-            selected={filters[key]} onToggle={(v) => toggle(key, v)} />
+            selected={filters[key]} onToggle={(v) => toggle(key, v)}
+            footer={key === "category" && overlay ? (
+              <CategorySuggestions suggestions={overlay.suggestions} isAdmin={isAdmin}
+                onSuggest={(name) => suggest(name)} onCreate={addCategory} onResolve={resolve} />
+            ) : undefined} />
         ))}
       </aside>
       <section>
@@ -139,12 +186,12 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
         </div>
         {visible.length === 0 ? <p className="empty">No books match.</p> : (
           <div className="grid">
-            {visible.map((b) => <BookCard key={b.id} book={b} onOpen={setSelected} />)}
+            {visible.map((b) => <BookCard key={b.id} book={b} onOpen={(b) => setSelectedId(b.id)} />)}
           </div>
         )}
       </section>
-      <BookDetail book={selected} onClose={() => setSelected(null)} onDownload={download}
-        categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />
+      <BookDetail book={selected} onClose={() => setSelectedId(null)} onDownload={download}
+        categories={categoryNames} onChangeCategory={changeCategory} onSuggest={(name, bookId) => suggest(name, bookId)} />
       <Toast message={toast} onDismiss={dismissToast} />
     </div>
   );

@@ -12,14 +12,25 @@ const catalog: Catalog = {
   ],
 };
 
-function fetchFor(catalogBody: object, downloadBody: object = { url: "https://s3/x", filename: "f.epub", expiresIn: 900 }) {
-  return vi.fn(async (url: string) => {
-    if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
-    return {
-      ok: true, status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => (String(url).endsWith("/catalog.json") ? catalogBody : downloadBody),
-    };
+const overlay = {
+  categories: [{ name: "Fiction", source: "seed" }, { name: "Security & Hacking", source: "seed" }, { name: "TTRPG", source: "seed" }],
+  bookCategories: {},
+  suggestions: [{ id: "s1", name: "Cookbooks", suggestedBy: "zbmowrey@gmail.com", createdAt: "2026-09-04T00:00:00Z" }],
+};
+
+type Handler = (url: string, init?: RequestInit) => Promise<unknown> | unknown;
+function fetchFor(catalogBody: object, downloadBody: object = { url: "https://s3/x", filename: "f.epub", expiresIn: 900 }, extra: Record<string, Handler> = {}) {
+  const jsonRes = (status: number, body: unknown) => ({
+    ok: status < 300, status, headers: new Headers({ "content-type": "application/json" }), json: async () => body,
+  });
+  return vi.fn(async (url: string, init?: RequestInit) => {
+    const u = String(url);
+    const key = `${init?.method ?? "GET"} ${u.replace(/^https?:\/\/[^/]+/, "")}`;
+    for (const [pattern, handler] of Object.entries(extra)) if (new RegExp(pattern).test(key)) return handler(u, init);
+    if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+    if (u.endsWith("/library")) return jsonRes(200, overlay);
+    if (u.endsWith("/catalog.json")) return jsonRes(200, catalogBody);
+    return jsonRes(200, downloadBody);
   }) as unknown as typeof fetch;
 }
 
@@ -77,6 +88,7 @@ describe("Library", () => {
   it("shows a toast when the download fails", async () => {
     const fetchFn = vi.fn(async (url: string) => {
       if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       return String(url).endsWith("/catalog.json")
         ? { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog }
         : { ok: false, status: 404, json: async () => ({ error: "Unknown book or format" }) };
@@ -102,17 +114,20 @@ describe("Library", () => {
     const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${url}`);
       if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
     }) as unknown as typeof fetch;
     render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     expect(calls.indexOf("GET /api/session")).toBeLessThan(calls.indexOf("GET /catalog.json"));
+    expect(calls.indexOf("GET /catalog.json")).toBeLessThan(calls.indexOf("GET /api/library"));
   });
 
   it("re-establishes the session and retries once when the catalog fetch is rejected", async () => {
     let catalogCalls = 0;
     const fetchFn = vi.fn(async (url: string) => {
       if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       catalogCalls += 1;
       if (catalogCalls === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "text/html" }), json: async () => ({}) };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
@@ -129,6 +144,7 @@ describe("Library", () => {
     const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${url}`);
       if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
     }) as unknown as typeof fetch;
     const { unmount } = render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
@@ -146,6 +162,7 @@ describe("Library", () => {
     const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${url}`);
       if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
     }) as unknown as typeof fetch;
     render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
@@ -155,5 +172,96 @@ describe("Library", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     await waitFor(() => expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(2));
     visibilitySpy.mockRestore();
+  });
+
+  it("merges the overlay into categories and lists categories in the detail select", async () => {
+    const fetchFn = fetchFor(catalog, undefined, { "GET /library$": () => ({
+      ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ ...overlay, bookCategories: { "1": "TTRPG" } }),
+    }) });
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: /TTRPG/ })).toBeInTheDocument());
+    expect(screen.queryByRole("checkbox", { name: /Security & Hacking/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const select = within(screen.getByRole("dialog", { hidden: true })).getByRole("combobox", { name: "Category" });
+    expect(select).toHaveValue("TTRPG");
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["Fiction", "Security & Hacking", "TTRPG", "Suggest a new category…"]);
+  });
+
+  it("moves a book: PUTs, re-fetches the overlay, updates the grid and the open dialog, toasts", async () => {
+    let bookCategories: Record<string, string> = {};
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /books/1/category$": (_u, init) => { bookCategories = { "1": JSON.parse(String(init?.body)).category }; return { ok: true, status: 204, headers: new Headers() }; },
+      "GET /library$": () => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ ...overlay, bookCategories }) }),
+    });
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Category" }), "TTRPG");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Moved to TTRPG"));
+    expect(within(dialog).getByRole("combobox", { name: "Category" })).toHaveValue("TTRPG");
+    expect(screen.getByRole("checkbox", { name: /TTRPG/ })).toBeInTheDocument();
+    const put = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.find((c) => c[1]?.method === "PUT")!;
+    expect(put[1].headers.Authorization).toBe("Bearer tok");
+  });
+
+  it("toasts the API error and keeps the old category when the move fails", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /books/": () => ({ ok: false, status: 400, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "Unknown category" }) }),
+    });
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Category" }), "TTRPG");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Unknown category"));
+    expect(within(dialog).getByRole("combobox", { name: "Category" })).toHaveValue("Security & Hacking");
+  });
+
+  it("suggests from the facet footer and shows pending chips; admin controls only with isAdmin", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "POST /suggestions$": () => ({ ok: true, status: 201, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ id: "s2" }) }),
+    });
+    const { rerender } = render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByText("Cookbooks · suggested by zbmowrey")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Accept Cookbooks" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Suggest a category" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "New category name" }), "Poetry");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Suggested 'Poetry' — waiting for approval"));
+    const post = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.find((c) => String(c[0]).endsWith("/suggestions"))!;
+    expect(JSON.parse(post[1].body)).toEqual({ name: "Poetry" });
+    rerender(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} isAdmin />);
+    expect(screen.getByRole("button", { name: "Accept Cookbooks" })).toBeInTheDocument();
+  });
+
+  it("admin accepts a suggestion and adds a category directly", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "POST /suggestions/s1/accept$": () => ({ ok: true, status: 204, headers: new Headers() }),
+      "POST /categories$": () => ({ ok: true, status: 201, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ name: "Essays" }) }),
+    });
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} isAdmin />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Accept Cookbooks" })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Accept Cookbooks" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Accepted 'Cookbooks'"));
+    await userEvent.click(screen.getByRole("button", { name: "Add category" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Category name" }), "Essays");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Added category 'Essays'"));
+    const libraryCalls = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).endsWith("/library"));
+    expect(libraryCalls.length).toBe(3); // initial + one refetch per mutation
+  });
+
+  it("still renders read-only when the overlay fails, with a toast", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "GET /library$": () => ({ ok: false, status: 502, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) }),
+    });
+    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    expect(screen.getByRole("status")).toHaveTextContent("Category editing is unavailable right now (boom)");
+    expect(screen.queryByRole("button", { name: "Suggest a category" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    expect(within(screen.getByRole("dialog", { hidden: true })).queryByRole("combobox", { name: "Category" })).toBeNull();
   });
 });
