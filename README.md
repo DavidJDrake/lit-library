@@ -1,5 +1,7 @@
 # Lit Library
 
+[![CI](https://github.com/DavidJDrake/lit-library/actions/workflows/ci.yml/badge.svg)](https://github.com/DavidJDrake/lit-library/actions/workflows/ci.yml)
+
 A private, personal ebook library on AWS: sign in with Google, browse ~1,300 books
 with covers, search and filter them in the browser, and download any title
 through a short-lived link. The whole thing runs for well under **$1/month** —
@@ -156,6 +158,10 @@ cd web     && npm run dev                   # local SPA against the live catalog
 ```
 
 Every suite runs offline — no AWS credentials, no network.
+
+GitHub Actions runs the same three suites, both typechecks, `cdk synth` (against the
+example config), and the web build on every push and pull request; Dependabot opens
+weekly grouped update PRs for the three package manifests and the workflow actions.
 
 ## Security notes and known trade-offs
 
