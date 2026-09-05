@@ -103,3 +103,32 @@ export async function handle(
     return json(500, { error: "Internal error" });
   }
 }
+
+// ---- production wiring (never exercised by tests) ----
+import { CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { randomUUID } from "node:crypto";
+import { DynamoStore } from "../library/store";
+import { CognitoDirectory, DynamoNotificationWriter, notify } from "./fanout";
+import { DynamoNotificationStore } from "./store";
+
+let productionDeps: Deps | undefined;
+
+export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer | Record<string, unknown>) => {
+  if (!productionDeps) {
+    const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
+    const notifyDeps = {
+      directory: new CognitoDirectory(new CognitoIdentityProviderClient({}), process.env.USER_POOL_ID ?? ""),
+      writer: new DynamoNotificationWriter(ddb, process.env.NOTIFICATIONS_TABLE ?? ""),
+      now: () => new Date(), newId: () => randomUUID(),
+    };
+    productionDeps = {
+      store: new DynamoNotificationStore(ddb, process.env.NOTIFICATIONS_TABLE ?? ""),
+      suggestions: new DynamoStore(ddb, process.env.LIBRARY_TABLE ?? ""),
+      notify: (type, payload, recipients) => notify(type, payload, recipients, notifyDeps),
+      now: () => new Date(),
+    };
+  }
+  return handle(event, productionDeps);
+};
