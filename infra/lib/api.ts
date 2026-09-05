@@ -26,6 +26,8 @@ export interface ApiProps {
 export class Api extends Construct {
   readonly httpApi: apigw.HttpApi;
   readonly table: dynamodb.Table;
+  readonly downloadFn: NodejsFunction;
+  readonly sessionFn: NodejsFunction;
 
   constructor(scope: Construct, id: string, props: ApiProps) {
     super(scope, id);
@@ -38,7 +40,7 @@ export class Api extends Construct {
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
-    const downloadFn = new NodejsFunction(this, "DownloadFn", {
+    const downloadFn = this.downloadFn = new NodejsFunction(this, "DownloadFn", {
       entry: path.join(__dirname, "../lambda/download/index.ts"),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
@@ -59,7 +61,7 @@ export class Api extends Construct {
     this.table.grant(downloadFn, "dynamodb:PutItem");
 
     const signingSecret = secretsmanager.Secret.fromSecretNameV2(this, "SigningSecret", config.signingKeySecretName);
-    const sessionFn = new NodejsFunction(this, "SessionFn", {
+    const sessionFn = this.sessionFn = new NodejsFunction(this, "SessionFn", {
       entry: path.join(__dirname, "../lambda/session/index.ts"),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),

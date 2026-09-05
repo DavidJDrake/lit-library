@@ -6,8 +6,7 @@ Items move to "Done" with the commit or plan that closed them.
 
 ## Soon
 
-1. **#10 — alarms.** Friends now get notifications, so a broken deploy is noticed by them first.
-2. **#7 — Send-to-Kindle.** Kick off the SES production-access request early; it has a wait.
+1. **#7 — Send-to-Kindle.** Kick off the SES production-access request early; it has a wait.
 
 ## Product polish (independent, each S)
 
@@ -37,7 +36,6 @@ Items move to "Done" with the commit or plan that closed them.
 | # | Item | Effort | Notes |
 |---|---|---|---|
 | 9 | CloudFront response-headers policy: CSP, `X-Content-Type-Options`, HSTS. | S | Cheap insurance for tokens in `sessionStorage`. |
-| 10 | CloudWatch alarms: Lambda errors, and estimated charges > $5/month, both to email. | S | A broken deploy is currently discovered by a friend. |
 
 ## Repo as portfolio
 
@@ -52,6 +50,7 @@ Items move to "Done" with the commit or plan that closed them.
 | # | Item | Closed by |
 |---|---|---|
 | — | **User-editable categories.** Anyone moves a book between categories or suggests a new one; `admins` group accepts/rejects or adds directly; overlay table merged over the static catalog; `pull-edits.py` folds edits into `overrides.yaml`. | PR #1, spec/plan `2026-09-04-user-categories` |
+| 10 | **CloudWatch alarms** — SNS email topic; `Errors ≥ 1`/5 min per Lambda, API `5xx ≥ 1`/5 min, `EstimatedCharges > $5`; ALARM and OK notifications; missing data = OK. | `infra/lib/alerts.ts` |
 | 11 | **GitHub Actions CI** — infra (typecheck, tests, `cdk synth` on the example config), web (typecheck, tests, build), indexer (pytest) on every push/PR; badge in the README. | `.github/workflows/ci.yml` |
 | 12 | **Dependabot** — weekly grouped minor/patch PRs for `/infra`, `/web`, `/indexer`, and the workflow actions. | `.github/dependabot.yml` |
 | — | **Notifications.** Header bell + popover + `/notifications` page; fan-out per recipient with a 90-day TTL; suggestion/category events from the library Lambda, "N new books added" from `publish-new.sh`; in-app router; `?category=` seeding. | PR #2, spec/plan `2026-09-05-notifications` |

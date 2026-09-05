@@ -23,6 +23,7 @@ export interface LibraryProps {
 // changes, and category suggestions. See docs/superpowers/specs/2026-09-04-user-categories-design.md.
 export class Library extends Construct {
   readonly table: dynamodb.Table;
+  readonly fn: NodejsFunction;
 
   constructor(scope: Construct, id: string, props: LibraryProps) {
     super(scope, id);
@@ -60,7 +61,7 @@ export class Library extends Construct {
       });
     });
 
-    const fn = new NodejsFunction(this, "Fn", {
+    const fn = this.fn = new NodejsFunction(this, "Fn", {
       entry: path.join(__dirname, "../lambda/library/index.ts"),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(15),

@@ -14,12 +14,13 @@ export interface InfraConfig {
   seedAllowedEmail: string;
   localDevOrigin: string;
   cloudfrontPublicKeyPem: string;
+  alarmEmail: string;
 }
 
 const KEYS: (keyof InfraConfig)[] = [
   "account", "region", "siteDomain", "hostedZoneName", "hostedZoneId", "cognitoDomainPrefix",
   "googleOAuthSecretName", "signingKeySecretName", "allowedEmailsParam", "seedAllowedEmail",
-  "localDevOrigin", "cloudfrontPublicKeyPem",
+  "localDevOrigin", "cloudfrontPublicKeyPem", "alarmEmail",
 ];
 
 export const EXAMPLE_CONFIG_PATH = path.join(__dirname, "../config.example.json");
