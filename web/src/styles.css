@@ -80,3 +80,12 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .chip { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--muted); background: var(--bg); border: 1px dashed var(--border); border-radius: 999px; padding: 0.15rem 0.6rem; }
 .chip-actions button { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0 0.2rem; font-size: 0.9rem; }
 .chip-actions button:disabled { opacity: 0.5; cursor: default; }
+.notif { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+.notif:last-child { border-bottom: 0; }
+.notif.unread { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.notif.unread .notif-body > :first-child::before { content: "•"; color: var(--accent); margin-right: 0.35rem; }
+.notif-icon { flex: 0 0 auto; }
+.notif-body { flex: 1 1 auto; min-width: 0; }
+.notif-body a { color: inherit; }
+.notif-meta { color: var(--muted); font-size: 0.78rem; display: flex; gap: 0.6rem; margin-top: 0.15rem; }
+.notif-error { color: var(--danger); font-size: 0.8rem; margin-top: 0.2rem; }
