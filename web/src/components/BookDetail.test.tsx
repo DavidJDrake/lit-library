@@ -19,7 +19,7 @@ beforeAll(() => {
 
 describe("BookDetail", () => {
   it("renders metadata and one download button per format with sizes", () => {
-    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
     expect(screen.getByRole("heading", { name: "Attacking Network Protocols" })).toBeInTheDocument();
     expect(screen.getByText(/James Forshaw/)).toBeInTheDocument();
     expect(screen.getByText(/No Starch Press · 2018/)).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe("BookDetail", () => {
   it("calls onDownload and disables buttons while in flight", async () => {
     let resolve!: () => void;
     const onDownload = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
-    render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
     await userEvent.click(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" }));
     expect(onDownload).toHaveBeenCalledWith(book, "epub");
     expect(screen.getByRole("button", { name: /Download PDF/ })).toBeDisabled();
@@ -39,7 +39,7 @@ describe("BookDetail", () => {
   });
   it("closes via the close button", async () => {
     const onClose = vi.fn();
-    render(<BookDetail book={book} onClose={onClose} onDownload={async () => {}} />);
+    render(<BookDetail book={book} onClose={onClose} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
     await userEvent.click(screen.getByRole("button", { name: /close/i }));
     expect(onClose).toHaveBeenCalled();
   });
@@ -47,10 +47,34 @@ describe("BookDetail", () => {
     let resolve!: () => void;
     const onDownload = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
     const bookB: Book = { ...book, id: "2", title: "Another Book" };
-    const { rerender } = render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} />);
+    const { rerender } = render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
     await userEvent.click(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" }));
     expect(screen.getByRole("button", { name: /Download PDF/ })).toBeDisabled();
-    rerender(<BookDetail book={bookB} onClose={() => {}} onDownload={onDownload} />);
+    rerender(<BookDetail book={bookB} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
     expect(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" })).toBeEnabled();
+  });
+  const cats = ["Fiction", "Security & Hacking", "TTRPG"];
+  it("renders the category as text when no categories are available", () => {
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
+    expect(screen.queryByRole("combobox", { name: "Category" })).toBeNull();
+    expect(screen.getByText(/Security & Hacking · Hacking by No Starch Press/)).toBeInTheDocument();
+  });
+  it("moves the book via the category select", async () => {
+    const onChangeCategory = vi.fn().mockResolvedValue(undefined);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={onChangeCategory} onSuggest={async () => {}} />);
+    const select = screen.getByRole("combobox", { name: "Category" });
+    expect(select).toHaveValue("Security & Hacking");
+    await userEvent.selectOptions(select, "TTRPG");
+    expect(onChangeCategory).toHaveBeenCalledWith(book, "TTRPG");
+  });
+  it("shows the suggest form from the last option and submits with the book id", async () => {
+    const onSuggest = vi.fn().mockResolvedValue(undefined);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={async () => {}} onSuggest={onSuggest} />);
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Category" }), "__suggest__");
+    await userEvent.type(screen.getByRole("textbox", { name: "New category name" }), "Cookbooks");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(onSuggest).toHaveBeenCalledWith("Cookbooks", "1");
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "New category name" })).toBeNull());
+    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("Security & Hacking");
   });
 });

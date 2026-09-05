@@ -68,3 +68,6 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .toast { position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%); background: var(--danger); color: #fff; padding: 0.7rem 1rem; border-radius: 8px; z-index: 20; }
 .static { max-width: 40rem; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.6; }
 .empty { color: var(--muted); padding: 3rem; text-align: center; }
+.suggest-form { display: flex; gap: 0.4rem; margin: 0.4rem 0 0.8rem; flex-wrap: wrap; }
+.suggest-form input { flex: 1 1 10rem; min-width: 0; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
+.category-row select { padding: 0.2rem 0.4rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; }

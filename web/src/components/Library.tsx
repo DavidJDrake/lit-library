@@ -143,7 +143,8 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
           </div>
         )}
       </section>
-      <BookDetail book={selected} onClose={() => setSelected(null)} onDownload={download} />
+      <BookDetail book={selected} onClose={() => setSelected(null)} onDownload={download}
+        categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />
       <Toast message={toast} onDismiss={dismissToast} />
     </div>
   );
