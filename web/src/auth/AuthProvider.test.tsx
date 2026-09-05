@@ -145,10 +145,19 @@ describe("AuthProvider", () => {
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
     expect(screen.getByTestId("admin")).toHaveTextContent("true");
   });
-  it("isAdmin is false without the group and after sign-out", async () => {
+  it("isAdmin is false without the admins group", async () => {
     saveTokens({ idToken: jwt({ email: "u@example.com", "cognito:groups": ["readers"] }), accessToken: "a", expiresAt: Date.now() + 100_000 });
     render(<AuthProvider config={cfg} fetchFn={vi.fn() as unknown as typeof fetch} navigate={() => {}}><Probe /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+    expect(screen.getByTestId("admin")).toHaveTextContent("false");
+  });
+  it("isAdmin becomes false after signing out", async () => {
+    saveTokens({ idToken: jwt({ email: "a@example.com", "cognito:groups": ["admins"] }), accessToken: "a", expiresAt: Date.now() + 100_000 });
+    render(<AuthProvider config={cfg} fetchFn={vi.fn() as unknown as typeof fetch} navigate={() => {}}><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+    expect(screen.getByTestId("admin")).toHaveTextContent("true");
+    await act(async () => { screen.getByText("signout").click(); });
+    expect(screen.getByTestId("status")).toHaveTextContent("signedOut");
     expect(screen.getByTestId("admin")).toHaveTextContent("false");
   });
 
