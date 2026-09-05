@@ -15,6 +15,7 @@ KEY_MAP = {
     "cloudfront_distribution_id": "DistributionId",
     "library_table": "LibraryTable",
 }
+OPTIONAL_KEYS = {"library_table"}  # tolerated when the stack output doesn't exist yet
 
 
 def main(argv: list[str]) -> int:
@@ -26,7 +27,10 @@ def main(argv: list[str]) -> int:
     for yaml_key, output_name in KEY_MAP.items():
         value = outputs.get(output_name)
         if value is None:
-            continue  # this stack output does not exist yet
+            if yaml_key in OPTIONAL_KEYS:
+                continue  # this stack output does not exist yet
+            print(f"outputs.json has no '{output_name}' output", file=sys.stderr)
+            return 1
         pattern = re.compile(rf'^({yaml_key}:)[ \t]*(?:"[^"]*"|\'[^\']*\'|[^#\n]*?)[ \t]*(#.*)?$', re.MULTILINE)
         if not pattern.search(text):
             if not text.endswith("\n"):

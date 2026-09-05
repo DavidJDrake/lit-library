@@ -59,6 +59,23 @@ def test_apply_outputs_preserves_trailing_comments(tmp_path):
     # (c) Verify yaml.safe_load still parses correctly (already checked above)
 
 
+def test_apply_outputs_fails_on_missing_required_output(tmp_path):
+    outputs = tmp_path / "outputs.json"
+    outputs.write_text(json.dumps({"EbookShare": {
+        "SiteBucketName": "site-123", "BooksBucketName": "books-456",
+    }}))  # DistributionId missing
+    config = tmp_path / "config.yaml"
+    original = (
+        "library_root: /lib\noutput_dir: out\nmetadata_dir: metadata\n"
+        "aws_region: us-east-1\nbooks_bucket: \"\"\nsite_bucket: \"\"\n"
+        "cloudfront_distribution_id: \"\"\n"
+    )
+    config.write_text(original)
+    result = subprocess.run([sys.executable, str(SCRIPT), str(outputs), str(config)], check=False)
+    assert result.returncode != 0
+    assert config.read_text() == original  # unchanged on failure
+
+
 def test_apply_outputs_rewrites_an_existing_library_table_line(tmp_path):
     outputs = tmp_path / "outputs.json"
     outputs.write_text(json.dumps({"EbookShare": {

@@ -12,7 +12,7 @@ REGION=$(python3 -c "import json;print(json.load(open('$ROOT/infra/config.local.
 read -r BUCKET TABLE LIBTABLE < <(python3 -c "import json;o=next(iter(json.load(open('$ROOT/infra/outputs.json')).values()));print(o['BooksBucketName'], o['DownloadsTable'], o.get('LibraryTable',''))")
 DEST="s3://$BUCKET/_backup"
 STAMP=$(date -u +%Y-%m-%dT%H%M%SZ)
-trap 'rm -rf "${TARDIR:-}" "${TMP:-}"' EXIT
+trap 'rm -rf "${TARDIR:-}" "${TMP:-}" "${LTMP:-}"' EXIT
 SYNC=(aws s3 sync "$ROOT/metadata/" "$DEST/metadata/" --region "$REGION" --exclude "publish.log")
 [ "$DRY" = "--dry-run" ] && SYNC+=(--dryrun)
 "${SYNC[@]}"
@@ -42,7 +42,6 @@ if [ -n "$LIBTABLE" ]; then
     aws dynamodb scan --table-name "$LIBTABLE" --region "$REGION" --output json > "$LTMP"
     aws s3 cp "$LTMP" "$DEST/dynamodb/library-$STAMP.json" --region "$REGION" >/dev/null
     echo "exported $(python3 -c "import json;print(len(json.load(open('$LTMP'))['Items']))") library rows"
-    rm -f "$LTMP"
   fi
 fi
 echo "backup complete: $DEST"
