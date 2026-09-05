@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "pymupdf>=1.24",
-    "Pillow>=10.0",
+    "Pillow>=12.3.0",
     "requests>=2.31",
     "boto3>=1.43.87",
     "PyYAML>=6.0.3",
