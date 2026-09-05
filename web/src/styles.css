@@ -89,3 +89,10 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .notif-body a { color: inherit; }
 .notif-meta { color: var(--muted); font-size: 0.78rem; display: flex; gap: 0.6rem; margin-top: 0.15rem; }
 .notif-error { color: var(--danger); font-size: 0.8rem; margin-top: 0.2rem; }
+.bell { position: relative; }
+.bell-button { background: none; border: 0; font-size: 1.2rem; cursor: pointer; position: relative; padding: 0.2rem 0.4rem; }
+.bell-badge { position: absolute; top: -0.2rem; right: -0.3rem; background: var(--accent); color: var(--accent-text); border-radius: 999px; font-size: 0.65rem; font-weight: 700; padding: 0.05rem 0.35rem; min-width: 1.1rem; text-align: center; }
+.popover { position: absolute; right: 0; top: 2.2rem; width: 22rem; max-width: calc(100vw - 2rem); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 10; }
+.notif-list { list-style: none; margin: 0; padding: 0; }
+.popover-footer { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+@media (max-width: 600px) { .bell { position: static; } .popover { left: 0.5rem; right: 0.5rem; width: auto; top: 3.4rem; } }
