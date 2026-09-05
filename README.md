@@ -1,6 +1,6 @@
 # Lit Library
 
-A private, personal ebook library on AWS: sign in with Google, browse ~1,100 books
+A private, personal ebook library on AWS: sign in with Google, browse ~1,300 books
 with covers, search and filter them in the browser, and download any title
 through a short-lived link. The whole thing runs for well under **$1/month** —
 no servers, no database to babysit, and nothing on the home machine needs to

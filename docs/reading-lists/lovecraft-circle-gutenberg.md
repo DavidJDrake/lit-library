@@ -10,7 +10,11 @@ person is a credited author; "+" means more pages existed than the survey read.
   Heald, Henry S. Whitehead, and E. Hoffmann Price) are in the library under the bundle
   `H. P. Lovecraft by Project Gutenberg`, with first-publication years and title casing
   set in `metadata/overrides.yaml`.
-- **Proposed next:** a curated "Weird Fiction — the Lovecraft Circle" bundle (see below).
+- **Done 2026-09-04:** the curated bundle below is in the library as
+  `Weird Fiction the Lovecraft Circle by Project Gutenberg` — 109 EPUBs, with
+  first-publication years, cleaned-up titles, and Gutenberg's summaries as descriptions
+  in `metadata/overrides.yaml`. Bierce's *In the Midst of Life* is Gutenberg #13334
+  (*Collected Works, Volume 2*); Poe's separate index volume was skipped.
 
 ## Related authors
 
@@ -33,7 +37,7 @@ person is a credited author; "+" means more pages existed than the survey read.
 Not on Gutenberg: Lovecraft's essay *Supernatural Horror in Literature*, Clark Ashton
 Smith's stories, Derleth's Mythos work, most *Weird Tales* magazine issues.
 
-## Proposed curated bundle (~60–70 titles)
+## Curated bundle (109 titles)
 
 Bundle name: `Weird Fiction the Lovecraft Circle by Project Gutenberg` (category rule
 already maps `gutenberg` → Fiction; publisher derives as "Project Gutenberg").
