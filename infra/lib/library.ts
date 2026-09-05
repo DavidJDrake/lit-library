@@ -1,9 +1,13 @@
-import { RemovalPolicy } from "aws-cdk-lib";
+import { Duration, RemovalPolicy } from "aws-cdk-lib";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as cr from "aws-cdk-lib/custom-resources";
 import { Construct } from "constructs";
+import * as path from "node:path";
 import { SEED_AT, SEED_CATEGORIES } from "../lambda/library/constants";
 
 export interface LibraryProps {
@@ -17,7 +21,6 @@ export class Library extends Construct {
 
   constructor(scope: Construct, id: string, props: LibraryProps) {
     super(scope, id);
-    void props; // routes are added in a later task
 
     this.table = new dynamodb.Table(this, "Table", {
       partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
@@ -51,5 +54,29 @@ export class Library extends Construct {
         logRetention: logs.RetentionDays.ONE_MONTH,
       });
     });
+
+    const fn = new NodejsFunction(this, "Fn", {
+      entry: path.join(__dirname, "../lambda/library/index.ts"),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      environment: { LIBRARY_TABLE: this.table.tableName },
+    });
+    this.table.grantReadWriteData(fn);
+
+    // One integration, six routes; the API's default JWT authorizer applies to all of them.
+    const integration = new HttpLambdaIntegration("LibraryIntegration", fn);
+    const routes: Array<[string, apigw.HttpMethod]> = [
+      ["/api/library", apigw.HttpMethod.GET],
+      ["/api/books/{id}/category", apigw.HttpMethod.PUT],
+      ["/api/suggestions", apigw.HttpMethod.POST],
+      ["/api/categories", apigw.HttpMethod.POST],
+      ["/api/suggestions/{id}/accept", apigw.HttpMethod.POST],
+      ["/api/suggestions/{id}/reject", apigw.HttpMethod.POST],
+    ];
+    for (const [routePath, method] of routes) {
+      props.httpApi.addRoutes({ path: routePath, methods: [method], integration });
+    }
   }
 }

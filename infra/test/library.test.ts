@@ -35,4 +35,27 @@ describe("Library", () => {
     for (const name of SEED_CATEGORIES) expect(rendered).toContain(name);
     expect(SEED_CATEGORIES).toContain("Other/Lifestyle");
   });
+
+  it("wires one Lambda with read/write on the library table only and the six routes", () => {
+    const { t } = synth();
+    t.hasResourceProperties("AWS::Lambda::Function", {
+      Runtime: "nodejs22.x",
+      Environment: { Variables: { LIBRARY_TABLE: Match.anyValue() } },
+    });
+    // Exactly one policy grants dynamodb read/write, and it names the table (plus its index ARN pattern) only.
+    t.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: { Statement: Match.arrayWith([Match.objectLike({
+        Action: Match.arrayWith(["dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]), // arrayWith is order-sensitive; this is grantReadWriteData's order
+        Resource: Match.arrayWith([Match.objectLike({ "Fn::GetAtt": [Match.stringLikeRegexp("^LibraryTable"), "Arn"] })]),
+      })]) },
+    });
+    for (const key of [
+      "GET /api/library", "PUT /api/books/{id}/category", "POST /api/suggestions", "POST /api/categories",
+      "POST /api/suggestions/{id}/accept", "POST /api/suggestions/{id}/reject",
+    ]) {
+      t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key });
+    }
+    t.resourceCountIs("AWS::ApiGatewayV2::Route", 6);
+    t.resourceCountIs("AWS::ApiGatewayV2::Integration", 1);
+  });
 });
