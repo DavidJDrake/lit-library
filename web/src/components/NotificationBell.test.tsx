@@ -53,10 +53,14 @@ describe("NotificationBell", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
   it("Mark all as read posts all and clears the badge", async () => {
-    const { fetchFn, posted } = server([n(0), n(1)], 2);
+    const items = Array.from({ length: 7 }, (_, i) => n(i));
+    const { fetchFn, posted } = server(items, 7);
     mount(fetchFn);
     await waitFor(() => expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(JSON.parse(posted[0]).ids).toEqual(items.slice(0, 5).map((it) => it.id));
+    expect(screen.getByText("2")).toBeInTheDocument(); // 7 unread − 5 shown
     await userEvent.click(screen.getByRole("button", { name: "Mark all as read" }));
     await waitFor(() => expect(posted.some((b) => b === JSON.stringify({ all: true }))).toBe(true));
     expect(screen.queryByText("2")).toBeNull();
