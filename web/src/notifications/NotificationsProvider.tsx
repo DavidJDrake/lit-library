@@ -23,54 +23,79 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
+  // Mirrors of the latest items/unread so the optimistic handlers below can read "current
+  // truth" synchronously — they aren't in any callback's dep array, so a plain closure
+  // over `items`/`unread` would go stale.
+  const itemsRef = useRef(items);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+  const unreadRef = useRef(unread);
+  useEffect(() => { unreadRef.current = unread; }, [unread]);
+
+  // Guards against a background refresh (poll/visibility/manual) landing after a newer
+  // refresh started, or after an optimistic write already succeeded, and clobbering
+  // fresher state with what it fetched.
+  const seqRef = useRef(0);
+
   const refresh = useCallback(async () => {
+    const mine = ++seqRef.current;
     try {
       const page = await fetchNotifications(apiUrl, await getIdToken(), { limit: PAGE_SIZE }, fetchFn);
-      if (!mounted.current) return;
+      if (!mounted.current || mine !== seqRef.current) return;
       setItems(page.items); setUnread(page.unread); setNext(page.next); setStatus("ready"); setError(undefined);
       if (page.items.length > 0) setSeen(true);
     } catch (e) {
-      if (!mounted.current) return;
+      if (!mounted.current || mine !== seqRef.current) return;
       setStatus("error"); setError((e as Error).message);
     }
   }, [apiUrl, getIdToken, fetchFn]);
 
+  const loadingMore = useRef(false);
   const loadMore = useCallback(async () => {
-    if (!next) return;
-    const page = await fetchNotifications(apiUrl, await getIdToken(), { limit: PAGE_SIZE, before: next }, fetchFn);
-    if (!mounted.current) return;
-    setItems((cur) => [...cur, ...page.items]); setNext(page.next); setUnread(page.unread);
+    if (!next || loadingMore.current) return;
+    loadingMore.current = true;
+    try {
+      const page = await fetchNotifications(apiUrl, await getIdToken(), { limit: PAGE_SIZE, before: next }, fetchFn);
+      if (!mounted.current) return;
+      setItems((cur) => [...cur, ...page.items]); setNext(page.next); setUnread(page.unread);
+    } finally {
+      loadingMore.current = false;
+    }
   }, [apiUrl, getIdToken, fetchFn, next]);
 
-  // Optimistic: flip locally first so the badge reacts instantly; reconcile from the server on failure.
-  // The unread delta is computed from itemsRef (not inside a state updater) so StrictMode's
-  // double-invoked updaters cannot double-count.
-  const itemsRef = useRef(items);
-  useEffect(() => { itemsRef.current = items; }, [items]);
+  // Optimistic: flip locally first so the badge reacts instantly. A failed write reverts to
+  // the pre-flip snapshot rather than calling refresh() (which would drop pagination loaded
+  // via loadMore). A successful write bumps seqRef so a refresh already in flight when the
+  // write started can't later overwrite it with stale (pre-write) data.
   const markRead = useCallback(async (ids: string[]) => {
     const targets = new Set(ids.filter(Boolean));
     if (targets.size === 0) return;
-    const flipped = itemsRef.current.filter((n) => targets.has(n.id) && !n.read).length;
+    const prevItems = itemsRef.current;
+    const prevUnread = unreadRef.current;
+    const flipped = prevItems.filter((n) => targets.has(n.id) && !n.read).length;
     if (flipped > 0) {
       setItems((cur) => cur.map((n) => (targets.has(n.id) && !n.read ? { ...n, read: true } : n)));
       setUnread((u) => Math.max(0, u - flipped));
     }
     try {
       await markNotificationsRead(apiUrl, await getIdToken(), [...targets], fetchFn);
+      seqRef.current += 1;
     } catch {
-      await refresh();
+      if (mounted.current) { setItems(prevItems); setUnread(prevUnread); }
     }
-  }, [apiUrl, getIdToken, fetchFn, refresh]);
+  }, [apiUrl, getIdToken, fetchFn]);
 
   const markAllRead = useCallback(async () => {
+    const prevItems = itemsRef.current;
+    const prevUnread = unreadRef.current;
     setItems((cur) => cur.map((n) => (n.read ? n : { ...n, read: true })));
     setUnread(0);
     try {
       await markNotificationsRead(apiUrl, await getIdToken(), "all", fetchFn);
+      seqRef.current += 1;
     } catch {
-      await refresh();
+      if (mounted.current) { setItems(prevItems); setUnread(prevUnread); }
     }
-  }, [apiUrl, getIdToken, fetchFn, refresh]);
+  }, [apiUrl, getIdToken, fetchFn]);
 
   useEffect(() => {
     void refresh();
