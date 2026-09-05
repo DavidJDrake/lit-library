@@ -6,9 +6,8 @@ Items move to "Done" with the commit or plan that closed them.
 
 ## Soon
 
-1. **#11 + #12 — CI and Dependabot.** 375 offline tests and no CI; one small branch.
-2. **#10 — alarms.** Friends now get notifications, so a broken deploy is noticed by them first.
-3. **#7 — Send-to-Kindle.** Kick off the SES production-access request early; it has a wait.
+1. **#10 — alarms.** Friends now get notifications, so a broken deploy is noticed by them first.
+2. **#7 — Send-to-Kindle.** Kick off the SES production-access request early; it has a wait.
 
 ## Product polish (independent, each S)
 
@@ -39,8 +38,6 @@ Items move to "Done" with the commit or plan that closed them.
 |---|---|---|---|
 | 9 | CloudFront response-headers policy: CSP, `X-Content-Type-Options`, HSTS. | S | Cheap insurance for tokens in `sessionStorage`. |
 | 10 | CloudWatch alarms: Lambda errors, and estimated charges > $5/month, both to email. | S | A broken deploy is currently discovered by a friend. |
-| 11 | GitHub Actions CI: all three test suites plus `cdk synth` on every push. | S | Suites are fully offline — no secrets needed. Green badge on the public repo. |
-| 12 | Dependabot / Renovate for the three package manifests. | S | Otherwise this quietly rots. |
 
 ## Repo as portfolio
 
@@ -55,6 +52,8 @@ Items move to "Done" with the commit or plan that closed them.
 | # | Item | Closed by |
 |---|---|---|
 | — | **User-editable categories.** Anyone moves a book between categories or suggests a new one; `admins` group accepts/rejects or adds directly; overlay table merged over the static catalog; `pull-edits.py` folds edits into `overrides.yaml`. | PR #1, spec/plan `2026-09-04-user-categories` |
+| 11 | **GitHub Actions CI** — infra (typecheck, tests, `cdk synth` on the example config), web (typecheck, tests, build), indexer (pytest) on every push/PR; badge in the README. | `.github/workflows/ci.yml` |
+| 12 | **Dependabot** — weekly grouped minor/patch PRs for `/infra`, `/web`, `/indexer`, and the workflow actions. | `.github/dependabot.yml` |
 | — | **Notifications.** Header bell + popover + `/notifications` page; fan-out per recipient with a 90-day TTL; suggestion/category events from the library Lambda, "N new books added" from `publish-new.sh`; in-app router; `?category=` seeding. | PR #2, spec/plan `2026-09-05-notifications` |
 | 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | plan `2026-09-04-backlog-1-3` |
