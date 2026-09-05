@@ -82,6 +82,17 @@ built-in categories are seeded by custom resources on deploy; they are never
 deleted or renamed by CDK. `scripts/pull-edits.py` copies edits into
 `metadata/overrides.yaml`; `scripts/backup.sh` exports the table.
 
+## Notifications
+
+`Notifications/Table` is disposable: rows carry a 90-day TTL, the table is not
+retained on stack deletion and `scripts/backup.sh` does not export it. The
+notifications Lambda has `cognito-idp:ListUsers` / `ListUsersInGroup` on the pool
+(recipient fan-out) and read access to the library table (suggestion status). The
+library Lambda has the same Cognito permissions plus write access to the
+notifications table. `scripts/publish-new.sh` invokes the notifications Lambda
+directly (`NotificationsFunctionName` output) after a publish that added books;
+that needs `lambda:InvokeFunction` on the caller's credentials.
+
 ## Construct IDs that must never be renamed after first deploy
 
 These constructs use `RemovalPolicy.RETAIN` and are keyed by their CDK
