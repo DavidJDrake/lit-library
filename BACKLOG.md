@@ -31,6 +31,12 @@ Items move to "Done" with the commit or plan that closed them.
 | 22 | `PUT /api/books/{id}/category` matches category names case-sensitively. | UI always sends canonical names; a differently-cased valid name gets a 400. |
 | 23 | Small test gaps. | `AuthorizerId` asserted only at stack level; disabled-state of chip ✓/✗ while resolving; overlapping `markRead` calls where the first fails can revert the second (poll self-corrects). |
 
+## Dependency migrations (deferred majors, each M)
+
+| # | Item | Notes |
+|---|---|---|
+| 24 | Major upgrades Dependabot is told to ignore: **TypeScript 7** and **vitest 4** (both `infra` and `web`, CI failed in `infra`), **React 19** (`web`, CI failed), `@types/node` 26 (Lambdas run Node 22 — bump with the runtime, not before). | Take each as its own branch with CI; remove the matching `ignore` entry in `.github/dependabot.yml` when done. |
+
 ## Security and operations
 
 | # | Item | Effort | Notes |

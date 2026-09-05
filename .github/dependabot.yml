@@ -6,12 +6,37 @@ updates:
     groups:
       infra-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Majors that need a deliberate migration (BACKLOG.md #24); minors/patches still flow.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      # Type definitions must track the Lambda runtime (Node 22), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /web
     schedule: { interval: weekly, day: monday }
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Majors that need a deliberate migration (BACKLOG.md #24); minors/patches still flow.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: /indexer
     schedule: { interval: weekly, day: monday }
