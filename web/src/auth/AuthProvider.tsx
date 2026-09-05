@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AppConfig } from "../config";
+import { isAdminToken } from "./groups";
 import { buildAuthorizeUrl, buildLogoutUrl, codeChallenge, parseCallback, randomString } from "./pkce";
 import { clearTokens, loadTokens, savePkce, saveTokens, takePkce } from "./storage";
 import { decodeJwtPayload, exchangeCode, isExpired, refreshTokens, type Tokens } from "./tokens";
@@ -7,6 +8,7 @@ import { decodeJwtPayload, exchangeCode, isExpired, refreshTokens, type Tokens }
 export interface AuthState {
   status: "loading" | "signedOut" | "signedIn";
   email?: string;
+  isAdmin: boolean;
   error?: string;
   apiUrl: string;
   signIn(): Promise<void>;
@@ -64,6 +66,7 @@ async function initialize(config: AppConfig, fetchFn: typeof fetch): Promise<Ini
 export function AuthProvider({ config, children, fetchFn = fetch, navigate = defaultNavigate }: Props) {
   const [status, setStatus] = useState<AuthState["status"]>("loading");
   const [email, setEmail] = useState<string>();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string>();
   const tokensRef = useRef<Tokens | undefined>(undefined);
   const initRef = useRef<Promise<InitResult> | null>(null);
@@ -72,6 +75,7 @@ export function AuthProvider({ config, children, fetchFn = fetch, navigate = def
     tokensRef.current = t;
     saveTokens(t);
     setEmail(emailOf(t));
+    setIsAdmin(isAdminToken(t.idToken));
     setStatus("signedIn");
   }, []);
 
@@ -79,6 +83,7 @@ export function AuthProvider({ config, children, fetchFn = fetch, navigate = def
     tokensRef.current = undefined;
     clearTokens();
     setEmail(undefined);
+    setIsAdmin(false);
     setError(message);
     setStatus("signedOut");
   }, []);
@@ -119,8 +124,8 @@ export function AuthProvider({ config, children, fetchFn = fetch, navigate = def
     }
   }, [config, fetchFn, adopt, drop]);
 
-  const value = useMemo<AuthState>(() => ({ status, email, error, apiUrl: config.apiUrl, signIn, signOut, getIdToken }),
-    [status, email, error, config.apiUrl, signIn, signOut, getIdToken]);
+  const value = useMemo<AuthState>(() => ({ status, email, isAdmin, error, apiUrl: config.apiUrl, signIn, signOut, getIdToken }),
+    [status, email, isAdmin, error, config.apiUrl, signIn, signOut, getIdToken]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

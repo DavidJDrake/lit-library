@@ -14,6 +14,7 @@ interface Props {
   getIdToken: () => Promise<string>;
   fetchFn?: typeof fetch;
   navigate?: (url: string) => void;
+  isAdmin?: boolean;
 }
 
 const FACET_TITLES: Record<FacetKey, string> = {
@@ -24,7 +25,7 @@ const FACET_TITLES: Record<FacetKey, string> = {
 // window so a long-open tab never hits the stale-cookie fallback.
 export const SESSION_RENEW_MS = 90 * 60 * 1000;
 
-export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate }: Props) {
+export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false }: Props) {
   const [books, setBooks] = useState<Book[] | null>(null);
   const [loadError, setLoadError] = useState<string>();
   const [query, setQuery] = useState("");

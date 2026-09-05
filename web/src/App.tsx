@@ -24,7 +24,7 @@ export default function App({ fetchFn = fetch }: Props) {
   return (
     <>
       <Header email={auth.email} onSignOut={() => void signOut()} />
-      <Library apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} />
+      <Library apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} isAdmin={auth.isAdmin} />
     </>
   );
 }
