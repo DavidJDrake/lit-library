@@ -5,6 +5,8 @@ The site stores category changes and site-created categories in the DynamoDB
 library table (see docs/superpowers/specs/2026-09-04-user-categories-design.md).
 This script copies them into overrides.yaml so the repo's metadata stays a
 faithful backup and the next index/publish converges on what people chose.
+Only the leading header comment survives a write; comments elsewhere in
+overrides.yaml are dropped (a warning lists them).
 
 Usage: scripts/pull-edits.py [--config config.yaml] [--input scan.json] [--dry-run]
   --input   read a DynamoDB typed scan (aws dynamodb scan --output json) instead of AWS
@@ -50,13 +52,21 @@ def load_items(args, cfg) -> list[dict]:
     return [{k: _plain(v) for k, v in item.items()} for item in raw]
 
 
-def split_header(text: str) -> tuple[str, dict]:
-    """Return the leading comment/blank lines verbatim and the parsed mapping."""
+def split_header(text: str) -> tuple[str, str, dict]:
+    """Return the leading comment/blank lines verbatim, the remaining raw body
+    text, and the body parsed as a mapping."""
     lines = text.splitlines(keepends=True)
     n = 0
     while n < len(lines) and (lines[n].startswith("#") or not lines[n].strip()):
         n += 1
-    return "".join(lines[:n]), (yaml.safe_load("".join(lines[n:])) or {})
+    header, body = "".join(lines[:n]), "".join(lines[n:])
+    return header, body, (yaml.safe_load(body) or {})
+
+
+def dropped_comments(body: str) -> list[str]:
+    """Comment lines in the body that a write will silently discard (yaml.safe_dump
+    doesn't preserve comments)."""
+    return [line.strip() for line in body.splitlines() if line.strip().startswith("#")]
 
 
 def merge(overrides: dict, items: list[dict]) -> tuple[dict, list[str], dict[str, str]]:
@@ -90,8 +100,16 @@ def main(argv: list[str]) -> int:
     items = load_items(args, cfg)
 
     overrides_path = cfg.metadata_dir / "overrides.yaml"
-    header, existing = split_header(overrides_path.read_text()) if overrides_path.exists() else ("", {})
+    header, body, existing = (
+        split_header(overrides_path.read_text()) if overrides_path.exists() else ("", "", {})
+    )
     merged, site_categories, books = merge(existing, items)
+
+    comments = dropped_comments(body)
+    if comments:
+        print(f"warning: {len(comments)} comment line(s) below the header will be dropped:", file=sys.stderr)
+        for line in comments:
+            print(f"  {line}", file=sys.stderr)
 
     catalog_path = cfg.output_dir / "catalog.json"
     if catalog_path.exists():
@@ -103,8 +121,8 @@ def main(argv: list[str]) -> int:
     print(f"merged {len(books)} book categories, {len(site_categories)} site categories")
     if args.dry_run:
         return 0
-    body = yaml.safe_dump(merged, allow_unicode=True, sort_keys=True, width=100)
-    overrides_path.write_text(header + body)
+    dumped = yaml.safe_dump(merged, allow_unicode=True, sort_keys=True, width=100)
+    overrides_path.write_text(header + dumped)
     print(f"wrote {overrides_path}")
     return 0
 

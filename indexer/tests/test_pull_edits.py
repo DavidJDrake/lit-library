@@ -45,11 +45,15 @@ def setup(tmp_path):
     return cfg, scan_file, meta / "overrides.yaml"
 
 
-def run(cfg, scan_file, *extra):
+def run_proc(cfg, scan_file, *extra):
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--config", str(cfg), "--input", str(scan_file), *extra],
         check=True, capture_output=True, text=True,
-    ).stdout
+    )
+
+
+def run(cfg, scan_file, *extra):
+    return run_proc(cfg, scan_file, *extra).stdout
 
 
 def test_merges_book_categories_and_site_categories_and_reports_orphans(tmp_path):
@@ -82,3 +86,21 @@ def test_is_idempotent(tmp_path):
     once = overrides.read_text()
     run(cfg, scan_file)
     assert overrides.read_text() == once
+
+
+def test_warns_about_and_drops_comments_below_the_header(tmp_path):
+    cfg, scan_file, overrides = setup(tmp_path)
+    text = overrides.read_text()
+    overrides.write_text(
+        text.replace("bbbb:\n  year: 1999\n", "bbbb:\n  year: 1999\n  # pinned manually, don't touch\n")
+    )
+    before = overrides.read_text()
+
+    dry = run_proc(cfg, scan_file, "--dry-run")
+    assert overrides.read_text() == before  # dry-run changes nothing
+    assert "warning: 1 comment line(s) below the header will be dropped" in dry.stderr
+    assert "# pinned manually, don't touch" in dry.stderr
+
+    real = run_proc(cfg, scan_file)
+    assert "warning: 1 comment line(s) below the header will be dropped" in real.stderr
+    assert "# pinned manually, don't touch" not in overrides.read_text()
