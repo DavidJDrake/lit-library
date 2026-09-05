@@ -1,17 +1,18 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
-  applyOverlay, createCategory, fetchOverlay, resolveSuggestion, setBookCategory, suggestCategory, type Overlay,
+  applyOverlay, createCategory, resolveSuggestion, setBookCategory, suggestCategory,
 } from "../catalog/library";
 import { requestDownload, startDownload } from "../catalog/download";
-import { loadCatalog } from "../catalog/load";
-import { establishSession } from "../catalog/session";
-import { applyFilters, buildSearchIndex, facetCounts, searchBooks, sortBooks } from "../catalog/search";
-import { emptyFilters, FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
+import { useLibraryData } from "../catalog/LibraryDataProvider";
+import { applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, searchBooks, sortBooks } from "../catalog/search";
+import { FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
 import CategorySuggestions from "./CategorySuggestions";
 import FacetGroup from "./FacetGroup";
 import Toast from "./Toast";
+
+export { SESSION_RENEW_MS } from "../catalog/LibraryDataProvider";
 
 interface Props {
   apiUrl: string;
@@ -19,77 +20,26 @@ interface Props {
   fetchFn?: typeof fetch;
   navigate?: (url: string) => void;
   isAdmin?: boolean;
+  onChanged?: () => void;
 }
 
 const FACET_TITLES: Record<FacetKey, string> = {
   category: "Category", format: "Format", publisher: "Publisher", bundle: "Bundle", author: "Author", year: "Year",
 };
 
-// The session cookie lasts 2h (SESSION_SECONDS); renew well within that
-// window so a long-open tab never hits the stale-cookie fallback.
-export const SESSION_RENEW_MS = 90 * 60 * 1000;
-
-export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false }: Props) {
-  const [books, setBooks] = useState<Book[] | null>(null);
-  const [loadError, setLoadError] = useState<string>();
+export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false, onChanged }: Props) {
+  const { books, overlay, loadError, overlayError, refreshOverlay } = useLibraryData();
   const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [filters, setFilters] = useState<Filters>(() => filtersFromSearch(window.location.search));
   const [sort, setSort] = useState<SortKey>("added");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [toast, setToast] = useState<{ message: string; variant: "error" | "ok" }>();
   const fail = useCallback((message: string) => setToast({ message, variant: "error" }), []);
   const ok = useCallback((message: string) => setToast({ message, variant: "ok" }), []);
 
-  const refreshOverlay = useCallback(async () => {
-    setOverlay(await fetchOverlay(apiUrl, await getIdToken(), fetchFn));
-  }, [apiUrl, getIdToken, fetchFn]);
-
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await establishSession(apiUrl, await getIdToken(), fetchFn);
-        let catalog;
-        try {
-          catalog = await loadCatalog(fetchFn);
-        } catch {
-          // A stale/missing cookie makes CloudFront serve index.html instead; refresh once and retry.
-          await establishSession(apiUrl, await getIdToken(), fetchFn);
-          catalog = await loadCatalog(fetchFn);
-        }
-        if (!cancelled) setBooks(catalog.books);
-        try {
-          const o = await fetchOverlay(apiUrl, await getIdToken(), fetchFn);
-          if (!cancelled) setOverlay(o);
-        } catch (e) {
-          // A broken library Lambda must not take the site down: render read-only.
-          if (!cancelled) fail(`Category editing is unavailable right now (${(e as Error).message})`);
-        }
-      } catch (e) {
-        if (!cancelled) setLoadError(`Could not load the catalog (${(e as Error).message}). Try reloading the page.`);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [apiUrl, getIdToken, fetchFn, fail]);
-
-  useEffect(() => {
-    const renew = () => {
-      void getIdToken().then((t) => establishSession(apiUrl, t, fetchFn)).catch(() => { /* the next tick retries; a failed request during browsing re-establishes on demand */ });
-    };
-    const id = setInterval(renew, SESSION_RENEW_MS);
-    // A tab left backgrounded past the renewal interval (throttled timers,
-    // sleeping device) can come back with an expired cookie before the next
-    // tick fires; catch up as soon as it's visible again.
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") renew();
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [apiUrl, getIdToken, fetchFn]);
+    if (overlayError) fail(`Category editing is unavailable right now (${overlayError})`);
+  }, [overlayError, fail]);
 
   const merged = useMemo(() => (books && overlay ? applyOverlay(books, overlay) : books), [books, overlay]);
   const categoryNames = useMemo(() => overlay?.categories.map((c) => c.name) ?? [], [overlay]);
@@ -146,12 +96,13 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
       return;
     }
     ok(success);
+    onChanged?.();
     try {
       await refreshOverlay();
     } catch (e) {
       fail(`Saved, but the list could not refresh (${(e as Error).message})`);
     }
-  }, [getIdToken, refreshOverlay, fail, ok]);
+  }, [getIdToken, refreshOverlay, fail, ok, onChanged]);
 
   const changeCategory = useCallback((book: Book, category: string) =>
     mutate((t) => setBookCategory(apiUrl, t, book.id, category, fetchFn), `Moved to ${category}`), [mutate, apiUrl, fetchFn]);

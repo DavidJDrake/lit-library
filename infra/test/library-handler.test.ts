@@ -21,8 +21,8 @@ function store(over: Partial<Store> = {}): Store {
     ...over,
   };
 }
-function deps(s: Store = store()): Deps {
-  return { store: s, now: () => new Date(NOW), newId: () => "id-1" };
+function deps(s: Store = store(), over: Partial<Deps> = {}): Deps {
+  return { store: s, now: () => new Date(NOW), newId: () => "id-1", notify: vi.fn().mockResolvedValue(1), ...over };
 }
 function event(method: string, path: string, body?: unknown, claims: Record<string, unknown> = { email: "u@x" }) {
   return {
@@ -150,6 +150,38 @@ describe("admin routes", () => {
       deps(store({ getSuggestion: vi.fn().mockResolvedValue(undefined) })))).status).toBe(404);
     expect(parse(await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin),
       deps(store({ rejectSuggestion: vi.fn().mockResolvedValue(false) })))).status).toBe(409);
+  });
+});
+
+describe("notifications", () => {
+  it("suggest notifies admins with the suggestion payload", async () => {
+    const d = deps();
+    await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: "b1" }), d);
+    expect(d.notify).toHaveBeenCalledWith("suggestion_pending", { suggestionId: "id-1", name: "Cookery", bookId: "b1", suggestedBy: "u@x" }, "admins");
+  });
+  it("accept notifies the suggester and everyone; reject notifies the suggester", async () => {
+    const d = deps();
+    await handle(event("POST", "/api/suggestions/s1/accept", undefined, admin), d);
+    expect(d.notify).toHaveBeenNthCalledWith(1, "suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "accepted", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
+    expect(d.notify).toHaveBeenNthCalledWith(2, "category_created", { name: "Cookbooks", createdBy: "a@x", source: "suggestion" }, "everyone");
+    const r = deps();
+    await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin), r);
+    expect(r.notify).toHaveBeenCalledWith("suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "rejected", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
+  });
+  it("direct category creation notifies everyone", async () => {
+    const d = deps();
+    await handle(event("POST", "/api/categories", { name: "Essays" }, admin), d);
+    expect(d.notify).toHaveBeenCalledWith("category_created", { name: "Essays", createdBy: "a@x", source: "admin" }, "everyone");
+  });
+  it("does not notify on failed writes, and a notify failure does not change the response", async () => {
+    const dup = deps(store({ putCategory: vi.fn().mockResolvedValue(false) }));
+    await handle(event("POST", "/api/categories", { name: "Fresh" }, admin), dup);
+    expect(dup.notify).not.toHaveBeenCalled();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const broken = deps(store(), { notify: vi.fn().mockRejectedValue(new Error("cognito down")) });
+    expect(parse(await handle(event("POST", "/api/suggestions", { name: "Cookery" }), broken)).status).toBe(201);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

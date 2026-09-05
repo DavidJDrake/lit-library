@@ -1,7 +1,9 @@
 import { Duration, RemovalPolicy } from "aws-cdk-lib";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as logs from "aws-cdk-lib/aws-logs";
@@ -9,9 +11,12 @@ import * as cr from "aws-cdk-lib/custom-resources";
 import { Construct } from "constructs";
 import * as path from "node:path";
 import { SEED_AT, SEED_CATEGORIES } from "../lambda/library/constants";
+import { COGNITO_LIST_ACTIONS } from "./notifications";
 
 export interface LibraryProps {
   httpApi: apigw.HttpApi;
+  notificationsTable: dynamodb.ITable;
+  userPool: cognito.IUserPool;
 }
 
 // Runtime-mutable overlay on the static catalog: categories, per-book category
@@ -58,12 +63,21 @@ export class Library extends Construct {
     const fn = new NodejsFunction(this, "Fn", {
       entry: path.join(__dirname, "../lambda/library/index.ts"),
       runtime: lambda.Runtime.NODEJS_22_X,
-      timeout: Duration.seconds(10),
+      timeout: Duration.seconds(15),
       memorySize: 256,
       logRetention: logs.RetentionDays.ONE_MONTH,
-      environment: { LIBRARY_TABLE: this.table.tableName },
+      environment: {
+        LIBRARY_TABLE: this.table.tableName,
+        NOTIFICATIONS_TABLE: props.notificationsTable.tableName,
+        USER_POOL_ID: props.userPool.userPoolId,
+      },
+      // Bundle the Cognito client rather than trust the runtime-provided SDK version; the
+      // DynamoDB clients are runtime-provided and already in use.
+      bundling: { externalModules: ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"] },
     });
     this.table.grantReadWriteData(fn);
+    props.notificationsTable.grantWriteData(fn);
+    fn.addToRolePolicy(new iam.PolicyStatement({ actions: COGNITO_LIST_ACTIONS, resources: [props.userPool.userPoolArn] }));
 
     // One integration, six routes; the API's default JWT authorizer applies to all of them.
     const integration = new HttpLambdaIntegration("LibraryIntegration", fn);

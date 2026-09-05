@@ -30,6 +30,10 @@ be online for the site to work.
   suggestions or add categories directly. Edits live in a small DynamoDB
   table that the site merges over the static catalog, and
   `scripts/pull-edits.py` folds them back into `metadata/overrides.yaml`.
+- **Notifications.** A bell in the header shows new suggestions (admins), the
+  outcome of your own suggestions, new categories, and "N new books added"
+  after each publish. Per-recipient rows in a small DynamoDB table with a
+  90-day TTL; the site polls every five minutes.
 - **Cheap storage.** ~73 GB of books sit in S3 Intelligent-Tiering, which
   drifts untouched titles down to ~$0.004/GB-month with no retrieval fees.
 - **Metadata from the files themselves.** A Python indexer reads embedded
@@ -53,8 +57,10 @@ flowchart LR
     DL[download Lambda]
     SESS[session Lambda]
     LIB[library Lambda]
+    NOTIF[notifications Lambda]
     DDB[(DynamoDB<br/>downloads log)]
     LIBT[(DynamoDB<br/>categories + suggestions)]
+    NOTIFT[(DynamoDB<br/>notifications, 90-day TTL)]
     SM[(Secrets Manager<br/>cookie-signing key)]
   end
   IDX -->|books| BOOKS
@@ -66,6 +72,9 @@ flowchart LR
   DL -->|presigned URL| BOOKS
   API --> SESS --> SM
   API --> LIB --> LIBT
+  API --> NOTIF --> NOTIFT
+  LIB --> NOTIFT
+  IDX -.->|books added| NOTIF
   COG -.->|ID token| API
 ```
 
@@ -79,10 +88,10 @@ and navigates a hidden iframe to the returned presigned URL.
 
 | Path | What |
 |---|---|
-| `indexer/` | Python CLI (`ebook_indexer`): scan → extract → group → enrich → categorize → catalog → publish. 77 tests, all offline. |
-| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, three Lambdas. 111 tests (CDK assertions + Lambda units), all offline. |
-| `web/` | React + Vite + TypeScript SPA. 113 tests (vitest + Testing Library), all offline. |
-| `scripts/` | Glue: copy CDK outputs into config, write web env files, generate the signing key, deploy the web app, refresh the catalog (`publish-new.sh`), back up state (`backup.sh`), make an admin (`make-admin.sh`), pull category edits (`pull-edits.py`). |
+| `indexer/` | Python CLI (`ebook_indexer`): scan → extract → group → enrich → categorize → catalog → publish. 81 tests, all offline. |
+| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, four Lambdas. 150 tests (CDK assertions + Lambda units), all offline. |
+| `web/` | React + Vite + TypeScript SPA. 142 tests (vitest + Testing Library), all offline. |
+| `scripts/` | Glue: copy CDK outputs into config, write web env files, generate the signing key, deploy the web app, refresh the catalog (`publish-new.sh`), back up state (`backup.sh`), make an admin (`make-admin.sh`), pull category edits (`pull-edits.py`), notify readers of new books (`notify-books-added.py`, run by `publish-new.sh`). |
 | `docs/superpowers/` | The design specs and the implementation plans that were actually executed (see below). |
 
 ## How it was built
@@ -165,6 +174,9 @@ Every suite runs offline — no AWS credentials, no network.
 - Category edits are attributed (who/when) and admin actions require the
   `admins` group claim on the ID token; the API checks it, the UI only hides
   buttons.
+- The notifications Lambda may list Cognito users (to fan out) and read the
+  library table; the indexer reaches it only through `lambda:InvokeFunction`
+  with your own AWS credentials.
 
 ## License
 

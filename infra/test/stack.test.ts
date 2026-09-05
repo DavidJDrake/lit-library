@@ -1,5 +1,5 @@
 import { App } from "aws-cdk-lib";
-import { Template } from "aws-cdk-lib/assertions";
+import { Match, Template } from "aws-cdk-lib/assertions";
 import { describe, expect, it } from "vitest";
 import { EXAMPLE_CONFIG_PATH, loadConfig } from "../lib/config";
 import { EbookShareStack } from "../lib/ebook-share-stack";
@@ -22,7 +22,7 @@ describe("EbookShareStack", () => {
     t.resourceCountIs("AWS::CloudFront::Distribution", 1);
     t.resourceCountIs("AWS::Cognito::UserPool", 1);
     t.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
-    t.resourceCountIs("AWS::DynamoDB::Table", 2);
+    t.resourceCountIs("AWS::DynamoDB::Table", 3);
     t.resourceCountIs("AWS::CloudFront::KeyGroup", 1);
   });
 
@@ -31,9 +31,17 @@ describe("EbookShareStack", () => {
     for (const name of [
       "SiteUrl", "SiteBucketName", "BooksBucketName", "DistributionId",
       "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable", "LibraryTable", "SigningKeyPairId",
+      "NotificationsFunctionName",
     ]) {
       expect(() => t.hasOutput(name, {})).not.toThrow();
     }
+  });
+
+  it("lets the notifications Lambda read the library table", () => {
+    const t = synthStack();
+    t.hasResourceProperties("AWS::Lambda::Function", {
+      Environment: { Variables: Match.objectLike({ NOTIFICATIONS_TABLE: Match.anyValue(), LIBRARY_TABLE: Match.anyValue(), USER_POOL_ID: Match.anyValue() }) },
+    });
   });
 
   it("requires the JWT authorizer on every GET/PUT/POST /api/* route except DELETE /api/session", () => {
@@ -44,7 +52,7 @@ describe("EbookShareStack", () => {
     for (const p of authorized) {
       expect(p).toHaveProperty("AuthorizerId");
     }
-    expect(authorized.length).toBeGreaterThanOrEqual(8);
+    expect(authorized.length).toBeGreaterThanOrEqual(10);
 
     const deleteSession = properties.find((p) => p.RouteKey === "DELETE /api/session");
     expect(deleteSession).toBeDefined();
