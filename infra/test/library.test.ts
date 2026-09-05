@@ -47,6 +47,7 @@ describe("Library", () => {
     const { t } = synth();
     t.hasResourceProperties("AWS::Lambda::Function", {
       Runtime: "nodejs22.x",
+      Timeout: 15,
       Environment: { Variables: { LIBRARY_TABLE: Match.anyValue() } },
     });
     // Exactly one policy grants dynamodb read/write, and it names the table (plus its index ARN pattern) only.

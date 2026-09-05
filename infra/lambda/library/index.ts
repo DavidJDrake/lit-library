@@ -159,7 +159,7 @@ export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
   if (!productionDeps) {
     const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
     const notifyDeps = {
-      directory: new CognitoDirectory(new CognitoIdentityProviderClient({}), process.env.USER_POOL_ID ?? ""),
+      directory: new CognitoDirectory(new CognitoIdentityProviderClient({ maxAttempts: 2 }), process.env.USER_POOL_ID ?? ""),
       writer: new DynamoNotificationWriter(ddb, process.env.NOTIFICATIONS_TABLE ?? ""),
       now: () => new Date(), newId: () => randomUUID(),
     };

@@ -1,4 +1,4 @@
-import { CfnOutput, Duration, RemovalPolicy } from "aws-cdk-lib";
+import { Duration, RemovalPolicy } from "aws-cdk-lib";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as cognito from "aws-cdk-lib/aws-cognito";
@@ -41,6 +41,9 @@ export class Notifications extends Construct {
       memorySize: 256,
       logRetention: logs.RetentionDays.ONE_MONTH,
       environment: { NOTIFICATIONS_TABLE: this.table.tableName, USER_POOL_ID: props.userPool.userPoolId },
+      // Bundle the Cognito client rather than trust the runtime-provided SDK version; the
+      // DynamoDB clients are runtime-provided and already in use.
+      bundling: { externalModules: ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"] },
     });
     this.table.grantReadWriteData(this.fn);
     this.fn.addToRolePolicy(new iam.PolicyStatement({ actions: COGNITO_LIST_ACTIONS, resources: [props.userPool.userPoolArn] }));
@@ -48,7 +51,5 @@ export class Notifications extends Construct {
     const integration = new HttpLambdaIntegration("NotificationsIntegration", this.fn);
     props.httpApi.addRoutes({ path: "/api/notifications", methods: [apigw.HttpMethod.GET], integration });
     props.httpApi.addRoutes({ path: "/api/notifications/read", methods: [apigw.HttpMethod.POST], integration });
-
-    new CfnOutput(this, "FunctionName", { value: this.fn.functionName });
   }
 }

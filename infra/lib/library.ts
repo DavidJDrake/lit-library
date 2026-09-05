@@ -63,7 +63,7 @@ export class Library extends Construct {
     const fn = new NodejsFunction(this, "Fn", {
       entry: path.join(__dirname, "../lambda/library/index.ts"),
       runtime: lambda.Runtime.NODEJS_22_X,
-      timeout: Duration.seconds(10),
+      timeout: Duration.seconds(15),
       memorySize: 256,
       logRetention: logs.RetentionDays.ONE_MONTH,
       environment: {
@@ -71,6 +71,9 @@ export class Library extends Construct {
         NOTIFICATIONS_TABLE: props.notificationsTable.tableName,
         USER_POOL_ID: props.userPool.userPoolId,
       },
+      // Bundle the Cognito client rather than trust the runtime-provided SDK version; the
+      // DynamoDB clients are runtime-provided and already in use.
+      bundling: { externalModules: ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"] },
     });
     this.table.grantReadWriteData(fn);
     props.notificationsTable.grantWriteData(fn);
