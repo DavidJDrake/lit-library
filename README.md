@@ -177,6 +177,8 @@ weekly grouped update PRs for the three package manifests and the workflow actio
   most 2 hours and their tokens stop refreshing.
 - The books bucket is private; the only way to a file is a presigned URL
   minted for a signed-in user, and every download is logged.
+- CloudWatch alarms email the owner on any Lambda error, any API 5xx, and when
+  month-to-date charges pass $5 (`infra/README.md` has the two one-time setup steps).
 - Category edits are attributed (who/when) and admin actions require the
   `admins` group claim on the ID token; the API checks it, the UI only hides
   buttons.

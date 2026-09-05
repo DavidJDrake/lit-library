@@ -19,6 +19,7 @@ export class Auth extends Construct {
   readonly client: cognito.UserPoolClient;
   readonly domain: cognito.UserPoolDomain;
   readonly hostedUiBaseUrl: string;
+  readonly preSignUp: NodejsFunction;
 
   constructor(scope: Construct, id: string, props: AuthProps) {
     super(scope, id);
@@ -36,7 +37,7 @@ export class Auth extends Construct {
       description: "Comma-separated emails allowed to sign in to ebook-share (edit in place)",
     });
 
-    const preSignUp = new NodejsFunction(this, "PreSignUp", {
+    const preSignUp = this.preSignUp = new NodejsFunction(this, "PreSignUp", {
       entry: path.join(__dirname, "../lambda/pre-signup/index.ts"),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),

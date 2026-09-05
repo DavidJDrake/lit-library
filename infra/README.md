@@ -93,6 +93,26 @@ notifications table. `scripts/publish-new.sh` invokes the notifications Lambda
 directly (`NotificationsFunctionName` output) after a publish that added books;
 that needs `lambda:InvokeFunction` on the caller's credentials.
 
+## Alerts
+
+`Alerts/*` creates one SNS topic (email subscription from `alarmEmail` in
+`config.local.json`) and seven CloudWatch alarms: `Errors ≥ 1` in 5 minutes for each of
+the five Lambdas, `5xx ≥ 1` in 5 minutes on the HTTP API, and month-to-date
+`EstimatedCharges > $5` (USD, 6-hour period). Every alarm emails on ALARM and again on
+OK, and treats missing data as fine (a quiet site is not a broken site).
+
+Two one-time steps after the first deploy that creates the topic:
+
+1. **Confirm the subscription.** SNS emails "AWS Notification - Subscription
+   Confirmation" to `alarmEmail`; click the link, or nothing is ever delivered.
+2. **Enable billing alerts.** The `AWS/Billing` metric is only published (and only in
+   `us-east-1`) after you turn on *Receive Billing Alerts*: console → Billing and Cost
+   Management → Billing preferences → Alert preferences. Until then the charges alarm
+   simply stays in `INSUFFICIENT_DATA`.
+
+To change the address, edit `alarmEmail` and redeploy; the old subscription is removed
+and the new one needs confirming.
+
 ## Construct IDs that must never be renamed after first deploy
 
 These constructs use `RemovalPolicy.RETAIN` and are keyed by their CDK
