@@ -26,6 +26,11 @@ export interface Store {
 export interface Deps { store: Store; now: () => Date; newId: () => string }
 
 const BOOK_ID_MAX = 64;
+const BOOK_ID_RE = /^[A-Za-z0-9._-]+$/;
+
+function isValidBookId(id: string): boolean {
+  return id.length > 0 && id.length <= BOOK_ID_MAX && BOOK_ID_RE.test(id);
+}
 
 function json(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
@@ -54,6 +59,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       });
     }
     case "setBookCategory": {
+      if (!isValidBookId(route.bookId)) return json(400, { error: "Invalid book id" });
       const body = parseJsonBody(event.body);
       const n = normalizeName(body?.category);
       if (!n) return json(400, { error: "Body must be JSON {category}" });
@@ -68,7 +74,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const n = normalizeName(body?.name);
       if (!n) return json(400, { error: "Body must be JSON {name, bookId?}" });
       const bookId = body?.bookId;
-      if (bookId !== undefined && (typeof bookId !== "string" || bookId.length === 0 || bookId.length > BOOK_ID_MAX)) {
+      if (bookId !== undefined && (typeof bookId !== "string" || !isValidBookId(bookId))) {
         return json(400, { error: "bookId must be a non-empty string" });
       }
       if (await nameTaken(store, n.nameLower)) return json(409, { error: "That category already exists or has been suggested" });

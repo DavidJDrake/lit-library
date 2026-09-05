@@ -68,7 +68,14 @@ export function matchRoute(method: string, path: string): Route | undefined {
   for (const [m, re, build] of ROUTES) {
     if (m !== method) continue;
     const match = path.match(re);
-    if (match) return build(match);
+    if (!match) continue;
+    // A malformed percent-encoded segment (e.g. a lone "%") makes decodeURIComponent
+    // throw a URIError; treat that as no match (404) rather than a 500.
+    try {
+      return build(match);
+    } catch {
+      return undefined;
+    }
   }
   return undefined;
 }

@@ -66,6 +66,11 @@ describe("PUT /api/books/{id}/category", () => {
     expect(parse(await handle(event("PUT", "/api/books/b1/category", { category: "" }), deps())).status).toBe(400);
     expect(parse(await handle(event("PUT", "/api/books/b1/category"), deps())).status).toBe(400);
   });
+  it("400s an invalid book id (too long or containing disallowed characters)", async () => {
+    const long = "x".repeat(65);
+    expect(parse(await handle(event("PUT", `/api/books/${long}/category`, { category: "Fiction" }), deps())).status).toBe(400);
+    expect(parse(await handle(event("PUT", "/api/books/a b/category", { category: "Fiction" }), deps())).status).toBe(400);
+  });
 });
 
 describe("POST /api/suggestions", () => {
@@ -83,6 +88,9 @@ describe("POST /api/suggestions", () => {
     parse(await handle(event("POST", "/api/suggestions", { name: "Cookery" }), deps(s)));
     expect((s.putSuggestion as ReturnType<typeof vi.fn>).mock.calls[0][0]).not.toHaveProperty("bookId");
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: 5 }), deps())).status).toBe(400);
+  });
+  it("400s a bookId with characters outside the allowed set", async () => {
+    expect(parse(await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: "bad/id" }), deps())).status).toBe(400);
   });
   it("409s a name that matches a category or a pending suggestion, case-insensitively", async () => {
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "fiction" }), deps())).status).toBe(409);
