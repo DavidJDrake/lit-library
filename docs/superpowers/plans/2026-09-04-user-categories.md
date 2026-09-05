@@ -278,7 +278,7 @@ describe("normalizeName", () => {
     expect(normalizeName(42)).toBeUndefined();
     expect(normalizeName("x".repeat(NAME_MAX + 1))).toBeUndefined();
     expect(normalizeName("x".repeat(NAME_MAX))).toBeDefined();
-    expect(normalizeName("bad name")).toBeUndefined();
+    expect(normalizeName("bad\u0000name")).toBeUndefined();
     expect(normalizeName("bad\nname")).toBeUndefined();
   });
 });
