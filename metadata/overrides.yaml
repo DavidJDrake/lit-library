@@ -2,6 +2,7 @@
 # Editable fields: category, title, authors, year, publisher, description.
 # Valid categories: Tech & Programming, Security & Hacking, Fiction,
 #   Comics, TTRPG, Certification, Other/Lifestyle
+# A top-level "categories:" list adds site-created categories (maintained by scripts/pull-edits.py).
 # Example:
 # 0123456789abcdef:
 #   category: Fiction

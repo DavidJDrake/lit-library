@@ -9,7 +9,7 @@ case "$DRY" in
   *) echo "usage: $0 [--dry-run]" >&2; exit 2;;
 esac
 REGION=$(python3 -c "import json;print(json.load(open('$ROOT/infra/config.local.json'))['region'])")
-read -r BUCKET TABLE < <(python3 -c "import json;o=next(iter(json.load(open('$ROOT/infra/outputs.json')).values()));print(o['BooksBucketName'], o['DownloadsTable'])")
+read -r BUCKET TABLE LIBTABLE < <(python3 -c "import json;o=next(iter(json.load(open('$ROOT/infra/outputs.json')).values()));print(o['BooksBucketName'], o['DownloadsTable'], o.get('LibraryTable',''))")
 DEST="s3://$BUCKET/_backup"
 STAMP=$(date -u +%Y-%m-%dT%H%M%SZ)
 trap 'rm -rf "${TARDIR:-}" "${TMP:-}"' EXIT
@@ -33,5 +33,16 @@ else
   aws dynamodb scan --table-name "$TABLE" --region "$REGION" --output json > "$TMP"
   aws s3 cp "$TMP" "$DEST/dynamodb/downloads-$STAMP.json" --region "$REGION" >/dev/null
   echo "exported $(python3 -c "import json;print(len(json.load(open('$TMP'))['Items']))") download rows"
+fi
+if [ -n "$LIBTABLE" ]; then
+  if [ "$DRY" = "--dry-run" ]; then
+    echo "(dryrun) would export DynamoDB table $LIBTABLE to $DEST/dynamodb/library-$STAMP.json"
+  else
+    LTMP=$(mktemp)
+    aws dynamodb scan --table-name "$LIBTABLE" --region "$REGION" --output json > "$LTMP"
+    aws s3 cp "$LTMP" "$DEST/dynamodb/library-$STAMP.json" --region "$REGION" >/dev/null
+    echo "exported $(python3 -c "import json;print(len(json.load(open('$LTMP'))['Items']))") library rows"
+    rm -f "$LTMP"
+  fi
 fi
 echo "backup complete: $DEST"
