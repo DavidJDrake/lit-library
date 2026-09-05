@@ -7,7 +7,7 @@ dependencies = [
     "Pillow>=10.0",
     "requests>=2.31",
     "boto3>=1.43.87",
-    "PyYAML>=6.0",
+    "PyYAML>=6.0.3",
 ]
 
 [project.optional-dependencies]
