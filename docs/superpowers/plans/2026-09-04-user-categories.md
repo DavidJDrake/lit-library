@@ -1210,7 +1210,7 @@ export function setBookCategory(apiUrl: string, idToken: string, bookId: string,
 export function suggestCategory(apiUrl: string, idToken: string, name: string, bookId: string | undefined, fetchFn?: typeof fetch): Promise<void>
 export function createCategory(apiUrl: string, idToken: string, name: string, fetchFn?: typeof fetch): Promise<void>
 export function resolveSuggestion(apiUrl: string, idToken: string, id: string, action: "accept" | "reject", fetchFn?: typeof fetch): Promise<void>
-export function suggesterLabel(email: string): string   // "zbmowrey@gmail.com" → "zbmowrey"
+export function suggesterLabel(email: string): string   // "friend@example.com" → "friend"
 ```
 
 - [ ] **Step 1: Write the failing tests**
@@ -1304,7 +1304,7 @@ describe("mutations", () => {
 
 describe("suggesterLabel", () => {
   it("shows the local part only", () => {
-    expect(suggesterLabel("zbmowrey@gmail.com")).toBe("zbmowrey");
+    expect(suggesterLabel("friend@example.com")).toBe("friend");
     expect(suggesterLabel("weird")).toBe("weird");
   });
 });
@@ -1720,7 +1720,7 @@ import { describe, expect, it, vi } from "vitest";
 import CategorySuggestions from "./CategorySuggestions";
 
 const suggestions = [
-  { id: "s1", name: "Cookbooks", bookId: "b1", suggestedBy: "zbmowrey@gmail.com", createdAt: "2026-09-04T00:00:00Z" },
+  { id: "s1", name: "Cookbooks", bookId: "b1", suggestedBy: "friend@example.com", createdAt: "2026-09-04T00:00:00Z" },
   { id: "s2", name: "Poetry", suggestedBy: "x@y", createdAt: "2026-09-04T00:00:01Z" },
 ];
 const noop = async () => {};
@@ -1728,7 +1728,7 @@ const noop = async () => {};
 describe("CategorySuggestions", () => {
   it("lists pending chips with the suggester's local part and hides admin controls", () => {
     render(<CategorySuggestions suggestions={suggestions} isAdmin={false} onSuggest={noop} onCreate={noop} onResolve={noop} />);
-    expect(screen.getByText("Cookbooks · suggested by zbmowrey")).toBeInTheDocument();
+    expect(screen.getByText("Cookbooks · suggested by friend")).toBeInTheDocument();
     expect(screen.getByText("Poetry · suggested by x")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accept Cookbooks" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add category" })).toBeNull();
@@ -1888,7 +1888,7 @@ In `web/src/components/Library.test.tsx`, add an overlay fixture and teach `fetc
 const overlay = {
   categories: [{ name: "Fiction", source: "seed" }, { name: "Security & Hacking", source: "seed" }, { name: "TTRPG", source: "seed" }],
   bookCategories: {},
-  suggestions: [{ id: "s1", name: "Cookbooks", suggestedBy: "zbmowrey@gmail.com", createdAt: "2026-09-04T00:00:00Z" }],
+  suggestions: [{ id: "s1", name: "Cookbooks", suggestedBy: "friend@example.com", createdAt: "2026-09-04T00:00:00Z" }],
 };
 
 type Handler = (url: string, init?: RequestInit) => Promise<unknown> | unknown;
@@ -1963,7 +1963,7 @@ Then add these tests:
       "POST /suggestions$": () => ({ ok: true, status: 201, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ id: "s2" }) }),
     });
     const { rerender } = render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
-    await waitFor(() => expect(screen.getByText("Cookbooks · suggested by zbmowrey")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Cookbooks · suggested by friend")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Accept Cookbooks" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Suggest a category" }));
     await userEvent.type(screen.getByRole("textbox", { name: "New category name" }), "Poetry");

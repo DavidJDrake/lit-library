@@ -88,6 +88,21 @@ def test_is_idempotent(tmp_path):
     assert overrides.read_text() == once
 
 
+def test_skips_a_book_item_missing_category_and_warns(tmp_path):
+    cfg, scan_file, overrides = setup(tmp_path)
+    scan_file.write_text(json.dumps(scan([
+        {"pk": s("CATEGORY"), "sk": s("Fiction"), "source": s("seed")},
+        {"pk": s("BOOK"), "sk": s("aaaa"), "category": s("Fiction"), "changedBy": s("u@x"), "changedAt": s("t")},
+        {"pk": s("BOOK"), "sk": s("bbbb"), "changedBy": s("u@x"), "changedAt": s("t")},  # no category
+    ])))
+    proc = run_proc(cfg, scan_file)
+    data = yaml.safe_load(overrides.read_text())
+    assert data["aaaa"] == {"title": "Keep Me", "category": "Fiction"}
+    assert data["bbbb"] == {"year": 1999}  # untouched: the malformed item was skipped
+    assert "warning: BOOK bbbb has no category; skipped" in proc.stderr
+    assert "merged 1 book categories, 0 site categories" in proc.stdout
+
+
 def test_warns_about_and_drops_comments_below_the_header(tmp_path):
     cfg, scan_file, overrides = setup(tmp_path)
     text = overrides.read_text()

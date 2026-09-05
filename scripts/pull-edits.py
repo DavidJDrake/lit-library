@@ -73,7 +73,15 @@ def merge(overrides: dict, items: list[dict]) -> tuple[dict, list[str], dict[str
     site_categories = sorted(
         i["sk"] for i in items if i.get("pk") == "CATEGORY" and i["sk"] not in BUILTIN_CATEGORIES
     )
-    books = {i["sk"]: i["category"] for i in items if i.get("pk") == "BOOK"}
+    books = {}
+    for i in items:
+        if i.get("pk") != "BOOK":
+            continue
+        category = i.get("category")
+        if category is None:
+            print(f"warning: BOOK {i.get('sk')} has no category; skipped", file=sys.stderr)
+            continue
+        books[i["sk"]] = category
     merged = dict(overrides)
     if site_categories:
         merged["categories"] = site_categories

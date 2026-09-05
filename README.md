@@ -83,7 +83,7 @@ and navigates a hidden iframe to the returned presigned URL.
 | `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, three Lambdas. 111 tests (CDK assertions + Lambda units), all offline. |
 | `web/` | React + Vite + TypeScript SPA. 113 tests (vitest + Testing Library), all offline. |
 | `scripts/` | Glue: copy CDK outputs into config, write web env files, generate the signing key, deploy the web app, refresh the catalog (`publish-new.sh`), back up state (`backup.sh`), make an admin (`make-admin.sh`), pull category edits (`pull-edits.py`). |
-| `docs/superpowers/` | The design spec and the five implementation plans that were actually executed (see below). |
+| `docs/superpowers/` | The design specs and the implementation plans that were actually executed (see below). |
 
 ## How it was built
 
@@ -91,12 +91,12 @@ This repository was produced with **Claude Code** (Claude Fable 5) and is
 kept as an honest record of that process rather than a cleaned-up
 afterthought:
 
-- `docs/superpowers/specs/` holds the design spec that came out of a
-  brainstorming session — including the decisions that changed direction
+- `docs/superpowers/specs/` holds the design specs that came out of
+  brainstorming sessions — including the decisions that changed direction
   (the original "upload on request" design was dropped once the storage
   math showed the whole library costs ~$0.40/month to keep in S3).
-- `docs/superpowers/plans/` holds the five implementation plans, each broken
-  into TDD tasks. They were executed by dispatching a fresh sub-agent per
+- `docs/superpowers/plans/` holds the implementation plans that were actually
+  executed, each broken into TDD tasks, by dispatching a fresh sub-agent per
   task, reviewing every task's diff for spec compliance and quality, running
   fix rounds where reviews found problems, and finishing each plan with a
   whole-branch review before merge. Several real bugs were caught that way
