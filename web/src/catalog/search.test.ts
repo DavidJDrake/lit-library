@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFilters, buildSearchIndex, facetCounts, formatSize, searchBooks, sortBooks } from "./search";
+import { applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, formatSize, searchBooks, sortBooks } from "./search";
 import { emptyFilters, type Book } from "./types";
 
 function book(over: Partial<Book> & { id: string; title: string }): Book {
@@ -94,5 +94,14 @@ describe("formatSize", () => {
   it("formats KB and MB", () => {
     expect(formatSize(850 * 1024)).toBe("850 KB");
     expect(formatSize(12.34 * 1024 * 1024)).toBe("12.3 MB");
+  });
+});
+
+describe("filtersFromSearch", () => {
+  it("seeds the category facet from ?category= (repeatable) and ignores other keys", () => {
+    const f = filtersFromSearch("?category=Fiction&category=Comics&sort=title");
+    expect([...f.category]).toEqual(["Fiction", "Comics"]);
+    expect(f.author.size).toBe(0);
+    expect(filtersFromSearch("").category.size).toBe(0);
   });
 });

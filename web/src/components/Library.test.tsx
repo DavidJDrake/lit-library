@@ -1,8 +1,26 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { LibraryDataProvider } from "../catalog/LibraryDataProvider";
 import type { Catalog } from "../catalog/types";
 import Library, { SESSION_RENEW_MS } from "./Library";
+
+interface LibraryProps {
+  apiUrl: string;
+  getIdToken: () => Promise<string>;
+  fetchFn?: typeof fetch;
+  navigate?: (url: string) => void;
+  isAdmin?: boolean;
+  onChanged?: () => void;
+}
+
+function renderLibrary(props: LibraryProps) {
+  return render(
+    <LibraryDataProvider apiUrl={props.apiUrl} getIdToken={props.getIdToken} fetchFn={props.fetchFn}>
+      <Library {...props} />
+    </LibraryDataProvider>,
+  );
+}
 
 const catalog: Catalog = {
   generatedAt: "t",
@@ -45,14 +63,14 @@ afterEach(() => {
 
 describe("Library", () => {
   it("loads the catalog and renders a card per book with the count", async () => {
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFor(catalog)} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
     await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument();
     expect(screen.getByText(/2 books/)).toBeInTheDocument();
   });
 
   it("defaults to newest-added-first, with the sort select set to Recently added", async () => {
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFor(catalog)} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: "Sort by" })).toHaveValue("added");
     const cards = screen.getAllByRole("button", { name: /Attacking Network Protocols|The Black Company/ });
@@ -60,7 +78,7 @@ describe("Library", () => {
   });
 
   it("filters via a facet checkbox and searches via the box", async () => {
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFor(catalog)} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("checkbox", { name: /Fiction/ }));
     expect(screen.queryByRole("button", { name: /Attacking Network Protocols/ })).toBeNull();
@@ -74,7 +92,7 @@ describe("Library", () => {
   it("opens the detail dialog and downloads with the ID token", async () => {
     const fetchFn = fetchFor(catalog);
     const navigate = vi.fn();
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} navigate={navigate} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, navigate });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /The Black Company/ }));
     const dialog = screen.getByRole("dialog", { hidden: true });
@@ -93,7 +111,7 @@ describe("Library", () => {
         ? { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog }
         : { ok: false, status: 404, json: async () => ({ error: "Unknown book or format" }) };
     }) as unknown as typeof fetch;
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} navigate={() => {}} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, navigate: () => {} });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /The Black Company/ }));
     await userEvent.click(within(screen.getByRole("dialog", { hidden: true })).getByRole("button", { name: /Download EPUB/ }));
@@ -105,7 +123,7 @@ describe("Library", () => {
       if (String(url).endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       return { ok: false, status: 503, json: async () => ({}) };
     }) as unknown as typeof fetch;
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/catalog/i));
   });
 
@@ -117,7 +135,7 @@ describe("Library", () => {
       if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
     }) as unknown as typeof fetch;
-    render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "/api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     expect(calls.indexOf("GET /api/session")).toBeLessThan(calls.indexOf("GET /catalog.json"));
     expect(calls.indexOf("GET /catalog.json")).toBeLessThan(calls.indexOf("GET /api/library"));
@@ -132,7 +150,7 @@ describe("Library", () => {
       if (catalogCalls === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "text/html" }), json: async () => ({}) };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
     }) as unknown as typeof fetch;
-    render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "/api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     expect(catalogCalls).toBe(2);
     expect((fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).endsWith("/session"))).toHaveLength(2);
@@ -147,7 +165,7 @@ describe("Library", () => {
       if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
     }) as unknown as typeof fetch;
-    const { unmount } = render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    const { unmount } = renderLibrary({ apiUrl: "/api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(SESSION_RENEW_MS + 10);
@@ -165,7 +183,7 @@ describe("Library", () => {
       if (String(url).endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay };
       return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => catalog };
     }) as unknown as typeof fetch;
-    render(<Library apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "/api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
     expect(calls.filter((c) => c === "GET /api/session")).toHaveLength(1);
     const visibilitySpy = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
@@ -179,7 +197,7 @@ describe("Library", () => {
       ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({ ...overlay, bookCategories: { "1": "TTRPG" } }),
     }) });
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("checkbox", { name: /TTRPG/ })).toBeInTheDocument());
     expect(screen.queryByRole("checkbox", { name: /Security & Hacking/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
@@ -194,7 +212,7 @@ describe("Library", () => {
       "PUT /books/1/category$": (_u, init) => { bookCategories = { "1": JSON.parse(String(init?.body)).category }; return { ok: true, status: 204, headers: new Headers() }; },
       "GET /library$": () => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ ...overlay, bookCategories }) }),
     });
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
     const dialog = screen.getByRole("dialog", { hidden: true });
@@ -210,7 +228,7 @@ describe("Library", () => {
     const fetchFn = fetchFor(catalog, undefined, {
       "PUT /books/": () => ({ ok: false, status: 400, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "Unknown category" }) }),
     });
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
     const dialog = screen.getByRole("dialog", { hidden: true });
@@ -223,7 +241,7 @@ describe("Library", () => {
     const fetchFn = fetchFor(catalog, undefined, {
       "POST /suggestions$": () => ({ ok: true, status: 201, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ id: "s2" }) }),
     });
-    const { rerender } = render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    const { rerender } = renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByText("Cookbooks · suggested by friend")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Accept Cookbooks" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Suggest a category" }));
@@ -232,7 +250,7 @@ describe("Library", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Suggested 'Poetry' — waiting for approval"));
     const post = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.find((c) => String(c[0]).endsWith("/suggestions"))!;
     expect(JSON.parse(post[1].body)).toEqual({ name: "Poetry" });
-    rerender(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} isAdmin />);
+    rerender(<LibraryDataProvider apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn}><Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} isAdmin /></LibraryDataProvider>);
     expect(screen.getByRole("button", { name: "Accept Cookbooks" })).toBeInTheDocument();
   });
 
@@ -241,7 +259,7 @@ describe("Library", () => {
       "POST /suggestions/s1/accept$": () => ({ ok: true, status: 204, headers: new Headers() }),
       "POST /categories$": () => ({ ok: true, status: 201, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ name: "Essays" }) }),
     });
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} isAdmin />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, isAdmin: true });
     await waitFor(() => expect(screen.getByRole("button", { name: "Accept Cookbooks" })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Accept Cookbooks" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Accepted 'Cookbooks'"));
@@ -257,7 +275,7 @@ describe("Library", () => {
     const fetchFn = fetchFor(catalog, undefined, {
       "GET /library$": () => ({ ok: false, status: 502, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) }),
     });
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
     expect(screen.getByRole("status")).toHaveTextContent("Category editing is unavailable right now (boom)");
     expect(screen.queryByRole("button", { name: "Suggest a category" })).toBeNull();
@@ -271,7 +289,7 @@ describe("Library", () => {
       "PUT /books/1/category$": (_u, init) => { bookCategories = { "1": JSON.parse(String(init?.body)).category }; return { ok: true, status: 204, headers: new Headers() }; },
       "GET /library$": () => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ ...overlay, bookCategories }) }),
     });
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("checkbox", { name: /Security & Hacking/ }));
     expect(screen.queryByRole("button", { name: /The Black Company/ })).toBeNull();
@@ -298,11 +316,38 @@ describe("Library", () => {
         return { ok: false, status: 502, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
       },
     });
-    render(<Library apiUrl="https://api" getIdToken={async () => "tok"} fetchFn={fetchFn} />);
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
     const dialog = screen.getByRole("dialog", { hidden: true });
     await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Category" }), "TTRPG");
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved, but the list could not refresh (boom)"));
+  });
+
+  it("seeds the category filter from the query string", async () => {
+    window.history.replaceState({}, "", "/?category=Fiction");
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /Attacking Network Protocols/ })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: /Fiction/ })).toBeChecked();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("calls onChanged after a successful mutation, not after a failed one", async () => {
+    const onChanged = vi.fn();
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /books/1/category$": () => ({ ok: true, status: 204, headers: new Headers() }),
+      "PUT /books/2/category$": () => ({ ok: false, status: 400, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "nope" }) }),
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, onChanged });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    await userEvent.selectOptions(within(screen.getByRole("dialog", { hidden: true })).getByRole("combobox", { name: "Category" }), "TTRPG");
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await userEvent.click(screen.getByRole("button", { name: /The Black Company/ }));
+    await userEvent.selectOptions(within(screen.getByRole("dialog", { hidden: true })).getByRole("combobox", { name: "Category" }), "TTRPG");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("nope"));
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useAuth } from "./auth/AuthProvider";
+import { LibraryDataProvider } from "./catalog/LibraryDataProvider";
 import { endSession } from "./catalog/session";
 import Header from "./components/Header";
 import Library from "./components/Library";
@@ -23,9 +24,9 @@ export default function App({ fetchFn = fetch }: Props) {
   if (auth.status === "loading") return <p className="empty">Signing you in…</p>;
   if (auth.status === "signedOut") return <SignInPage onSignIn={() => void auth.signIn()} error={auth.error} />;
   return (
-    <>
+    <LibraryDataProvider apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn}>
       <Header email={auth.email} onSignOut={() => void signOut()} />
       <Library apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} isAdmin={auth.isAdmin} />
-    </>
+    </LibraryDataProvider>
   );
 }

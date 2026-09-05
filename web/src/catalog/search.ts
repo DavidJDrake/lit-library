@@ -1,5 +1,5 @@
 import Fuse from "fuse.js";
-import { FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "./types";
+import { emptyFilters, FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "./types";
 
 export function facetValues(book: Book, key: FacetKey): string[] {
   switch (key) {
@@ -85,6 +85,15 @@ export function facetCounts(books: Book[], key: FacetKey): Array<{ value: string
   return [...counts.entries()]
     .map(([value, count]) => ({ value, count }))
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+}
+
+// Seeds the category facet from a shared/bookmarked link's query string
+// (e.g. ?category=Fiction). Other keys are ignored — this isn't a general
+// filter-serialization scheme, just enough to land on a category.
+export function filtersFromSearch(search: string): Filters {
+  const f = emptyFilters();
+  for (const c of new URLSearchParams(search).getAll("category")) if (c) f.category.add(c);
+  return f;
 }
 
 export function formatSize(bytes: number): string {
