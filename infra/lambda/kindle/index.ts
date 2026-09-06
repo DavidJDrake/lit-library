@@ -2,8 +2,8 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 }
 import { downloadFilename, type Catalog } from "../download/download";
 import type { DownloadLog } from "../download/index";
 import { logEvent } from "../shared/log";
-import type { DeviceList } from "./devices";
-import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES, parseKindleAddress } from "./lib";
+import { publicList, validateDevices, type DeviceList } from "./devices";
+import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES } from "./lib";
 
 export interface KindleStore {
   getDevices(email: string): Promise<DeviceList>;
@@ -104,14 +104,19 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
   const email = String(claims.email ?? "").toLowerCase();
   if (!email) return json(401, { error: "unauthorized", message: "Token has no email claim (send the ID token)" });
   try {
-    if (method === "GET" && path === "/api/kindle/address") {
-      return json(200, { kindleAddress: await deps.store.getAddress(email) });
+    if (method === "GET" && path === "/api/kindle/devices") {
+      return json(200, publicList(await deps.store.getDevices(email)));
     }
-    if (method === "PUT" && path === "/api/kindle/address") {
-      const parsed = parseKindleAddress(parseBody(event.body).kindleAddress);
-      if (parsed === undefined) return json(400, { error: "bad_address", message: "Enter your @kindle.com address" });
-      await deps.store.setAddress(email, parsed, deps.now().toISOString());
-      return { statusCode: 204 };
+    if (method === "PUT" && path === "/api/kindle/devices") {
+      const body = parseBody(event.body);
+      if (!Array.isArray(body.devices)) {
+        return json(400, { error: "bad_request", message: "Body must be JSON {devices, defaultDeviceId?}" });
+      }
+      const existing = await deps.store.getDevices(email);
+      const result = validateDevices(body.devices, body.defaultDeviceId, existing, deps.now().toISOString());
+      if (!result.ok) return json(400, { error: result.error, message: result.message });
+      await deps.store.setDevices(email, result.list, deps.now().toISOString());
+      return json(200, publicList(result.list));
     }
     if (method === "POST" && path === "/api/kindle/send") {
       return await sendBook(email, parseBody(event.body), deps);

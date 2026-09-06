@@ -68,7 +68,7 @@ describe("Kindle", () => {
     // This CDK version (2.267) still implements logRetention via the Custom::LogRetention
     // provider rather than an AWS::Logs::LogGroup resource — verified via t.toJSON().
     t.hasResourceProperties("Custom::LogRetention", { RetentionInDays: 90 });
-    for (const key of ["GET /api/kindle/address", "PUT /api/kindle/address", "POST /api/kindle/send"]) {
+    for (const key of ["GET /api/kindle/devices", "PUT /api/kindle/devices", "POST /api/kindle/send"]) {
       t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key });
     }
     t.resourceCountIs("AWS::ApiGatewayV2::Route", 3);

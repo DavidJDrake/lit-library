@@ -1,6 +1,7 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 import { describe, expect, it, vi } from "vitest";
 import type { Catalog } from "../lambda/download/download";
+import type { DeviceList } from "../lambda/kindle/devices";
 import { handle, tagValue, type Deps, type KindleStore } from "../lambda/kindle/index";
 import { KINDLE_MAX_BYTES } from "../lambda/kindle/lib";
 
@@ -11,12 +12,30 @@ const catalog: Catalog = { books: [
   { id: "cbz", title: "Comic", formats: [{ type: "cbz", size: 10, s3Key: "books/c.cbz" }] },
 ] };
 
-function store(address: string | null = "jay_abc@kindle.com"): KindleStore {
-  return { getAddress: vi.fn().mockResolvedValue(address), setAddress: vi.fn().mockResolvedValue(undefined) };
+const ONE_DEVICE: DeviceList = {
+  devices: [{ id: "abcd1234", label: "Kindle", address: "jay_abc@kindle.com", addedAt: "2026-09-01T00:00:00.000Z" }],
+  defaultDeviceId: "abcd1234",
+};
+const TWO: DeviceList = {
+  devices: [
+    { id: "aaaaaaaa", label: "Scribe", address: "a@kindle.com", addedAt: "2026-09-01T00:00:00.000Z" },
+    { id: "bbbbbbbb", label: "Phone", address: "b@kindle.com", addedAt: "2026-09-01T00:00:00.000Z" },
+  ],
+  defaultDeviceId: "bbbbbbbb",
+};
+function storeStub(list: DeviceList = { devices: [], defaultDeviceId: null }) {
+  const saved: Array<{ list: DeviceList; updatedAt: string }> = [];
+  return {
+    saved,
+    store: {
+      getDevices: async () => list,
+      setDevices: async (_e: string, l: DeviceList, updatedAt: string) => { saved.push({ list: l, updatedAt }); },
+    } satisfies KindleStore,
+  };
 }
 function deps(over: Partial<Deps> = {}): Deps {
   return {
-    store: store(), loadCatalog: vi.fn().mockResolvedValue(catalog),
+    store: storeStub(ONE_DEVICE).store, loadCatalog: vi.fn().mockResolvedValue(catalog),
     loadObject: vi.fn().mockResolvedValue(new TextEncoder().encode("PKdata")),
     sender: { send: vi.fn().mockResolvedValue({ messageId: "ses-1" }) },
     logSend: vi.fn().mockResolvedValue(undefined), now: () => new Date(NOW), senderAddress: "library@lit.example.com",
@@ -35,21 +54,58 @@ function ev(method: string, path: string, body?: unknown, email?: string) {
 }
 const parse = (r: Awaited<ReturnType<typeof handle>>) => { const x = r as { statusCode: number; body?: string }; return { status: x.statusCode, json: x.body ? JSON.parse(x.body) : undefined }; };
 
-describe("address", () => {
-  it("GET returns the saved address or null, keyed by the lowercased email", async () => {
-    const d = deps();
-    expect(parse(await handle(ev("GET", "/api/kindle/address"), d))).toEqual({ status: 200, json: { kindleAddress: "jay_abc@kindle.com" } });
-    expect(d.store.getAddress).toHaveBeenCalledWith("jay@example.com");
-    expect(parse(await handle(ev("GET", "/api/kindle/address"), deps({ store: store(null) }))).json).toEqual({ kindleAddress: null });
+describe("device routes", () => {
+  it("GET returns the list without addedAt", async () => {
+    const { store } = storeStub(TWO);
+    const res = parse(await handle(ev("GET", "/api/kindle/devices"), deps({ store })));
+    expect(res.status).toBe(200);
+    expect(res.json).toEqual({
+      devices: [{ id: "aaaaaaaa", label: "Scribe", address: "a@kindle.com" }, { id: "bbbbbbbb", label: "Phone", address: "b@kindle.com" }],
+      defaultDeviceId: "bbbbbbbb",
+    });
   });
-  it("PUT validates, lowercases, clears on empty, 400s otherwise", async () => {
-    const d = deps();
-    expect(parse(await handle(ev("PUT", "/api/kindle/address", { kindleAddress: "Jay_ABC@Kindle.com" }), d)).status).toBe(204);
-    expect(d.store.setAddress).toHaveBeenCalledWith("jay@example.com", "jay_abc@kindle.com", NOW);
-    expect(parse(await handle(ev("PUT", "/api/kindle/address", { kindleAddress: "" }), d)).status).toBe(204);
-    expect(d.store.setAddress).toHaveBeenLastCalledWith("jay@example.com", null, NOW);
-    expect(parse(await handle(ev("PUT", "/api/kindle/address", { kindleAddress: "jay@gmail.com" }), d)).status).toBe(400);
-    expect(parse(await handle(ev("PUT", "/api/kindle/address", {}), d)).status).toBe(400);
+
+  it("PUT saves the canonical list and returns it", async () => {
+    const { store, saved } = storeStub(TWO);
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", {
+      devices: [{ id: "aaaaaaaa", label: "Study Scribe", address: "a@kindle.com" }, { label: "New", address: "c@kindle.com" }],
+      defaultDeviceId: "aaaaaaaa",
+    }), deps({ store })));
+    expect(res.status).toBe(200);
+    expect(res.json.devices[0]).toEqual({ id: "aaaaaaaa", label: "Study Scribe", address: "a@kindle.com" });
+    expect(res.json.devices[1].id).toMatch(/^[0-9a-f]{8}$/);
+    expect(res.json.defaultDeviceId).toBe("aaaaaaaa");
+    expect(saved).toHaveLength(1);
+    expect(saved[0].list.devices[0].addedAt).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+  it("PUT rejects a malformed body before touching the store", async () => {
+    const { store, saved } = storeStub(TWO);
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", { nope: 1 }), deps({ store })));
+    expect(res.status).toBe(400);
+    expect(res.json).toEqual({ error: "bad_request", message: "Body must be JSON {devices, defaultDeviceId?}" });
+    expect(saved).toHaveLength(0);
+  });
+
+  it("PUT surfaces a validation failure and saves nothing", async () => {
+    const { store, saved } = storeStub(TWO);
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", { devices: [{ label: "", address: "a@kindle.com" }] }), deps({ store })));
+    expect(res.status).toBe(400);
+    expect(res.json).toEqual({ error: "bad_label", message: "Give the device a name of 30 characters or fewer" });
+    expect(saved).toHaveLength(0);
+  });
+
+  it("PUT with an empty list clears the setting", async () => {
+    const { store, saved } = storeStub(TWO);
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", { devices: [] }), deps({ store })));
+    expect(res.json).toEqual({ devices: [], defaultDeviceId: null });
+    expect(saved[0].list.devices).toEqual([]);
+  });
+
+  it("still 404s an unknown path and 401s a token with no email", async () => {
+    const { store } = storeStub(TWO);
+    expect(parse(await handle(ev("GET", "/api/kindle/address"), deps({ store }))).status).toBe(404);
+    expect(parse(await handle(ev("GET", "/api/kindle/devices", undefined, undefined), deps({ store }))).status).toBe(401);
   });
 });
 
