@@ -62,4 +62,16 @@ describe("Alerts", () => {
   it("creates exactly one alarm per function plus the API and billing alarms", () => {
     synth().resourceCountIs("AWS::CloudWatch::Alarm", 4);
   });
+
+  it("watch(fn) adds one more Errors alarm for a function created after Alerts", () => {
+    const stack = new Stack(new App(), "Test", { env: { account: "123456789012", region: "us-east-1" } });
+    const fn = (id: string) => new lambda.Function(stack, id, {
+      runtime: lambda.Runtime.NODEJS_22_X, handler: "index.handler", code: lambda.Code.fromInline("exports.handler=()=>{}"),
+    });
+    const httpApi = new apigw.HttpApi(stack, "HttpApi");
+    const alerts = new Alerts(stack, "Alerts", { config, functions: [fn("A"), fn("B")], httpApi });
+    alerts.watch(fn("C"));
+    const t = Template.fromStack(stack);
+    t.resourceCountIs("AWS::CloudWatch::Alarm", 5);
+  });
 });
