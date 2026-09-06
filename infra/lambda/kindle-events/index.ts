@@ -8,10 +8,19 @@ const KINDS = new Set(["Bounce", "Complaint", "Reject"]);
 
 interface SesEvent {
   eventType?: string;
-  mail?: { messageId?: string; tags?: Record<string, string[]>; destination?: string[] };
+  mail?: { messageId?: string; tags?: Record<string, string[]>; destination?: string[]; timestamp?: string };
   bounce?: { bounceType?: string; bounceSubType?: string; bouncedRecipients?: Array<{ diagnosticCode?: string }> };
   complaint?: { complaintFeedbackType?: string };
   reject?: { reason?: string };
+}
+
+// SES sets mail.timestamp once, at send time, so it stays constant across a redelivery of the
+// same event; deriving the notification clock from it (instead of deps.now()) keeps the
+// idempotent sk stable. Falls back to undefined (caller uses deps.now()) if missing/unparseable.
+function recordClock(timestamp: string | undefined): (() => Date) | undefined {
+  if (!timestamp) return undefined;
+  const ms = Date.parse(timestamp);
+  return Number.isNaN(ms) ? undefined : () => new Date(ms);
 }
 
 function reasonOf(ev: SesEvent): string {
@@ -27,7 +36,7 @@ function reasonOf(ev: SesEvent): string {
 const localPart = (email: string) => email.split("@")[0];
 
 export async function handle(event: SNSEvent, deps: Deps): Promise<{ processed: number; ignored: number }> {
-  let processed = 0, ignored = 0;
+  let processed = 0, ignored = 0, failed = 0;
   for (const record of event.Records ?? []) {
     let ev: SesEvent;
     try { ev = JSON.parse(record.Sns.Message) as SesEvent; } catch { ignored += 1; continue; }
@@ -38,17 +47,22 @@ export async function handle(event: SNSEvent, deps: Deps): Promise<{ processed: 
     const bookId = ev.mail?.tags?.bookId?.[0] ?? "";
     const sesMessageId = ev.mail?.messageId ?? "";
     const reason = reasonOf(ev);
+    const clock = recordClock(ev.mail?.timestamp);
+    const notifyOpts = clock ? { id: sesMessageId, now: clock } : { id: sesMessageId };
     try {
-      await deps.notify("kindle_bounce", { bookId, kind, reason }, [recipient], { id: sesMessageId });
+      await deps.notify("kindle_bounce", { bookId, kind, reason }, [recipient], notifyOpts);
       logEvent("kindle.bounce", { recipient, bookId, kind, reason, sesMessageId }, deps.now);
       await deps.alert(`Kindle delivery ${kind}: ${localPart(recipient)}`,
         `Kindle delivery ${kind} for ${recipient}\nBook: ${bookId}\nReason: ${reason}\nSES message id: ${sesMessageId}\nTime: ${deps.now().toISOString()}`);
       processed += 1;
     } catch (e) {
       console.error("kindle-events record failed:", sesMessageId, e);
-      ignored += 1;
+      failed += 1;
     }
   }
+  // Deliberate ignores (untagged/other events) never throw; a real failure must surface through
+  // the Lambda Errors metric so the alarm fires and SNS retries the invocation.
+  if (failed > 0) throw new Error(`${failed} kindle event record(s) failed`);
   return { processed, ignored };
 }
 

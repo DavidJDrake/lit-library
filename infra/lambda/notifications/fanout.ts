@@ -15,7 +15,7 @@ export interface UserDirectory { listEveryone(): Promise<string[]>; listAdmins()
 export interface NotificationWriter { putAll(rows: NotificationRow[]): Promise<void> }
 export interface NotifyDeps { directory: UserDirectory; writer: NotificationWriter; now: () => Date; newId: () => string }
 export type NotifyFn = (
-  type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, opts?: { id?: string },
+  type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, opts?: { id?: string; now?: () => Date },
 ) => Promise<number>;
 
 export const TTL_DAYS = 90;
@@ -41,15 +41,19 @@ export function buildRows(
 }
 
 export async function notify(
-  type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, deps: NotifyDeps, opts: { id?: string } = {},
+  type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, deps: NotifyDeps,
+  opts: { id?: string; now?: () => Date } = {},
 ): Promise<number> {
+  // opts.now lets a caller pin the clock to something stable across redeliveries (e.g. an SES
+  // event timestamp) instead of the processing-time deps.now(), so the sk stays idempotent.
+  const clock = opts.now ?? deps.now;
   const emails = recipients === "everyone" ? await deps.directory.listEveryone()
     : recipients === "admins" ? await deps.directory.listAdmins()
     : recipients;
-  const rows = buildRows(type, payload, emails, deps.now(), deps.newId, opts.id);
+  const rows = buildRows(type, payload, emails, clock(), deps.newId, opts.id);
   if (rows.length === 0) return 0;
   await deps.writer.putAll(rows);
-  logEvent("notification.fanout", { type, recipients: rows.length }, deps.now);
+  logEvent("notification.fanout", { type, recipients: rows.length }, clock);
   return rows.length;
 }
 

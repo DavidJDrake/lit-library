@@ -1,6 +1,7 @@
 import type { SNSEvent } from "aws-lambda";
 import { describe, expect, it, vi } from "vitest";
 import { handle, type Deps } from "../lambda/kindle-events/index";
+import { notify, type NotificationRow, type NotifyDeps } from "../lambda/notifications/fanout";
 
 const NOW = "2026-09-05T12:00:00.000Z";
 const hex = (s: string) => Buffer.from(s).toString("hex");
@@ -36,12 +37,34 @@ describe("kindle-events", () => {
     expect(d.notify).toHaveBeenNthCalledWith(1, "kindle_bounce", { bookId: "b1", kind: "Complaint", reason: "complaint:abuse" }, ["jay@example.com"], { id: "ses-1" });
     expect(d.notify).toHaveBeenNthCalledWith(2, "kindle_bounce", { bookId: "b1", kind: "Reject", reason: "reject:Bad content" }, ["jay@example.com"], { id: "ses-2" });
   });
-  it("keeps going when one record fails and reports it", async () => {
+  it("keeps going when one record fails, but throws afterwards so SNS retries and the alarm fires", async () => {
     const d = deps();
     d.notify.mockRejectedValueOnce(new Error("ddb down"));
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await handle(sns(bounce, { ...bounce, mail: { ...bounce.mail, messageId: "ses-9" } }), d)).toEqual({ processed: 1, ignored: 1 });
+    await expect(handle(sns(bounce, { ...bounce, mail: { ...bounce.mail, messageId: "ses-9" } }), d))
+      .rejects.toThrow("1 kindle event record(s) failed");
+    expect(d.notify).toHaveBeenCalledTimes(2); // the other record was still attempted
+    expect(d.alert).toHaveBeenCalledTimes(1); // and completed successfully
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+  it("derives the notification clock from the SES event timestamp, so a redelivery keeps the same sk", async () => {
+    function realNotifyDeps(): NotifyDeps & { written: NotificationRow[] } {
+      const written: NotificationRow[] = [];
+      return {
+        directory: { listEveryone: vi.fn(), listAdmins: vi.fn() },
+        writer: { putAll: vi.fn(async (rows: NotificationRow[]) => { written.push(...rows); }) },
+        now: () => new Date(NOW), newId: () => "unused",
+        written,
+      };
+    }
+    const nd = realNotifyDeps();
+    const notifyFn: Deps["notify"] = (type, payload, recipients, opts) => notify(type, payload, recipients, nd, opts);
+    const timestamped = { ...bounce, mail: { ...bounce.mail, timestamp: "2026-09-05T09:00:00.000Z" } };
+    await handle(sns(timestamped), { notify: notifyFn, alert: vi.fn().mockResolvedValue(undefined), now: () => new Date("2026-09-05T12:00:00.000Z") });
+    await handle(sns(timestamped), { notify: notifyFn, alert: vi.fn().mockResolvedValue(undefined), now: () => new Date("2026-09-05T13:30:00.000Z") });
+    expect(nd.written).toHaveLength(2);
+    expect(nd.written[0].sk).toBe(nd.written[1].sk);
+    expect(nd.written[0].sk).toBe("2026-09-05T09:00:00.000Z#ses-1");
   });
 });
