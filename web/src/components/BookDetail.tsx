@@ -28,12 +28,14 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
-  const [kindleState, setKindleState] = useState<"idle" | "sending" | "form">("idle");
+  const [kindleState, setKindleState] = useState<
+    { kind: "idle" } | { kind: "sending" } | { kind: "form"; format: "epub" | "pdf" }
+  >({ kind: "idle" });
 
   useEffect(() => {
     setBusy(false);
     setSuggesting(false);
-    setKindleState("idle");
+    setKindleState({ kind: "idle" });
     const el = ref.current;
     if (!el) return;
     if (book && !el.open) el.showModal();
@@ -55,9 +57,9 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
 
   async function sendToKindle(format: "epub" | "pdf") {
     if (!kindle) return;
-    if (kindle.address === null) { setKindleState("form"); return; }
-    setKindleState("sending");
-    try { await kindle.onSend(book!, format); } finally { setKindleState("idle"); }
+    if (kindle.address === null) { setKindleState({ kind: "form", format }); return; }
+    setKindleState({ kind: "sending" });
+    try { await kindle.onSend(book!, format); } finally { setKindleState({ kind: "idle" }); }
   }
 
   async function changeCategory(value: string) {
@@ -110,13 +112,13 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
             if (!primary) return null;
             const pdf = primary.type === "epub" ? kindleFormat(book, "pdf") : undefined;
             const tooLarge = primary.size > KINDLE_MAX_BYTES;
-            const sending = kindleState === "sending";
+            const sending = kindleState.kind === "sending";
             return (
               <div className="kindle">
-                {kindleState === "form" ? (
+                {kindleState.kind === "form" ? (
                   <KindleAddressForm sender={kindle.sender}
-                    onSubmit={async (a) => { await kindle.onSaveAddress(a); setKindleState("sending"); try { await kindle.onSend(book!, primary.type as "epub" | "pdf"); } finally { setKindleState("idle"); } }}
-                    onCancel={() => setKindleState("idle")} />
+                    onSubmit={async (a) => { const format = kindleState.format; await kindle.onSaveAddress(a); setKindleState({ kind: "sending" }); try { await kindle.onSend(book!, format); } finally { setKindleState({ kind: "idle" }); } }}
+                    onCancel={() => setKindleState({ kind: "idle" })} />
                 ) : (
                   <>
                     <button className="btn secondary" disabled={busy || sending || tooLarge}

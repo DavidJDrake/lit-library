@@ -128,4 +128,14 @@ describe("BookDetail", () => {
     expect((k.onSaveAddress as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((k.onSend as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Your Kindle email" })).toBeNull());
   });
+  it("remembers the requested format across the inline address form: PDF stays PDF", async () => {
+    const k = kindle(null);
+    render(<BookDetail book={book} {...base} kindle={k} />);
+    await userEvent.click(screen.getByRole("button", { name: "Send PDF to Kindle" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "jay_abc@kindle.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save and send" }));
+    await waitFor(() => expect(k.onSend).toHaveBeenCalledWith(book, "pdf"));
+    expect(k.onSaveAddress).toHaveBeenCalledWith("jay_abc@kindle.com");
+    expect(k.onSend).not.toHaveBeenCalledWith(book, "epub");
+  });
 });
