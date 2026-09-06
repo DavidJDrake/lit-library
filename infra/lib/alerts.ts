@@ -32,11 +32,10 @@ export class Alerts extends Construct {
     this.topic = new sns.Topic(this, "Topic", { displayName: "Lit Library alerts" });
     this.topic.addSubscription(new EmailSubscription(props.config.alarmEmail));
     this.notify = new SnsAction(this.topic);
-    const notify = this.notify;
 
     const wire = (alarm: cloudwatch.Alarm) => {
-      alarm.addAlarmAction(notify);
-      alarm.addOkAction(notify); // the "recovered" email is as useful as the alarm
+      alarm.addAlarmAction(this.notify);
+      alarm.addOkAction(this.notify); // the "recovered" email is as useful as the alarm
     };
 
     for (const fn of props.functions) {

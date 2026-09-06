@@ -31,6 +31,15 @@ describe("Kindle", () => {
     t.hasResourceProperties("AWS::SES::EmailIdentity", { EmailIdentity: "lit.example.com", DkimAttributes: { SigningEnabled: true } });
     t.resourceCountIs("AWS::Route53::RecordSet", 3);
     t.hasResourceProperties("AWS::Route53::RecordSet", { Type: "CNAME", HostedZoneId: "Z0123456789EXAMPLE00" });
+    // Each record's Name/ResourceRecords must be the identity's DkimDNSTokenName/ValueN
+    // attributes verbatim (an Fn::GetAtt), not wrapped in an Fn::Join with the zone name
+    // appended a second time — that double-suffix bug is why this is asserted explicitly.
+    for (let n = 1; n <= 3; n++) {
+      t.hasResourceProperties("AWS::Route53::RecordSet", Match.objectLike({
+        Name: { "Fn::GetAtt": [Match.stringLikeRegexp("^KindleIdentity"), `DkimDNSTokenName${n}`] },
+        ResourceRecords: [{ "Fn::GetAtt": [Match.stringLikeRegexp("^KindleIdentity"), `DkimDNSTokenValue${n}`] }],
+      }));
+    }
   });
   it("routes bounce, complaint, and reject events to an SNS topic that triggers the events Lambda", () => {
     const t = synth();

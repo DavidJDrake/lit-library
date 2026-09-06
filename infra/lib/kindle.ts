@@ -45,12 +45,16 @@ export class Kindle extends Construct {
     const external = ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb", "@aws-sdk/client-s3"]; // runtime-provided; bundle the rest
 
     // The sender's domain is the site domain (loadConfig enforces it); verify it with Easy DKIM.
-    const zone = route53.HostedZone.fromHostedZoneAttributes(this, "Zone", { hostedZoneId: config.hostedZoneId, zoneName: config.hostedZoneName });
     // dkimSigning defaults to true at the SES API level, but CDK only emits DkimAttributes
     // when a value is given, so state it explicitly.
     this.identity = new ses.EmailIdentity(this, "Identity", { identity: ses.Identity.domain(config.siteDomain), dkimSigning: true });
+    // dkimRecords[i].name is already the fully-qualified DkimDNSTokenNameN token (an
+    // Fn::GetAtt on the identity), so use the L1 record set directly — route53.CnameRecord
+    // would append the zone suffix a second time and the record would never verify.
     this.identity.dkimRecords.forEach((r, i) => {
-      new route53.CnameRecord(this, `Dkim${i}`, { zone, recordName: r.name, domainName: r.value, ttl: Duration.hours(1) });
+      new route53.CfnRecordSet(this, `Dkim${i}`, {
+        hostedZoneId: config.hostedZoneId, name: r.name, type: "CNAME", ttl: "3600", resourceRecords: [r.value],
+      });
     });
 
     this.eventsTopic = new sns.Topic(this, "EventsTopic", { displayName: "Lit Library Kindle delivery events" });
