@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatSize } from "../catalog/search";
 import type { Book } from "../catalog/types";
+import type { KindleError } from "../kindle/api";
 import { KINDLE_MAX_BYTES, kindleFormat } from "../kindle/limits";
 import KindleAddressForm from "./KindleAddressForm";
 import SuggestForm from "./SuggestForm";
@@ -57,9 +58,16 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
 
   async function sendToKindle(format: "epub" | "pdf") {
     if (!kindle) return;
-    if (kindle.address === null) { setKindleState({ kind: "form", format }); return; }
+    // undefined covers the GET /api/kindle/address window still in flight; treat it the same
+    // as a known-absent address so a click during that window opens the form instead of 409ing.
+    if (kindle.address == null) { setKindleState({ kind: "form", format }); return; }
     setKindleState({ kind: "sending" });
-    try { await kindle.onSend(book!, format); } finally { setKindleState({ kind: "idle" }); }
+    try {
+      await kindle.onSend(book!, format);
+      setKindleState({ kind: "idle" });
+    } catch (e) {
+      setKindleState((e as KindleError).code === "no_address" ? { kind: "form", format } : { kind: "idle" });
+    }
   }
 
   async function changeCategory(value: string) {

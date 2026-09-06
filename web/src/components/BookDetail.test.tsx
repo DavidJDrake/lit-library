@@ -128,6 +128,22 @@ describe("BookDetail", () => {
     expect((k.onSaveAddress as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((k.onSend as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Your Kindle email" })).toBeNull());
   });
+  it("reopens the inline form when the server rejects a send with no_address", async () => {
+    const k = kindle("jay_abc@kindle.com");
+    k.onSend = vi.fn().mockRejectedValue(Object.assign(new Error("no_address"), { code: "no_address" }));
+    render(<BookDetail book={book} {...base} kindle={k} />);
+    await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
+    expect(k.onSend).toHaveBeenCalledWith(book, "epub");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toBeInTheDocument());
+  });
+  it("returns to idle (not the form) when a send rejects for a reason other than no_address", async () => {
+    const k = kindle("jay_abc@kindle.com");
+    k.onSend = vi.fn().mockRejectedValue(Object.assign(new Error("Kindle delivery isn't enabled for everyone yet"), { code: "not_enabled" }));
+    render(<BookDetail book={book} {...base} kindle={k} />);
+    await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send to Kindle" })).toBeEnabled());
+    expect(screen.queryByRole("textbox", { name: "Your Kindle email" })).toBeNull();
+  });
   it("remembers the requested format across the inline address form: PDF stays PDF", async () => {
     const k = kindle(null);
     render(<BookDetail book={book} {...base} kindle={k} />);

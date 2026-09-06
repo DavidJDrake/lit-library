@@ -6,6 +6,7 @@ import { requestDownload, startDownload } from "../catalog/download";
 import { useLibraryData } from "../catalog/LibraryDataProvider";
 import { applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, searchBooks, sortBooks } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
+import type { KindleError } from "../kindle/api";
 import type { KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
@@ -124,7 +125,10 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
         const r = await kindle.send(book.id, format);
         ok(`Sent to ${r.sentTo} — it usually arrives within a couple of minutes`);
       } catch (e) {
-        fail((e as Error).message);
+        // no_address is handled by the dialog reopening the inline form, not a toast; every
+        // other failure toasts here and still rethrows so the dialog resets its sending state.
+        if ((e as KindleError).code !== "no_address") fail((e as Error).message);
+        throw e;
       }
     },
     onSaveAddress: async (address: string) => {
