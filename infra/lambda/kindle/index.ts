@@ -115,3 +115,52 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
     return json(500, { error: "internal", message: "Internal error" });
   }
 }
+
+// ---- production wiring (never exercised by tests) ----
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { SendEmailCommand, SESv2Client } from "@aws-sdk/client-sesv2";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoKindleStore } from "./store";
+
+const CATALOG_TTL_MS = 60_000;
+let productionDeps: Deps | undefined;
+let catalogCache: { catalog: Catalog; at: number } | undefined;
+
+export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
+  if (!productionDeps) {
+    const s3 = new S3Client({});
+    const ses = new SESv2Client({ maxAttempts: 2 });
+    const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } });
+    const env = (k: string) => process.env[k] ?? "";
+    productionDeps = {
+      store: new DynamoKindleStore(ddb, env("LIBRARY_TABLE")),
+      loadCatalog: async () => {
+        if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL_MS) return catalogCache.catalog;
+        const out = await s3.send(new GetObjectCommand({ Bucket: env("SITE_BUCKET"), Key: "catalog.json" }));
+        const catalog = JSON.parse(await out.Body!.transformToString()) as Catalog;
+        catalogCache = { catalog, at: Date.now() };
+        return catalog;
+      },
+      loadObject: async (key) => {
+        const out = await s3.send(new GetObjectCommand({ Bucket: env("BOOKS_BUCKET"), Key: key }));
+        return out.Body!.transformToByteArray();
+      },
+      sender: {
+        send: async (raw, tags) => {
+          const out = await ses.send(new SendEmailCommand({
+            FromEmailAddress: env("KINDLE_SENDER"),
+            Content: { Raw: { Data: Buffer.from(raw, "utf8") } },
+            ConfigurationSetName: env("KINDLE_CONFIG_SET"),
+            EmailTags: Object.entries(tags).map(([Name, Value]) => ({ Name, Value })),
+          }));
+          return { messageId: out.MessageId ?? "" };
+        },
+      },
+      logSend: async (row) => { await ddb.send(new PutCommand({ TableName: env("DOWNLOADS_TABLE"), Item: row })); },
+      now: () => new Date(),
+      senderAddress: env("KINDLE_SENDER"),
+    };
+  }
+  return handle(event, productionDeps);
+};
