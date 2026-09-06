@@ -88,4 +88,44 @@ describe("BookDetail", () => {
     expect(screen.queryByRole("textbox", { name: "New category name" })).toBeNull();
     expect(select).toHaveValue("Security & Hacking");
   });
+
+  const kindle = (address: string | null) => ({ address, sender: "library@lit.example.com", onSend: vi.fn().mockResolvedValue(undefined), onSaveAddress: vi.fn().mockResolvedValue(undefined) });
+  const base = { onClose: () => {}, onDownload: async () => {}, categories: [], onChangeCategory: async () => {}, onSuggest: async () => {} };
+  it("renders no Kindle button without the kindle prop or without an eligible format", () => {
+    const { rerender } = render(<BookDetail book={book} {...base} />);
+    expect(screen.queryByRole("button", { name: "Send to Kindle" })).toBeNull();
+    rerender(<BookDetail book={{ ...book, formats: [{ type: "cbz", size: 10, s3Key: "c" }] }} {...base} kindle={kindle("jay_abc@kindle.com")} />);
+    expect(screen.queryByRole("button", { name: "Send to Kindle" })).toBeNull();
+  });
+  it("sends the EPUB, shows Sending…, and offers the PDF as a secondary action", async () => {
+    let resolve!: () => void;
+    const k = kindle("jay_abc@kindle.com");
+    k.onSend = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
+    render(<BookDetail book={book} {...base} kindle={k} />);
+    await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
+    expect(k.onSend).toHaveBeenCalledWith(book, "epub");
+    expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
+    resolve();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send to Kindle" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Send PDF to Kindle" }));
+    expect(k.onSend).toHaveBeenLastCalledWith(book, "pdf");
+  });
+  it("disables the button with a tooltip when the file is too large", () => {
+    const huge = { ...book, formats: [{ type: "epub", size: 29 * 1024 * 1024, s3Key: "a" }] };
+    render(<BookDetail book={huge} {...base} kindle={kindle("jay_abc@kindle.com")} />);
+    const btn = screen.getByRole("button", { name: "Send to Kindle" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", "Too large for Kindle delivery — download instead");
+  });
+  it("collects the address inline when none is saved, then saves and sends", async () => {
+    const k = kindle(null);
+    render(<BookDetail book={book} {...base} kindle={k} />);
+    await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "jay_abc@kindle.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save and send" }));
+    await waitFor(() => expect(k.onSend).toHaveBeenCalledWith(book, "epub"));
+    expect(k.onSaveAddress).toHaveBeenCalledWith("jay_abc@kindle.com");
+    expect((k.onSaveAddress as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((k.onSend as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Your Kindle email" })).toBeNull());
+  });
 });

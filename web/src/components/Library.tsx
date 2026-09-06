@@ -6,6 +6,7 @@ import { requestDownload, startDownload } from "../catalog/download";
 import { useLibraryData } from "../catalog/LibraryDataProvider";
 import { applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, searchBooks, sortBooks } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
+import type { KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
 import CategorySuggestions from "./CategorySuggestions";
@@ -21,13 +22,14 @@ interface Props {
   navigate?: (url: string) => void;
   isAdmin?: boolean;
   onChanged?: () => void;
+  kindle?: KindleState;
 }
 
 const FACET_TITLES: Record<FacetKey, string> = {
   category: "Category", format: "Format", publisher: "Publisher", bundle: "Bundle", author: "Author", year: "Year",
 };
 
-export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false, onChanged }: Props) {
+export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false, onChanged, kindle }: Props) {
   const { books, overlay, loadError, overlayError, refreshOverlay } = useLibraryData();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(() => filtersFromSearch(window.location.search));
@@ -115,6 +117,21 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     return mutate((t) => resolveSuggestion(apiUrl, t, id, action, fetchFn), `${action === "accept" ? "Accepted" : "Rejected"} '${name}'`);
   }, [mutate, apiUrl, fetchFn, overlay]);
 
+  const kindleForDialog = useMemo(() => kindle && {
+    address: kindle.address, sender: kindle.sender,
+    onSend: async (book: Book, format?: "epub" | "pdf") => {
+      try {
+        const r = await kindle.send(book.id, format);
+        ok(`Sent to ${r.sentTo} — it usually arrives within a couple of minutes`);
+      } catch (e) {
+        fail((e as Error).message);
+      }
+    },
+    onSaveAddress: async (address: string) => {
+      try { await kindle.save(address); } catch (e) { fail((e as Error).message); throw e; }
+    },
+  }, [kindle, ok, fail]);
+
   const dismissToast = useCallback(() => setToast(undefined), []);
 
   if (loadError) return <div className="error" role="alert" style={{ margin: "2rem" }}>{loadError}</div>;
@@ -153,7 +170,8 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
         )}
       </section>
       <BookDetail book={selected} onClose={() => setSelectedId(null)} onDownload={download}
-        categories={categoryNames} onChangeCategory={changeCategory} onSuggest={(name, bookId) => suggest(name, bookId)} />
+        categories={categoryNames} onChangeCategory={changeCategory} onSuggest={(name, bookId) => suggest(name, bookId)}
+        kindle={kindleForDialog} />
       <Toast message={toast?.message} variant={toast?.variant} onDismiss={dismissToast} />
     </div>
   );

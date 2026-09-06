@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { formatSize } from "../catalog/search";
 import type { Book } from "../catalog/types";
+import { KINDLE_MAX_BYTES, kindleFormat } from "../kindle/limits";
+import KindleAddressForm from "./KindleAddressForm";
 import SuggestForm from "./SuggestForm";
+
+interface KindleDialogProps {
+  address: string | null | undefined;
+  sender: string;
+  onSend(book: Book, format?: "epub" | "pdf"): Promise<void>;
+  onSaveAddress(address: string): Promise<void>;
+}
 
 interface Props {
   book: Book | null;
@@ -10,18 +19,21 @@ interface Props {
   categories: string[];
   onChangeCategory: (book: Book, category: string) => Promise<void>;
   onSuggest: (name: string, bookId: string) => Promise<void>;
+  kindle?: KindleDialogProps;
 }
 
 export const SUGGEST_OPTION = "__suggest__";
 
-export default function BookDetail({ book, onClose, onDownload, categories, onChangeCategory, onSuggest }: Props) {
+export default function BookDetail({ book, onClose, onDownload, categories, onChangeCategory, onSuggest, kindle }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  const [kindleState, setKindleState] = useState<"idle" | "sending" | "form">("idle");
 
   useEffect(() => {
     setBusy(false);
     setSuggesting(false);
+    setKindleState("idle");
     const el = ref.current;
     if (!el) return;
     if (book && !el.open) el.showModal();
@@ -39,6 +51,13 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
     } finally {
       setBusy(false);
     }
+  }
+
+  async function sendToKindle(format: "epub" | "pdf") {
+    if (!kindle) return;
+    if (kindle.address === null) { setKindleState("form"); return; }
+    setKindleState("sending");
+    try { await kindle.onSend(book!, format); } finally { setKindleState("idle"); }
   }
 
   async function changeCategory(value: string) {
@@ -86,6 +105,35 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
               </button>
             ))}
           </div>
+          {kindle && (() => {
+            const primary = kindleFormat(book);
+            if (!primary) return null;
+            const pdf = primary.type === "epub" ? kindleFormat(book, "pdf") : undefined;
+            const tooLarge = primary.size > KINDLE_MAX_BYTES;
+            const sending = kindleState === "sending";
+            return (
+              <div className="kindle">
+                {kindleState === "form" ? (
+                  <KindleAddressForm sender={kindle.sender}
+                    onSubmit={async (a) => { await kindle.onSaveAddress(a); setKindleState("sending"); try { await kindle.onSend(book!, primary.type as "epub" | "pdf"); } finally { setKindleState("idle"); } }}
+                    onCancel={() => setKindleState("idle")} />
+                ) : (
+                  <>
+                    <button className="btn secondary" disabled={busy || sending || tooLarge}
+                      title={tooLarge ? "Too large for Kindle delivery — download instead" : undefined}
+                      onClick={() => void sendToKindle(primary.type as "epub" | "pdf")}>
+                      {sending ? "Sending…" : "Send to Kindle"}
+                    </button>
+                    {pdf && !sending && (
+                      <button type="button" className="more" disabled={busy || pdf.size > KINDLE_MAX_BYTES}
+                        title={pdf.size > KINDLE_MAX_BYTES ? "Too large for Kindle delivery — download instead" : undefined}
+                        onClick={() => void sendToKindle("pdf")}>Send PDF to Kindle</button>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </dialog>
