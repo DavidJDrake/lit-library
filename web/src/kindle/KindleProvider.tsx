@@ -16,27 +16,34 @@ export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, ch
   const [devices, setDevices] = useState<KindleDevice[] | undefined>(undefined);
   const [defaultDeviceId, setDefaultDeviceId] = useState<string | null>(null);
   const mounted = useRef(true);
+  // Every request that will write state (the initial load and each save) claims the
+  // next generation before it awaits anything. A response is applied only if its
+  // generation is still the latest, so a slow load resolving after a save can't
+  // clobber the save's fresher result, and overlapping saves settle in start order.
+  const generation = useRef(0);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const gen = ++generation.current;
     (async () => {
       try {
         const list = await getKindleDevices(apiUrl, await getIdToken(), fetchFn);
-        if (cancelled) return;
+        if (!mounted.current || gen !== generation.current) return;
         setDevices(list.devices);
         setDefaultDeviceId(list.defaultDeviceId);
       } catch {
         // the send endpoint's no_address response still guards
-        if (!cancelled) { setDevices([]); setDefaultDeviceId(null); }
+        if (!mounted.current || gen !== generation.current) return;
+        setDevices([]);
+        setDefaultDeviceId(null);
       }
     })();
-    return () => { cancelled = true; };
   }, [apiUrl, getIdToken, fetchFn]);
 
   const save = useCallback(async (next: DeviceInput[], nextDefault?: string) => {
+    const gen = ++generation.current;
     const list = await saveKindleDevices(apiUrl, await getIdToken(), next, nextDefault, fetchFn);
-    if (mounted.current) { setDevices(list.devices); setDefaultDeviceId(list.defaultDeviceId); }
+    if (mounted.current && gen === generation.current) { setDevices(list.devices); setDefaultDeviceId(list.defaultDeviceId); }
   }, [apiUrl, getIdToken, fetchFn]);
 
   const send = useCallback(

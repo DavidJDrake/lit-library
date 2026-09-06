@@ -59,6 +59,10 @@ describe("sendToKindle", () => {
     const mk = (status: number, body: unknown) => (vi.fn(async () => json(status, body)) as unknown as typeof fetch);
     await expect(sendToKindle("/api", "t", "b", undefined, undefined, mk(409, { error: "no_address" }))).rejects.toMatchObject({ code: "no_address" });
     await expect(sendToKindle("/api", "t", "b", undefined, "x", mk(400, { error: "unknown_device", message: "gone" }))).rejects.toMatchObject({ code: "unknown_device", message: "gone" });
-    await expect(sendToKindle("/api", "t", "b", undefined, undefined, mk(413, { error: "too_large", message: "big", bytes: 9, limit: 8 }))).rejects.toMatchObject({ code: "too_large" });
+    await expect(sendToKindle("/api", "t", "b", undefined, undefined, mk(413, { error: "too_large", message: "big", bytes: 9, limit: 8 }))).rejects.toMatchObject({ code: "too_large", details: { bytes: 9, limit: 8 } });
+  });
+  it("downgrades an unrecognised error code to failed, keeping the server's message", async () => {
+    const fetchFn = vi.fn(async () => json(500, { error: "internal", message: "boom" })) as unknown as typeof fetch;
+    await expect(sendToKindle("/api", "t", "b", undefined, undefined, fetchFn)).rejects.toMatchObject({ code: "failed", message: "boom" });
   });
 });

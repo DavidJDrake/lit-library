@@ -46,6 +46,24 @@ describe("KindleProvider", () => {
     await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("1:srv1"));
   });
 
+  it("keeps a save's result when a slower initial load resolves after it", async () => {
+    let resolveLoad: (res: Response) => void = () => {};
+    const loadPromise = new Promise<Response>((resolve) => { resolveLoad = resolve; });
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => init?.method === "PUT"
+      ? json(200, { devices: [{ id: "srv1", label: "Phone", address: "b@kindle.com" }], defaultDeviceId: "srv1" })
+      : loadPromise) as unknown as typeof fetch;
+    mount(fetchFn);
+    expect(screen.getByTestId("state")).toHaveTextContent("loading");
+
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("1:srv1"));
+
+    // The stale initial GET finally resolves, after the save already landed.
+    resolveLoad(json(200, { devices: [], defaultDeviceId: null }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("state")).toHaveTextContent("1:srv1");
+  });
+
   it("propagates a save failure to the caller", async () => {
     const errors: string[] = [];
     function Failing() {
