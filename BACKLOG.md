@@ -17,6 +17,7 @@ _(none queued)_
 | 6 | Second enrichment pass for descriptions (25% coverage today). | Google Books by title+author, only for books still lacking a description; likely doubles coverage. |
 | 16 | OPDS feed. | Another view of `catalog.json` behind the same session cookie; e-reader apps (KOReader, Moon+) can browse it directly. |
 | 8 | Progressive cover loading — virtualize or page the grid. | 1,065 lazy images is fine on desktop, heavy on phones. |
+| 25 | Multiple Kindle devices per user. | Amazon issues one `@kindle.com` address per device (a Scribe, a Paperwhite, the phone app…), and readers with more than one want to pick a target. Settings row grows to a named list `[{label, address}]` with a default; the Send to Kindle button becomes a split button (default device, ▾ to choose) when more than one is saved. Bounce notification names the device. Data migration: today's single `kindleAddress` becomes the first entry. Effort S–M. |
 
 ## Polish deferred from reviews (each S, none blocking)
 
