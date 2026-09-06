@@ -12,7 +12,10 @@ export default function KindleAddressForm({ sender, initial = "", submitLabel = 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const address = value.trim();
-    if (address && !KINDLE_ADDRESS_RE.test(address)) { setError("Enter your @kindle.com address"); return; }
+    // On Settings (no onCancel) an empty value clears the saved address. In the send flow
+    // (onCancel present) empty would just re-trigger the same 409, so require a real address.
+    const invalid = address === "" ? Boolean(onCancel) : !KINDLE_ADDRESS_RE.test(address);
+    if (invalid) { setError("Enter your @kindle.com address"); return; }
     setError(undefined); setBusy(true);
     try {
       await onSubmit(address);

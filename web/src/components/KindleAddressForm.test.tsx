@@ -19,6 +19,14 @@ describe("KindleAddressForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save and send" }));
     expect(onSubmit).toHaveBeenCalledWith("Jay_ABC@Kindle.com");
   });
+  it("requires a non-empty address when onCancel is present (send flow), but allows empty to clear on Settings", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onCancel = vi.fn();
+    render(<KindleAddressForm sender="library@lit.example.com" onSubmit={onSubmit} onCancel={onCancel} />);
+    await userEvent.click(screen.getByRole("button", { name: "Save and send" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter your @kindle.com address");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
   it("supports an initial value, a custom submit label, cancel, and stays open when onSubmit rejects", async () => {
     const onCancel = vi.fn();
     const onSubmit = vi.fn().mockRejectedValue(new Error("nope"));
