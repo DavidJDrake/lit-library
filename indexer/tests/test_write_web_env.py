@@ -13,6 +13,7 @@ def test_writes_both_env_files(tmp_path):
         "UserPoolClientId": "client123",
         "ApiUrl": "https://api.example.com",
         "SiteUrl": "https://lit.example.com",
+        "KindleSender": "library@lit.example.com",
     }}))
     web = tmp_path / "web"
     web.mkdir()
@@ -23,6 +24,7 @@ def test_writes_both_env_files(tmp_path):
     assert "VITE_REDIRECT_URI=http://localhost:5173/" in dev
     assert "VITE_REDIRECT_URI=https://lit.example.com/" in prod
     assert "VITE_API_URL=/api" in prod
+    assert "VITE_KINDLE_SENDER=library@lit.example.com" in dev and "VITE_KINDLE_SENDER=library@lit.example.com" in prod
 
 
 def test_api_url_is_same_origin_and_dev_gets_a_proxy_target(tmp_path):
@@ -30,6 +32,7 @@ def test_api_url_is_same_origin_and_dev_gets_a_proxy_target(tmp_path):
     outputs.write_text(json.dumps({"EbookShare": {
         "CognitoDomain": "https://x.auth.us-east-1.amazoncognito.com", "UserPoolClientId": "c",
         "ApiUrl": "https://ignored.execute-api.us-east-1.amazonaws.com", "SiteUrl": "https://lit.example.com",
+        "KindleSender": "library@lit.example.com",
     }}))
     web = tmp_path / "web"; web.mkdir()
     subprocess.run([sys.executable, str(SCRIPT), str(outputs), str(web)], check=True)

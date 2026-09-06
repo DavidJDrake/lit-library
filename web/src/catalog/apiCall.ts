@@ -1,6 +1,7 @@
 async function errorMessage(res: Response, fallback: string): Promise<string> {
   try {
-    const body = (await res.json()) as { error?: string };
+    const body = (await res.json()) as { error?: string; message?: string };
+    if (body?.message) return body.message;
     if (body?.error) return body.error;
   } catch {
     // non-JSON error body — keep the fallback

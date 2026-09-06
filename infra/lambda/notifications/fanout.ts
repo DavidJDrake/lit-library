@@ -2,8 +2,9 @@
 // (suggestion/category events) and the notifications Lambda (inbox + books_added).
 import { ListUsersCommand, ListUsersInGroupCommand, type UserType } from "@aws-sdk/client-cognito-identity-provider";
 import { BatchWriteCommand, type DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { logEvent } from "../shared/log";
 
-export type NotificationType = "suggestion_pending" | "suggestion_resolved" | "books_added" | "category_created";
+export type NotificationType = "suggestion_pending" | "suggestion_resolved" | "books_added" | "category_created" | "kindle_bounce";
 export type Recipients = "everyone" | "admins" | string[];
 
 export interface NotificationRow {
@@ -13,7 +14,9 @@ export interface NotificationRow {
 export interface UserDirectory { listEveryone(): Promise<string[]>; listAdmins(): Promise<string[]> }
 export interface NotificationWriter { putAll(rows: NotificationRow[]): Promise<void> }
 export interface NotifyDeps { directory: UserDirectory; writer: NotificationWriter; now: () => Date; newId: () => string }
-export type NotifyFn = (type: NotificationType, payload: Record<string, unknown>, recipients: Recipients) => Promise<number>;
+export type NotifyFn = (
+  type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, opts?: { id?: string; now?: () => Date },
+) => Promise<number>;
 
 export const TTL_DAYS = 90;
 export const ADMIN_GROUP = "admins";
@@ -22,7 +25,7 @@ const BATCH = 25;
 const ACTIVE_STATUSES = new Set(["CONFIRMED", "EXTERNAL_PROVIDER"]);
 
 export function buildRows(
-  type: NotificationType, payload: Record<string, unknown>, emails: string[], now: Date, newId: () => string,
+  type: NotificationType, payload: Record<string, unknown>, emails: string[], now: Date, newId: () => string, id?: string,
 ): NotificationRow[] {
   const createdAt = now.toISOString();
   const expiresAt = Math.floor(now.getTime() / 1000) + TTL_DAYS * 86_400;
@@ -32,20 +35,25 @@ export function buildRows(
     const key = email.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({ pk: `USER#${key}`, sk: `${createdAt}#${newId()}`, type, payload, read: false, createdAt, expiresAt });
+    rows.push({ pk: `USER#${key}`, sk: `${createdAt}#${id ?? newId()}`, type, payload, read: false, createdAt, expiresAt });
   }
   return rows;
 }
 
 export async function notify(
   type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, deps: NotifyDeps,
+  opts: { id?: string; now?: () => Date } = {},
 ): Promise<number> {
+  // opts.now lets a caller pin the clock to something stable across redeliveries (e.g. an SES
+  // event timestamp) instead of the processing-time deps.now(), so the sk stays idempotent.
+  const clock = opts.now ?? deps.now;
   const emails = recipients === "everyone" ? await deps.directory.listEveryone()
     : recipients === "admins" ? await deps.directory.listAdmins()
     : recipients;
-  const rows = buildRows(type, payload, emails, deps.now(), deps.newId);
+  const rows = buildRows(type, payload, emails, clock(), deps.newId, opts.id);
   if (rows.length === 0) return 0;
   await deps.writer.putAll(rows);
+  logEvent("notification.fanout", { type, recipients: rows.length }, clock);
   return rows.length;
 }
 

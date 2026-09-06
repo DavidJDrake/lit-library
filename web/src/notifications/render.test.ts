@@ -24,6 +24,13 @@ describe("renderNotification", () => {
       .toEqual({ icon: "🏷️", text: 'New category "Essays"', href: "/?category=Essays" });
     expect(renderNotification({ ...mk("books_added", {}), type: "surprise" as Notification["type"] }, ctx)).toEqual({ icon: "•", text: "surprise" });
   });
+  it("kindle_bounce names the book and the sender and links to settings", () => {
+    const ctx2 = { ...ctx, sender: "library@lit.example.com" };
+    expect(renderNotification(mk("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "Permanent/General" }), ctx2))
+      .toEqual({ icon: "📵", text: 'Your Kindle rejected "Black Hound of Death" — add library@lit.example.com to your approved senders', href: "/settings" });
+    expect(renderNotification(mk("kindle_bounce", { bookId: "zz", kind: "Bounce", reason: "x" }), ctx2).text)
+      .toBe('Your Kindle rejected "a book" — add library@lit.example.com to your approved senders');
+  });
 });
 
 describe("relativeTime / localPart", () => {

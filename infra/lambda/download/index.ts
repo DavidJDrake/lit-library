@@ -3,6 +3,7 @@ import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
+import { logEvent } from "../shared/log";
 import { Catalog, downloadFilename, findFormat, parseRequest } from "./download";
 
 export const URL_TTL_SECONDS = 900;
@@ -47,6 +48,7 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
       email, sk: `${timestamp}#${req.bookId}`, bookId: req.bookId,
       format: req.format, title: hit.book.title, timestamp,
     });
+    logEvent("download.issued", { email, bookId: req.bookId, format: req.format }, deps.now);
     const url = await deps.presign(hit.format.s3Key, filename);
     return json(200, { url, expiresIn: URL_TTL_SECONDS, filename });
   } catch {

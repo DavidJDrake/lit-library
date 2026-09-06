@@ -7,15 +7,16 @@ interface Props {
   n: Notification;
   isAdmin: boolean;
   titleOf(bookId: string): string | undefined;
+  sender?: string;
   onResolve?: (suggestionId: string, action: "accept" | "reject") => Promise<void>;
   onNavigate?: () => void;
   nowMs?: number;
 }
 
-export default function NotificationItem({ n, isAdmin, titleOf, onResolve, onNavigate, nowMs }: Props) {
+export default function NotificationItem({ n, isAdmin, titleOf, sender, onResolve, onNavigate, nowMs }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const r = renderNotification(n, { titleOf });
+  const r = renderNotification(n, { titleOf, sender });
   const p = n.payload ?? {};
   const pending = n.type === "suggestion_pending" && p.status === "pending";
   const name = String(p.name ?? "");

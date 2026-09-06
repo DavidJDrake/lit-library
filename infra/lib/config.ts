@@ -15,12 +15,13 @@ export interface InfraConfig {
   localDevOrigin: string;
   cloudfrontPublicKeyPem: string;
   alarmEmail: string;
+  kindleSender: string;
 }
 
 const KEYS: (keyof InfraConfig)[] = [
   "account", "region", "siteDomain", "hostedZoneName", "hostedZoneId", "cognitoDomainPrefix",
   "googleOAuthSecretName", "signingKeySecretName", "allowedEmailsParam", "seedAllowedEmail",
-  "localDevOrigin", "cloudfrontPublicKeyPem", "alarmEmail",
+  "localDevOrigin", "cloudfrontPublicKeyPem", "alarmEmail", "kindleSender",
 ];
 
 export const EXAMPLE_CONFIG_PATH = path.join(__dirname, "../config.example.json");
@@ -33,6 +34,10 @@ export function loadConfig(file: string = process.env.EBOOK_SHARE_CONFIG ?? LOCA
   const raw = JSON.parse(readFileSync(file, "utf8")) as Partial<InfraConfig>;
   const missing = KEYS.filter((k) => !raw[k]);
   if (missing.length) throw new Error(`Missing config keys: ${missing.join(", ")}`);
+  const senderDomain = String(raw.kindleSender).split("@")[1] ?? "";
+  if (senderDomain.toLowerCase() !== String(raw.siteDomain).toLowerCase()) {
+    throw new Error(`kindleSender must be an address on ${raw.siteDomain} (SES sends only as the verified site domain)`);
+  }
   if (path.resolve(file) !== path.resolve(EXAMPLE_CONFIG_PATH)) {
     const example = JSON.parse(readFileSync(EXAMPLE_CONFIG_PATH, "utf8")) as Partial<InfraConfig>;
     if (raw.cloudfrontPublicKeyPem === example.cloudfrontPublicKeyPem) {

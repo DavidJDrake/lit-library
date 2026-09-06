@@ -34,6 +34,8 @@ function parse(res: Awaited<ReturnType<typeof handle>>) {
 
 describe("handle", () => {
   it("returns a presigned url, logs the download, and echoes the TTL", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const d = deps();
     const { status, json } = parse(await handle(event('{"bookId":"abc","format":"epub"}'), d));
     expect(status).toBe(200);
@@ -43,6 +45,8 @@ describe("handle", () => {
       email: "user@example.com", sk: "2026-09-01T12:00:00.000Z#abc", bookId: "abc",
       format: "epub", title: "Attacking Network Protocols", timestamp: "2026-09-01T12:00:00.000Z",
     });
+    expect(events()).toContainEqual(expect.objectContaining({ event: "download.issued", email: "user@example.com", bookId: "abc", format: "epub" }));
+    log.mockRestore();
   });
   it("400 on a bad body", async () => {
     expect(parse(await handle(event("nope"), deps())).status).toBe(400);
@@ -60,10 +64,12 @@ describe("handle", () => {
     expect(parse(await handle(event('{"bookId":"abc","format":"epub"}'), d)).status).toBe(502);
   });
   it("502 when presigning fails", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const d = deps({ presign: vi.fn().mockRejectedValue(new Error("kms down")) });
     const { status, json } = parse(await handle(event('{"bookId":"abc","format":"epub"}'), d));
     expect(status).toBe(502);
     expect(json).toEqual({ error: "Download unavailable" });
+    log.mockRestore();
   });
   it("502 when logging the download fails", async () => {
     const d = deps({ logDownload: vi.fn().mockRejectedValue(new Error("ddb down")) });

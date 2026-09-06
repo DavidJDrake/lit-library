@@ -4,6 +4,7 @@ import { Alerts } from "./alerts";
 import { Api } from "./api";
 import { Auth } from "./auth";
 import type { InfraConfig } from "./config";
+import { Kindle } from "./kindle";
 import { Library } from "./library";
 import { Notifications } from "./notifications";
 import { Signing } from "./signing";
@@ -34,11 +35,19 @@ export class EbookShareStack extends Stack {
     const library = new Library(this, "Library", { httpApi: api.httpApi, notificationsTable: notifications.table, userPool: auth.userPool });
     library.table.grantReadData(notifications.fn);
     notifications.fn.addEnvironment("LIBRARY_TABLE", library.table.tableName);
-    new Alerts(this, "Alerts", {
+    const alerts = new Alerts(this, "Alerts", {
       config,
       functions: [auth.preSignUp, api.downloadFn, api.sessionFn, library.fn, notifications.fn],
       httpApi: api.httpApi,
     });
+    const kindle = new Kindle(this, "Kindle", {
+      config, httpApi: api.httpApi, userPool: auth.userPool,
+      booksBucket: storage.booksBucket, siteBucket: storage.siteBucket,
+      libraryTable: library.table, downloadsTable: api.table, notificationsTable: notifications.table,
+      alertsTopic: alerts.topic,
+    });
+    alerts.watch(kindle.fn);
+    alerts.watch(kindle.eventsFn);
     // apiEndpoint is "https://<id>.execute-api.<region>.amazonaws.com"; CloudFront needs the host only.
     const apiDomainName = Fn.select(2, Fn.split("/", api.httpApi.apiEndpoint));
     const site = new Site(this, "Site", {
@@ -57,5 +66,6 @@ export class EbookShareStack extends Stack {
     new CfnOutput(this, "LibraryTable", { value: library.table.tableName });
     new CfnOutput(this, "SigningKeyPairId", { value: signing.publicKey.publicKeyId });
     new CfnOutput(this, "NotificationsFunctionName", { value: notifications.fn.functionName });
+    new CfnOutput(this, "KindleSender", { value: config.kindleSender });
   }
 }

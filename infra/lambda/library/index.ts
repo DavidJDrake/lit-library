@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
 import type { NotifyFn } from "../notifications/fanout";
+import { logEvent } from "../shared/log";
 import { ADMIN_ROUTES, isAdmin, matchRoute, normalizeName, parseJsonBody, type Route } from "./lib";
 
 export interface Category { name: string; nameLower: string; createdBy: string; createdAt: string; source: "seed" | "admin" | "suggestion" }
@@ -92,6 +93,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       await store.putSuggestion({
         id, name: n.name, nameLower: n.nameLower, ...(bookId ? { bookId } : {}), suggestedBy: email, createdAt: at, status: "pending",
       });
+      logEvent("suggestion.created", { suggestionId: id, by: email, name: n.name }, deps.now);
       await safeNotify(deps, "suggestion_pending", { suggestionId: id, name: n.name, ...(bookId ? { bookId } : {}), suggestedBy: email }, "admins");
       return json(201, { id });
     }
@@ -102,6 +104,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       if (await nameTaken(store, n.nameLower)) return json(409, { error: "That category already exists or has been suggested" });
       const created = await store.putCategory({ name: n.name, nameLower: n.nameLower, createdBy: email, createdAt: at, source: "admin" });
       if (!created) return json(409, { error: "That category already exists" });
+      logEvent("category.created", { name: n.name, source: "admin", by: email }, deps.now);
       await safeNotify(deps, "category_created", { name: n.name, createdBy: email, source: "admin" }, "everyone");
       return json(201, { name: n.name });
     }
@@ -115,6 +118,8 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const book = s.bookId ? { bookId: s.bookId, category: s.name, changedBy: email, changedAt: at } : undefined;
       const ok = await store.acceptSuggestion(s.id, category, book, email, at);
       if (!ok) return json(409, { error: "Suggestion changed underneath you; reload and try again" });
+      logEvent("suggestion.accepted", { suggestionId: s.id, by: email }, deps.now);
+      logEvent("category.created", { name: s.name, source: "suggestion", by: email }, deps.now);
       await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "accepted", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
       await safeNotify(deps, "category_created", { name: s.name, createdBy: email, source: "suggestion" }, "everyone");
       return noContent();
@@ -124,6 +129,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       if (!s) return json(404, { error: "Unknown suggestion" });
       const ok = await store.rejectSuggestion(s.id, email, at);
       if (!ok) return json(409, { error: "Suggestion already resolved" });
+      logEvent("suggestion.rejected", { suggestionId: s.id, by: email }, deps.now);
       await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "rejected", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
       return noContent();
     }
@@ -167,7 +173,7 @@ export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
       store: new DynamoStore(ddb, process.env.LIBRARY_TABLE ?? ""),
       now: () => new Date(),
       newId: () => randomUUID(),
-      notify: (type, payload, recipients) => notify(type, payload, recipients, notifyDeps),
+      notify: (type, payload, recipients, opts) => notify(type, payload, recipients, notifyDeps, opts),
     };
   }
   return handle(event, productionDeps);

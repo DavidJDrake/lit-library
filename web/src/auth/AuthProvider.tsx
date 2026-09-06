@@ -11,6 +11,7 @@ export interface AuthState {
   isAdmin: boolean;
   error?: string;
   apiUrl: string;
+  kindleSender: string;
   signIn(): Promise<void>;
   signOut(): void;
   getIdToken(): Promise<string>;
@@ -124,8 +125,8 @@ export function AuthProvider({ config, children, fetchFn = fetch, navigate = def
     }
   }, [config, fetchFn, adopt, drop]);
 
-  const value = useMemo<AuthState>(() => ({ status, email, isAdmin, error, apiUrl: config.apiUrl, signIn, signOut, getIdToken }),
-    [status, email, isAdmin, error, config.apiUrl, signIn, signOut, getIdToken]);
+  const value = useMemo<AuthState>(() => ({ status, email, isAdmin, error, apiUrl: config.apiUrl, kindleSender: config.kindleSender, signIn, signOut, getIdToken }),
+    [status, email, isAdmin, error, config.apiUrl, config.kindleSender, signIn, signOut, getIdToken]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

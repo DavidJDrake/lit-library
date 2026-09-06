@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import process from "node:process";
 import { defineConfig, loadEnv } from "vite";
 
-const REQUIRED_ENV_KEYS = ["VITE_COGNITO_DOMAIN", "VITE_CLIENT_ID", "VITE_API_URL", "VITE_REDIRECT_URI"] as const;
+const REQUIRED_ENV_KEYS = ["VITE_COGNITO_DOMAIN", "VITE_CLIENT_ID", "VITE_API_URL", "VITE_REDIRECT_URI", "VITE_KINDLE_SENDER"] as const;
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");

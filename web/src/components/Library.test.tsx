@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LibraryDataProvider } from "../catalog/LibraryDataProvider";
+import type { KindleState } from "../kindle/KindleProvider";
 import type { Catalog } from "../catalog/types";
 import Library, { SESSION_RENEW_MS } from "./Library";
 
@@ -12,6 +13,7 @@ interface LibraryProps {
   navigate?: (url: string) => void;
   isAdmin?: boolean;
   onChanged?: () => void;
+  kindle?: KindleState;
 }
 
 function renderLibrary(props: LibraryProps) {
@@ -349,5 +351,28 @@ describe("Library", () => {
     await userEvent.selectOptions(within(screen.getByRole("dialog", { hidden: true })).getByRole("combobox", { name: "Category" }), "TTRPG");
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("nope"));
     expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("wires Send to Kindle to the provider and toasts the outcome", async () => {
+    const kindle = { address: "jay_abc@kindle.com", sender: "library@lit.example.com", save: vi.fn().mockResolvedValue(undefined), send: vi.fn().mockResolvedValue({ sentTo: "jay_abc@kindle.com", format: "epub" }) };
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog), kindle });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    await userEvent.click(within(screen.getByRole("dialog", { hidden: true })).getByRole("button", { name: "Send to Kindle" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Sent to jay_abc@kindle.com — it usually arrives within a couple of minutes"));
+    expect(kindle.send).toHaveBeenCalledWith("1", "epub");
+    kindle.send.mockRejectedValueOnce(Object.assign(new Error("Kindle delivery isn't enabled for everyone yet"), { code: "not_enabled" }));
+    await userEvent.click(within(screen.getByRole("dialog", { hidden: true })).getByRole("button", { name: "Send to Kindle" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Kindle delivery isn't enabled for everyone yet"));
+  });
+
+  it("does not toast a no_address rejection, and lets it propagate so the inline form opens", async () => {
+    const kindle = { address: "jay_abc@kindle.com", sender: "library@lit.example.com", save: vi.fn().mockResolvedValue(undefined), send: vi.fn().mockRejectedValue(Object.assign(new Error("no_address"), { code: "no_address" })) };
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog), kindle });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    await userEvent.click(within(screen.getByRole("dialog", { hidden: true })).getByRole("button", { name: "Send to Kindle" }));
+    await waitFor(() => expect(within(screen.getByRole("dialog", { hidden: true })).getByRole("textbox", { name: "Your Kindle email" })).toBeInTheDocument());
+    expect(screen.queryByRole("status")).toBeNull();
   });
 });

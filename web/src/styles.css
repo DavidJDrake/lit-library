@@ -66,6 +66,9 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .detail-body .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.75rem; }
 .detail-body .desc { font-size: 0.95rem; line-height: 1.5; max-height: 16rem; overflow-y: auto; }
 .downloads { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+.kindle { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap; }
+.kindle-form label { display: block; font-size: 0.9rem; }
+.kindle-form input { display: block; width: 100%; margin-top: 0.25rem; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
 .close { position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: 0; font-size: 1.5rem; color: var(--muted); }
 .toast { position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%); background: var(--danger); color: #fff; padding: 0.7rem 1rem; border-radius: 8px; z-index: 20; }
 .toast.ok { background: var(--accent); }
@@ -101,3 +104,6 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .page-head h2 { margin: 0.5rem 0; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin: 0.75rem 0; }
 .notifications-page .btn { margin-top: 0.5rem; }
+.settings-link { text-decoration: none; font-size: 1.1rem; color: inherit; }
+.settings-section h3 { margin-top: 0; }
+.settings-section { padding: 1rem; }

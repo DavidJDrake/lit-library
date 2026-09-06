@@ -24,30 +24,22 @@ const WINDOW = Duration.minutes(5);
 // in us-east-1) — are documented in infra/README.md.
 export class Alerts extends Construct {
   readonly topic: sns.Topic;
+  private readonly notify: SnsAction;
 
   constructor(scope: Construct, id: string, props: AlertsProps) {
     super(scope, id);
 
     this.topic = new sns.Topic(this, "Topic", { displayName: "Lit Library alerts" });
     this.topic.addSubscription(new EmailSubscription(props.config.alarmEmail));
-    const notify = new SnsAction(this.topic);
+    this.notify = new SnsAction(this.topic);
 
     const wire = (alarm: cloudwatch.Alarm) => {
-      alarm.addAlarmAction(notify);
-      alarm.addOkAction(notify); // the "recovered" email is as useful as the alarm
+      alarm.addAlarmAction(this.notify);
+      alarm.addOkAction(this.notify); // the "recovered" email is as useful as the alarm
     };
 
     for (const fn of props.functions) {
-      // Ids like "Fn" repeat across constructs; qualify with the parent path so they stay unique.
-      const alarmId = `${fn.node.path.split("/").slice(-2).join("")}Errors`;
-      wire(new cloudwatch.Alarm(this, alarmId, {
-        alarmDescription: `${fn.functionName} reported errors`,
-        metric: fn.metricErrors({ period: WINDOW, statistic: "Sum" }),
-        threshold: 1,
-        evaluationPeriods: 1,
-        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING, // a quiet site is not a broken site
-      }));
+      this.watch(fn);
     }
 
     // Catches failures that never reach a Lambda (bundling, permissions, integration errors).
@@ -75,5 +67,21 @@ export class Alerts extends Construct {
       comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING, // absent until billing alerts are enabled
     }));
+  }
+
+  /** Add an Errors alarm for one more function (used for constructs created after Alerts). */
+  watch(fn: lambda.IFunction): void {
+    // Ids like "Fn" repeat across constructs; qualify with the parent path so they stay unique.
+    const alarmId = `${fn.node.path.split("/").slice(-2).join("")}Errors`;
+    const alarm = new cloudwatch.Alarm(this, alarmId, {
+      alarmDescription: `${fn.functionName} reported errors`,
+      metric: fn.metricErrors({ period: WINDOW, statistic: "Sum" }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING, // a quiet site is not a broken site
+    });
+    alarm.addAlarmAction(this.notify);
+    alarm.addOkAction(this.notify);
   }
 }

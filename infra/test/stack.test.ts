@@ -31,7 +31,7 @@ describe("EbookShareStack", () => {
     for (const name of [
       "SiteUrl", "SiteBucketName", "BooksBucketName", "DistributionId",
       "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable", "LibraryTable", "SigningKeyPairId",
-      "NotificationsFunctionName",
+      "NotificationsFunctionName", "KindleSender",
     ]) {
       expect(() => t.hasOutput(name, {})).not.toThrow();
     }
@@ -52,10 +52,18 @@ describe("EbookShareStack", () => {
     for (const p of authorized) {
       expect(p).toHaveProperty("AuthorizerId");
     }
-    expect(authorized.length).toBeGreaterThanOrEqual(10);
+    expect(authorized.length).toBeGreaterThanOrEqual(13);
 
     const deleteSession = properties.find((p) => p.RouteKey === "DELETE /api/session");
     expect(deleteSession).toBeDefined();
     expect(deleteSession).not.toHaveProperty("AuthorizerId");
+  });
+
+  it("alarms on errors from every function, including the two Kindle Lambdas", () => {
+    const t = synthStack();
+    const alarms = Object.values(t.findResources("AWS::CloudWatch::Alarm", {
+      Properties: { Namespace: "AWS/Lambda", MetricName: "Errors" },
+    }));
+    expect(alarms).toHaveLength(7);
   });
 });

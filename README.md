@@ -36,6 +36,11 @@ be online for the site to work.
   outcome of your own suggestions, new categories, and "N new books added"
   after each publish. Per-recipient rows in a small DynamoDB table with a
   90-day TTL; the site polls every five minutes.
+- **Send to Kindle.** One click emails the EPUB (or PDF) to your `@kindle.com`
+  address through Amazon SES, up to 28 MB; a bounce turns into a notification
+  telling you to approve the sender. Sends happen synchronously in one Lambda,
+  which is right for a handful of readers — if volume ever grows, the upgrade
+  path is an SQS queue and a worker Lambda.
 - **Cheap storage.** ~73 GB of books sit in S3 Intelligent-Tiering, which
   drifts untouched titles down to ~$0.004/GB-month with no retrieval fees.
 - **Metadata from the files themselves.** A Python indexer reads embedded
@@ -60,10 +65,13 @@ flowchart LR
     SESS[session Lambda]
     LIB[library Lambda]
     NOTIF[notifications Lambda]
+    KIN[kindle Lambda]
+    KEV[kindle-events Lambda]
     DDB[(DynamoDB<br/>downloads log)]
     LIBT[(DynamoDB<br/>categories + suggestions)]
     NOTIFT[(DynamoDB<br/>notifications, 90-day TTL)]
     SM[(Secrets Manager<br/>cookie-signing key)]
+    SES[(SES)]
   end
   IDX -->|books| BOOKS
   IDX -->|catalog + covers| SITE
@@ -76,6 +84,9 @@ flowchart LR
   API --> LIB --> LIBT
   API --> NOTIF --> NOTIFT
   LIB --> NOTIFT
+  API --> KIN --> SES
+  KIN -->|log| DDB
+  SES -.->|bounce| KEV --> NOTIFT
   IDX -.->|books added| NOTIF
   COG -.->|ID token| API
 ```
@@ -91,8 +102,8 @@ and navigates a hidden iframe to the returned presigned URL.
 | Path | What |
 |---|---|
 | `indexer/` | Python CLI (`ebook_indexer`): scan → extract → group → enrich → categorize → catalog → publish. 81 tests, all offline. |
-| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, four Lambdas. 150 tests (CDK assertions + Lambda units), all offline. |
-| `web/` | React + Vite + TypeScript SPA. 142 tests (vitest + Testing Library), all offline. |
+| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, six Lambdas. 189 tests (CDK assertions + Lambda units), all offline. |
+| `web/` | React + Vite + TypeScript SPA. 170 tests (vitest + Testing Library), all offline. |
 | `scripts/` | Glue: copy CDK outputs into config, write web env files, generate the signing key, deploy the web app, refresh the catalog (`publish-new.sh`), back up state (`backup.sh`), make an admin (`make-admin.sh`), pull category edits (`pull-edits.py`), notify readers of new books (`notify-books-added.py`, run by `publish-new.sh`). |
 | `docs/superpowers/` | The design specs and the implementation plans that were actually executed (see below). |
 
@@ -185,6 +196,8 @@ weekly grouped update PRs for the three package manifests and the workflow actio
 - The notifications Lambda may list Cognito users (to fan out) and read the
   library table; the indexer reaches it only through `lambda:InvokeFunction`
   with your own AWS credentials.
+- Every Lambda writes structured JSON events (`event` field) to CloudWatch
+  Logs; the two Kindle Lambdas keep them 3 months.
 
 ## License
 
