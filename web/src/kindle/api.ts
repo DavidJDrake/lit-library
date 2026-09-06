@@ -16,15 +16,7 @@ export async function getKindleAddress(apiUrl: string, idToken: string, fetchFn:
 }
 
 export async function saveKindleAddress(apiUrl: string, idToken: string, address: string, fetchFn: typeof fetch = fetch): Promise<void> {
-  const res = await fetchFn(`${apiUrl}/kindle/address`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ kindleAddress: address }),
-  });
-  if (res.status === 204) return;
-  let body: { error?: string; message?: string } = {};
-  try { body = (await res.json()) ?? {}; } catch { /* non-JSON */ }
-  throw new Error(body.message ?? body.error ?? `Request failed: expected 204, got ${res.status}`);
+  await apiCall(apiUrl, idToken, "/kindle/address", { method: "PUT", body: JSON.stringify({ kindleAddress: address }) }, 204, fetchFn);
 }
 
 export async function sendToKindle(

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getKindleAddress, saveKindleAddress, sendToKindle } from "./api";
 
 export interface KindleState {
@@ -13,6 +13,8 @@ interface Props { apiUrl: string; getIdToken: () => Promise<string>; fetchFn?: t
 
 export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, children }: Props) {
   const [address, setAddress] = useState<string | null | undefined>(undefined);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,7 +31,7 @@ export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, ch
 
   const save = useCallback(async (a: string) => {
     await saveKindleAddress(apiUrl, await getIdToken(), a, fetchFn);
-    setAddress(a.trim() ? a.trim().toLowerCase() : null);
+    if (mounted.current) setAddress(a.trim() ? a.trim().toLowerCase() : null);
   }, [apiUrl, getIdToken, fetchFn]);
 
   const send = useCallback((bookId: string, format?: string) => getIdToken().then((t) => sendToKindle(apiUrl, t, bookId, format, fetchFn)),
