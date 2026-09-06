@@ -85,7 +85,7 @@ describe("send", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const r = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "big" }), d));
     expect(r.status).toBe(413);
-    expect(r.json).toEqual({ error: "too_large", bytes: KINDLE_MAX_BYTES + 1, limit: KINDLE_MAX_BYTES });
+    expect(r.json).toEqual({ error: "too_large", message: "Too large for Kindle delivery — download instead", bytes: KINDLE_MAX_BYTES + 1, limit: KINDLE_MAX_BYTES });
     expect(d.loadObject).not.toHaveBeenCalled();
     expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.oversize", bookId: "big" }));
     log.mockRestore();

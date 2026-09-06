@@ -21,6 +21,7 @@ export interface Deps {
 }
 
 export const NOT_ENABLED_MESSAGE = "Kindle delivery isn't enabled for everyone yet";
+export const TOO_LARGE_MESSAGE = "Too large for Kindle delivery — download instead";
 
 // SES email-tag values allow only [A-Za-z0-9_-]; an email address does not fit, so hex-encode it.
 export const tagValue = (email: string): string => Buffer.from(email, "utf8").toString("hex");
@@ -55,7 +56,7 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
   if (!format) return json(400, { error: "unsupported" });
   if (format.size > KINDLE_MAX_BYTES) {
     logEvent("kindle.oversize", { email, bookId, format: format.type, bytes: format.size }, deps.now);
-    return json(413, { error: "too_large", bytes: format.size, limit: KINDLE_MAX_BYTES });
+    return json(413, { error: "too_large", message: TOO_LARGE_MESSAGE, bytes: format.size, limit: KINDLE_MAX_BYTES });
   }
 
   let bytes: Uint8Array;
@@ -68,7 +69,7 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
   }
   if (bytes.byteLength > KINDLE_MAX_BYTES) {
     logEvent("kindle.oversize", { email, bookId, format: format.type, bytes: bytes.byteLength }, deps.now);
-    return json(413, { error: "too_large", bytes: bytes.byteLength, limit: KINDLE_MAX_BYTES });
+    return json(413, { error: "too_large", message: TOO_LARGE_MESSAGE, bytes: bytes.byteLength, limit: KINDLE_MAX_BYTES });
   }
   const type = format.type as "epub" | "pdf";
   const raw = buildMime({
