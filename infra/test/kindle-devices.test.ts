@@ -106,6 +106,12 @@ describe("validateDevices", () => {
     expect(validateDevices([{ id: "cccccccc", label: "Ghost", address: "c@kindle.com" }], undefined, two, NOW))
       .toMatchObject({ ok: false, error: "unknown_device", message: "That device is no longer saved — reload and try again" });
   });
+  it("rejects the same existing id sent twice", () => {
+    expect(validateDevices(
+      [{ id: "aaaaaaaa", label: "Scribe", address: "a@kindle.com" }, { id: "aaaaaaaa", label: "Study", address: "c@kindle.com" }],
+      undefined, one, NOW,
+    )).toMatchObject({ ok: false, error: "bad_request", message: "Send each device once" });
+  });
   it("rejects a non-array input", () => {
     expect(validateDevices("nope", undefined, empty, NOW)).toMatchObject({ ok: false, error: "bad_label" });
   });

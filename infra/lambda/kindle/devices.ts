@@ -8,7 +8,7 @@ export interface PublicDevice { id: string; label: string; address: string }
 export const MAX_DEVICES = 5;
 export const MAX_LABEL = 30;
 
-export type DeviceErrorCode = "bad_label" | "bad_address" | "too_many" | "bad_default" | "unknown_device";
+export type DeviceErrorCode = "bad_label" | "bad_address" | "too_many" | "bad_default" | "unknown_device" | "bad_request";
 export type ValidateResult = { ok: true; list: DeviceList } | { ok: false; error: DeviceErrorCode; message: string };
 
 const MESSAGES = {
@@ -19,6 +19,7 @@ const MESSAGES = {
   too_many: "You can save up to 5 devices",
   bad_default: "Choose one of your devices as the default",
   unknown_device: "That device is no longer saved — reload and try again",
+  bad_request: "Send each device once",
 } as const;
 
 const fail = (error: DeviceErrorCode, message: string): ValidateResult => ({ ok: false, error, message });
@@ -68,6 +69,7 @@ export function validateDevices(input: unknown, requestedDefault: unknown, exist
   const devices: KindleDevice[] = [];
   const labels = new Set<string>();
   const addresses = new Set<string>();
+  const ids = new Set<string>();
 
   for (const raw of input) {
     const entry = (raw ?? {}) as { id?: unknown; label?: unknown; address?: unknown };
@@ -85,6 +87,8 @@ export function validateDevices(input: unknown, requestedDefault: unknown, exist
     if (typeof entry.id === "string" && entry.id) {
       const known = byId.get(entry.id);
       if (!known) return fail("unknown_device", MESSAGES.unknown_device);
+      if (ids.has(known.id)) return fail("bad_request", MESSAGES.bad_request);
+      ids.add(known.id);
       devices.push({ id: known.id, label, address, addedAt: known.addedAt });
     } else {
       devices.push({ id: newDeviceId(), label, address, addedAt: now });
