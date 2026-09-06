@@ -25,6 +25,10 @@ describe("buildRows", () => {
   it("dedupes recipients case-insensitively", () => {
     expect(buildRows("category_created", { name: "X" }, ["A@example.com", "a@example.com"], NOW, () => "i")).toHaveLength(1);
   });
+  it("uses an explicit id for the sk when given (idempotent redelivery)", () => {
+    const rows = buildRows("kindle_bounce", { bookId: "b" }, ["x@example.com"], NOW, () => "random", "ses-msg-1");
+    expect(rows[0].sk).toBe("2026-09-05T10:00:00.000Z#ses-msg-1");
+  });
 });
 
 describe("notify", () => {
@@ -51,6 +55,11 @@ describe("notify", () => {
     const d = deps({ directory: { listEveryone: vi.fn().mockResolvedValue([]), listAdmins: vi.fn().mockResolvedValue([]) } });
     expect(await notify("category_created", { name: "X", createdBy: "a@example.com", source: "admin" }, "admins", d)).toBe(0);
     expect(d.writer.putAll).not.toHaveBeenCalled();
+  });
+  it("passes an explicit id through to buildRows via opts", async () => {
+    const d = deps();
+    expect(await notify("kindle_bounce", { bookId: "b" }, ["a@example.com"], d, { id: "ses-1" })).toBe(1);
+    expect(d.written.at(-1)!.sk.endsWith("#ses-1")).toBe(true);
   });
 });
 

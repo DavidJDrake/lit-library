@@ -173,7 +173,7 @@ export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
       store: new DynamoStore(ddb, process.env.LIBRARY_TABLE ?? ""),
       now: () => new Date(),
       newId: () => randomUUID(),
-      notify: (type, payload, recipients) => notify(type, payload, recipients, notifyDeps),
+      notify: (type, payload, recipients, opts) => notify(type, payload, recipients, notifyDeps, opts),
     };
   }
   return handle(event, productionDeps);
