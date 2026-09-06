@@ -51,6 +51,13 @@ describe("buildMime", () => {
     expect(b64Lines.every((l) => l.length <= 76)).toBe(true);
     expect(raw).toContain('filename="Say Hi.pdf"');
   });
+  it("RFC 2047-encodes a non-ASCII subject and RFC 2231-encodes a non-ASCII filename", () => {
+    const raw = buildMime({ from: "a@x.example", to: "b@kindle.com", subject: "The Gods of Pegāna", filename: "Pegāna.epub", contentType: "application/epub+zip", body: new Uint8Array(10), date: new Date(0) });
+    expect(raw).toContain(`Subject: =?UTF-8?B?${Buffer.from("The Gods of Pegāna", "utf8").toString("base64")}?=\r\n`);
+    expect(raw).toContain('name="Peg_na.epub"');
+    expect(raw).toContain('filename="Peg_na.epub"');
+    expect(raw).toContain("filename*=UTF-8''Peg%C4%81na.epub");
+  });
 });
 
 describe("classifySesError", () => {

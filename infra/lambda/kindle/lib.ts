@@ -32,15 +32,23 @@ function wrap76(b64: string): string {
   return out.join("\r\n");
 }
 const headerSafe = (s: string) => s.replace(/[\r\n]+/g, " ").replace(/"/g, "");
+const isAscii = (s: string) => /^[\x20-\x7e]*$/.test(s);
+
+/** Pure printable ASCII passes through; anything else is RFC 2047 encoded-word (UTF-8, base64). */
+function encodeHeaderWord(s: string): string {
+  return isAscii(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`;
+}
 
 export function buildMime(m: MimeInput): string {
   const date = m.date ?? new Date();
   const boundary = `----=_lit_${date.getTime().toString(36)}_${Math.random().toString(36).slice(2)}`;
   const filename = headerSafe(m.filename);
+  const asciiName = filename.replace(/[^\x20-\x7e]/g, "_");
+  const dispositionExt = isAscii(filename) ? "" : `; filename*=UTF-8''${encodeURIComponent(filename)}`;
   const lines = [
     `From: ${m.from}`,
     `To: ${m.to}`,
-    `Subject: ${headerSafe(m.subject)}`,
+    `Subject: ${encodeHeaderWord(headerSafe(m.subject))}`,
     `Date: ${date.toUTCString()}`,
     "MIME-Version: 1.0",
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
@@ -52,8 +60,8 @@ export function buildMime(m: MimeInput): string {
     "Sent from your private library.",
     "",
     `--${boundary}`,
-    `Content-Type: ${m.contentType}; name="${filename}"`,
-    `Content-Disposition: attachment; filename="${filename}"`,
+    `Content-Type: ${m.contentType}; name="${asciiName}"`,
+    `Content-Disposition: attachment; filename="${asciiName}"${dispositionExt}`,
     "Content-Transfer-Encoding: base64",
     "",
     wrap76(Buffer.from(m.body).toString("base64")),
