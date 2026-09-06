@@ -2,12 +2,13 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 }
 import { downloadFilename, type Catalog } from "../download/download";
 import type { DownloadLog } from "../download/index";
 import { logEvent } from "../shared/log";
+import type { DeviceList } from "./devices";
 import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES, parseKindleAddress } from "./lib";
 
 export interface KindleStore {
-  getAddress(email: string): Promise<string | null>;
-  /** null deletes the settings row. */
-  setAddress(email: string, address: string | null, updatedAt: string): Promise<void>;
+  getDevices(email: string): Promise<DeviceList>;
+  /** An empty list deletes the settings row. */
+  setDevices(email: string, list: DeviceList, updatedAt: string): Promise<void>;
 }
 export interface Sender { send(raw: string, tags: Record<string, string>): Promise<{ messageId: string }> }
 export interface Deps {
