@@ -107,3 +107,8 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .settings-link { text-decoration: none; font-size: 1.1rem; color: inherit; }
 .settings-section h3 { margin-top: 0; }
 .settings-section { padding: 1rem; }
+.device-list ul { list-style: none; margin: 0 0 1rem; padding: 0; }
+.device-list li.device { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+.device-list li.device input { min-width: 10rem; }
+.device-list li.unnamed input { border-color: var(--accent); }
+.device-list h4 { margin: 0.75rem 0 0.35rem; }
