@@ -91,6 +91,28 @@ describe("send", () => {
     log.mockRestore();
     expect(parse(await handle(ev("POST", "/api/kindle/send", {}), deps())).status).toBe(400);
   });
+  it("502s when the catalog can't be read from storage", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const d = deps({ loadCatalog: vi.fn().mockRejectedValue(new Error("S3 down")) });
+    const r = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), d));
+    expect(r.status).toBe(502);
+    expect(r.json).toEqual({ error: "failed", message: "Could not read the book from storage" });
+    expect(d.logSend).not.toHaveBeenCalled();
+    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", stage: "catalog" }));
+    log.mockRestore(); spy.mockRestore();
+  });
+  it("502s when the object can't be read from storage", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const d = deps({ loadObject: vi.fn().mockRejectedValue(new Error("object missing")) });
+    const r = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), d));
+    expect(r.status).toBe(502);
+    expect(r.json).toEqual({ error: "failed", message: "Could not read the book from storage" });
+    expect(d.logSend).not.toHaveBeenCalled();
+    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", stage: "object" }));
+    log.mockRestore(); spy.mockRestore();
+  });
   it("maps the sandbox rejection to 502 not_enabled and other failures to 502 failed, logging send_failed and no log row", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const log = vi.spyOn(console, "log").mockImplementation(() => {});

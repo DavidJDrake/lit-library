@@ -41,7 +41,14 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
   const address = await deps.store.getAddress(email);
   if (!address) return json(409, { error: "no_address" });
 
-  const catalog = await deps.loadCatalog();
+  let catalog: Catalog;
+  try {
+    catalog = await deps.loadCatalog();
+  } catch (e) {
+    console.error("kindle catalog load failed:", e);
+    logEvent("kindle.send_failed", { email, bookId, code: "failed", stage: "catalog", reason: (e as Error).message }, deps.now);
+    return json(502, { error: "failed", message: "Could not read the book from storage" });
+  }
   const book = catalog.books.find((b) => b.id === bookId);
   if (!book) return json(404, { error: "unknown_book" });
   const format = chooseFormat(book, requested);
@@ -51,7 +58,14 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     return json(413, { error: "too_large", bytes: format.size, limit: KINDLE_MAX_BYTES });
   }
 
-  const bytes = await deps.loadObject(format.s3Key);
+  let bytes: Uint8Array;
+  try {
+    bytes = await deps.loadObject(format.s3Key);
+  } catch (e) {
+    console.error("kindle object load failed:", e);
+    logEvent("kindle.send_failed", { email, bookId, code: "failed", stage: "object", reason: (e as Error).message }, deps.now);
+    return json(502, { error: "failed", message: "Could not read the book from storage" });
+  }
   if (bytes.byteLength > KINDLE_MAX_BYTES) {
     logEvent("kindle.oversize", { email, bookId, format: format.type, bytes: bytes.byteLength }, deps.now);
     return json(413, { error: "too_large", bytes: bytes.byteLength, limit: KINDLE_MAX_BYTES });
