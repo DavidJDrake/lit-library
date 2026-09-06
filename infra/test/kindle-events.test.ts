@@ -22,7 +22,7 @@ describe("kindle-events", () => {
     const d = deps();
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     expect(await handle(sns(bounce), d)).toEqual({ processed: 1, ignored: 0 });
-    expect(d.notify).toHaveBeenCalledWith("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "Permanent/General: smtp; 550 sender not approved" }, ["jay@example.com"], { id: "ses-1" });
+    expect(d.notify).toHaveBeenCalledWith("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "Permanent/General: smtp; 550 sender not approved", deviceId: "" }, ["jay@example.com"], { id: "ses-1" });
     expect(d.alert).toHaveBeenCalledWith("Kindle delivery Bounce: jay", expect.stringContaining("b1"));
     expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.bounce", recipient: "jay@example.com", bookId: "b1", kind: "Bounce", sesMessageId: "ses-1" }));
     log.mockRestore();
@@ -34,8 +34,28 @@ describe("kindle-events", () => {
     const delivery = { eventType: "Delivery", mail: bounce.mail };
     const untagged = { eventType: "Bounce", mail: { messageId: "ses-3", tags: {} }, bounce: { bounceType: "Permanent", bounceSubType: "General", bouncedRecipients: [] } };
     expect(await handle(sns(complaint, reject, delivery, untagged), d)).toEqual({ processed: 2, ignored: 2 });
-    expect(d.notify).toHaveBeenNthCalledWith(1, "kindle_bounce", { bookId: "b1", kind: "Complaint", reason: "complaint:abuse" }, ["jay@example.com"], { id: "ses-1" });
-    expect(d.notify).toHaveBeenNthCalledWith(2, "kindle_bounce", { bookId: "b1", kind: "Reject", reason: "reject:Bad content" }, ["jay@example.com"], { id: "ses-2" });
+    expect(d.notify).toHaveBeenNthCalledWith(1, "kindle_bounce", { bookId: "b1", kind: "Complaint", reason: "complaint:abuse", deviceId: "" }, ["jay@example.com"], { id: "ses-1" });
+    expect(d.notify).toHaveBeenNthCalledWith(2, "kindle_bounce", { bookId: "b1", kind: "Reject", reason: "reject:Bad content", deviceId: "" }, ["jay@example.com"], { id: "ses-2" });
+  });
+  it("carries the deviceId tag into the notification and the log event", async () => {
+    const d = deps();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const withDevice = { ...bounce, mail: { ...bounce.mail, tags: { ...bounce.mail.tags, deviceId: ["aaaaaaaa"] } } };
+    let calls: unknown[][];
+    try {
+      await handle(sns(withDevice), d);
+      calls = log.mock.calls;
+    } finally { log.mockRestore(); }
+    expect(d.notify).toHaveBeenCalledWith("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "Permanent/General: smtp; 550 sender not approved", deviceId: "aaaaaaaa" }, ["jay@example.com"], { id: "ses-1" });
+    expect(calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.bounce", deviceId: "aaaaaaaa" }));
+  });
+  it("still works for a message sent before device ids existed", async () => {
+    const d = deps();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await handle(sns(bounce), d);
+    } finally { log.mockRestore(); }
+    expect(d.notify).toHaveBeenCalledWith("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "Permanent/General: smtp; 550 sender not approved", deviceId: "" }, ["jay@example.com"], { id: "ses-1" });
   });
   it("keeps going when one record fails, but throws afterwards so SNS retries and the alarm fires", async () => {
     const d = deps();

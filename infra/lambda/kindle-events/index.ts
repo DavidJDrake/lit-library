@@ -45,13 +45,14 @@ export async function handle(event: SNSEvent, deps: Deps): Promise<{ processed: 
     if (!KINDS.has(kind) || !recipientHex) { ignored += 1; continue; }
     const recipient = Buffer.from(recipientHex, "hex").toString("utf8");
     const bookId = ev.mail?.tags?.bookId?.[0] ?? "";
+    const deviceId = ev.mail?.tags?.deviceId?.[0] ?? "";
     const sesMessageId = ev.mail?.messageId ?? "";
     const reason = reasonOf(ev);
     const clock = recordClock(ev.mail?.timestamp);
     const notifyOpts = clock ? { id: sesMessageId, now: clock } : { id: sesMessageId };
     try {
-      await deps.notify("kindle_bounce", { bookId, kind, reason }, [recipient], notifyOpts);
-      logEvent("kindle.bounce", { recipient, bookId, kind, reason, sesMessageId }, deps.now);
+      await deps.notify("kindle_bounce", { bookId, kind, reason, deviceId }, [recipient], notifyOpts);
+      logEvent("kindle.bounce", { recipient, bookId, deviceId, kind, reason, sesMessageId }, deps.now);
       await deps.alert(`Kindle delivery ${kind}: ${localPart(recipient)}`,
         `Kindle delivery ${kind} for ${recipient}\nBook: ${bookId}\nReason: ${reason}\nSES message id: ${sesMessageId}\nTime: ${deps.now().toISOString()}`);
       processed += 1;
