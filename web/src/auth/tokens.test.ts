@@ -5,6 +5,7 @@ import { decodeJwtPayload, exchangeCode, isExpired, refreshTokens, type Tokens }
 const cfg: AppConfig = {
   cognitoDomain: "https://lit-x.auth.us-east-1.amazoncognito.com",
   clientId: "client123", apiUrl: "https://api.example.com", redirectUri: "http://localhost:5173/",
+  kindleSender: "library@lit.example.com",
 };
 
 function jwt(payload: object): string {

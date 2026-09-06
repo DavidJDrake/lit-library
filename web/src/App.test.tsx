@@ -5,7 +5,7 @@ import App from "./App";
 import { AuthProvider } from "./auth/AuthProvider";
 import type { AppConfig } from "./config";
 
-const cfg: AppConfig = { cognitoDomain: "https://c", clientId: "id", apiUrl: "https://api", redirectUri: "http://localhost:5173/" };
+const cfg: AppConfig = { cognitoDomain: "https://c", clientId: "id", apiUrl: "https://api", redirectUri: "http://localhost:5173/", kindleSender: "library@lit.example.com" };
 
 describe("App", () => {
   it("shows the sign-in page when signed out", async () => {

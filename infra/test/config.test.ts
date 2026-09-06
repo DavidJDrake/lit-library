@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -30,5 +30,11 @@ describe("loadConfig", () => {
   });
   it("still loads the example config from its own path", () => {
     expect(() => loadConfig(EXAMPLE_CONFIG_PATH)).not.toThrow();
+  });
+  it("requires kindleSender to be on the site domain", () => {
+    const example = JSON.parse(readFileSync(EXAMPLE_CONFIG_PATH, "utf8"));
+    const file = path.join(tmpdir(), `cfg-${Date.now()}.json`);
+    writeFileSync(file, JSON.stringify({ ...example, cloudfrontPublicKeyPem: "-----BEGIN PUBLIC KEY-----\nREAL\n-----END PUBLIC KEY-----\n", kindleSender: "library@elsewhere.example" }));
+    expect(() => loadConfig(file)).toThrow(/kindleSender must be an address on lit\.example\.com/);
   });
 });

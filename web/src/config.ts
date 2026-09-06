@@ -3,6 +3,7 @@ export interface AppConfig {
   clientId: string;
   apiUrl: string;
   redirectUri: string;
+  kindleSender: string;
 }
 
 const KEYS = {
@@ -10,6 +11,7 @@ const KEYS = {
   clientId: "VITE_CLIENT_ID",
   apiUrl: "VITE_API_URL",
   redirectUri: "VITE_REDIRECT_URI",
+  kindleSender: "VITE_KINDLE_SENDER",
 } as const;
 
 export function readConfig(env: Record<string, string | undefined>): AppConfig {
@@ -21,6 +23,7 @@ export function readConfig(env: Record<string, string | undefined>): AppConfig {
     clientId: env[KEYS.clientId]!,
     apiUrl: strip(env[KEYS.apiUrl]!),
     redirectUri: env[KEYS.redirectUri]!,
+    kindleSender: env[KEYS.kindleSender]!,
   };
 }
 

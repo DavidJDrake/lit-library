@@ -31,7 +31,7 @@ describe("EbookShareStack", () => {
     for (const name of [
       "SiteUrl", "SiteBucketName", "BooksBucketName", "DistributionId",
       "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable", "LibraryTable", "SigningKeyPairId",
-      "NotificationsFunctionName",
+      "NotificationsFunctionName", "KindleSender",
     ]) {
       expect(() => t.hasOutput(name, {})).not.toThrow();
     }

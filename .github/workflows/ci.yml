@@ -46,6 +46,7 @@ jobs:
       VITE_CLIENT_ID: ci-placeholder
       VITE_API_URL: /api
       VITE_REDIRECT_URI: https://example.com/
+      VITE_KINDLE_SENDER: library@example.com
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

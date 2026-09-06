@@ -17,6 +17,7 @@ def render(outputs: dict, redirect_uri: str, dev_proxy_target: str | None = None
         f"VITE_CLIENT_ID={outputs['UserPoolClientId']}",
         "VITE_API_URL=/api",
         f"VITE_REDIRECT_URI={redirect_uri}",
+        f"VITE_KINDLE_SENDER={outputs['KindleSender']}",
     ]
     if dev_proxy_target:
         lines.append(f"VITE_DEV_PROXY_TARGET={dev_proxy_target}")

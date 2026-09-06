@@ -57,5 +57,6 @@ export class EbookShareStack extends Stack {
     new CfnOutput(this, "LibraryTable", { value: library.table.tableName });
     new CfnOutput(this, "SigningKeyPairId", { value: signing.publicKey.publicKeyId });
     new CfnOutput(this, "NotificationsFunctionName", { value: notifications.fn.functionName });
+    new CfnOutput(this, "KindleSender", { value: config.kindleSender });
   }
 }

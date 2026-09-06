@@ -7,6 +7,7 @@ const cfg: AppConfig = {
   clientId: "client123",
   apiUrl: "https://api.example.com",
   redirectUri: "http://localhost:5173/",
+  kindleSender: "library@lit.example.com",
 };
 
 describe("randomString", () => {
