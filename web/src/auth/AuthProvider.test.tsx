@@ -25,6 +25,7 @@ function Probe() {
       <span data-testid="email">{a.email ?? ""}</span>
       <span data-testid="admin">{String(a.isAdmin)}</span>
       <span data-testid="error">{a.error ?? ""}</span>
+      <span data-testid="sender">{a.kindleSender}</span>
       <span data-testid="token-result">{tokenResult}</span>
       <button onClick={() => void a.signIn()}>signin</button>
       <button onClick={() => a.signOut()}>signout</button>
@@ -74,6 +75,7 @@ describe("AuthProvider", () => {
     expect(screen.getByTestId("email")).toHaveTextContent("user@example.com");
     expect(window.location.search).toBe("");
     expect(JSON.parse(window.sessionStorage.getItem("lit.tokens")!).accessToken).toBe("acc");
+    expect(screen.getByTestId("sender")).toHaveTextContent(cfg.kindleSender);
   });
 
   it("rejects a callback whose state does not match", async () => {
