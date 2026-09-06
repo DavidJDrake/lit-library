@@ -1,18 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { getKindleAddress, saveKindleAddress, sendToKindle } from "./api";
+import { getKindleDevices, saveKindleDevices, sendToKindle, type DeviceInput, type KindleDevice } from "./api";
 
 export interface KindleState {
-  address: string | null | undefined; // undefined while loading
+  devices: KindleDevice[] | undefined; // undefined while loading
+  defaultDeviceId: string | null;
   sender: string;
-  save(address: string): Promise<void>;
-  send(bookId: string, format?: string): Promise<{ sentTo: string; format: string }>;
+  save(devices: DeviceInput[], defaultDeviceId?: string): Promise<void>;
+  send(bookId: string, format?: string, deviceId?: string): Promise<{ sentTo: string; format: string; deviceId: string; deviceLabel: string }>;
 }
 
 const Ctx = createContext<KindleState | undefined>(undefined);
 interface Props { apiUrl: string; getIdToken: () => Promise<string>; fetchFn?: typeof fetch; sender: string; children: ReactNode }
 
 export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, children }: Props) {
-  const [address, setAddress] = useState<string | null | undefined>(undefined);
+  const [devices, setDevices] = useState<KindleDevice[] | undefined>(undefined);
+  const [defaultDeviceId, setDefaultDeviceId] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -20,24 +22,33 @@ export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, ch
     let cancelled = false;
     (async () => {
       try {
-        const a = await getKindleAddress(apiUrl, await getIdToken(), fetchFn);
-        if (!cancelled) setAddress(a);
+        const list = await getKindleDevices(apiUrl, await getIdToken(), fetchFn);
+        if (cancelled) return;
+        setDevices(list.devices);
+        setDefaultDeviceId(list.defaultDeviceId);
       } catch {
-        if (!cancelled) setAddress(null); // the send endpoint's no_address response still guards
+        // the send endpoint's no_address response still guards
+        if (!cancelled) { setDevices([]); setDefaultDeviceId(null); }
       }
     })();
     return () => { cancelled = true; };
   }, [apiUrl, getIdToken, fetchFn]);
 
-  const save = useCallback(async (a: string) => {
-    await saveKindleAddress(apiUrl, await getIdToken(), a, fetchFn);
-    if (mounted.current) setAddress(a.trim() ? a.trim().toLowerCase() : null);
+  const save = useCallback(async (next: DeviceInput[], nextDefault?: string) => {
+    const list = await saveKindleDevices(apiUrl, await getIdToken(), next, nextDefault, fetchFn);
+    if (mounted.current) { setDevices(list.devices); setDefaultDeviceId(list.defaultDeviceId); }
   }, [apiUrl, getIdToken, fetchFn]);
 
-  const send = useCallback((bookId: string, format?: string) => getIdToken().then((t) => sendToKindle(apiUrl, t, bookId, format, fetchFn)),
-    [apiUrl, getIdToken, fetchFn]);
+  const send = useCallback(
+    (bookId: string, format?: string, deviceId?: string) =>
+      getIdToken().then((t) => sendToKindle(apiUrl, t, bookId, format, deviceId, fetchFn)),
+    [apiUrl, getIdToken, fetchFn],
+  );
 
-  const value = useMemo<KindleState>(() => ({ address, sender, save, send }), [address, sender, save, send]);
+  const value = useMemo<KindleState>(
+    () => ({ devices, defaultDeviceId, sender, save, send }),
+    [devices, defaultDeviceId, sender, save, send],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
