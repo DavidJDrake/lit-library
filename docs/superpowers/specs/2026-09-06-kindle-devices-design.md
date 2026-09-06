@@ -99,6 +99,7 @@ Errors are JSON `{ error, message? }`:
 | 400 | `too_many` | More than 5 devices |
 | 400 | `bad_default` | `defaultDeviceId` names no device in the list |
 | 400 | `unknown_device` | An entry carries an `id` that is not in the stored row |
+| 400 | `bad_request` | The same `id` appears twice in one submission (`Send each device once`) |
 
 Sending an empty list is valid and clears the setting, matching today's behavior
 when the address is cleared.
