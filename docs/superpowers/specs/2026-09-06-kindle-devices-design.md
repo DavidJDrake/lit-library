@@ -168,7 +168,8 @@ Section heading stays `Send to Kindle`. Under it:
   `Name this device` and a hint `Name this device so you can tell it apart`. The
   row is visually marked as needing attention.
 - Below the list, `Add a device` with fields `Name` and `Your Kindle email` and a
-  button `Add device`. The button is disabled at 5 devices, with the note
+  button `Add device`. It omits the "Where do I find this?" help link, because the
+  one-time-setup steps directly above already link the same Amazon page. The button is disabled at 5 devices, with the note
   `You can save up to 5 devices`.
 - The existing one-time-setup steps and the approved-sender instruction stay as
   they are.
