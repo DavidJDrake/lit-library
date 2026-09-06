@@ -2,6 +2,7 @@
 // (suggestion/category events) and the notifications Lambda (inbox + books_added).
 import { ListUsersCommand, ListUsersInGroupCommand, type UserType } from "@aws-sdk/client-cognito-identity-provider";
 import { BatchWriteCommand, type DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { logEvent } from "../shared/log";
 
 export type NotificationType = "suggestion_pending" | "suggestion_resolved" | "books_added" | "category_created";
 export type Recipients = "everyone" | "admins" | string[];
@@ -46,6 +47,7 @@ export async function notify(
   const rows = buildRows(type, payload, emails, deps.now(), deps.newId);
   if (rows.length === 0) return 0;
   await deps.writer.putAll(rows);
+  logEvent("notification.fanout", { type, recipients: rows.length }, deps.now);
   return rows.length;
 }
 

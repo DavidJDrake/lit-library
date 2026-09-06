@@ -75,6 +75,8 @@ describe("PUT /api/books/{id}/category", () => {
 
 describe("POST /api/suggestions", () => {
   it("stores a pending suggestion with the optional book", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const s = store();
     const { status, json } = parse(await handle(event("POST", "/api/suggestions", { name: " Cookery ", bookId: "b1" }), deps(s)));
     expect(status).toBe(201);
@@ -82,12 +84,16 @@ describe("POST /api/suggestions", () => {
     expect(s.putSuggestion).toHaveBeenCalledWith({
       id: "id-1", name: "Cookery", nameLower: "cookery", bookId: "b1", suggestedBy: "u@x", createdAt: NOW, status: "pending",
     });
+    expect(events()).toContainEqual(expect.objectContaining({ event: "suggestion.created", suggestionId: "id-1", by: "u@x" }));
+    log.mockRestore();
   });
   it("omits bookId when absent and 400s a non-string bookId", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const s = store();
     parse(await handle(event("POST", "/api/suggestions", { name: "Cookery" }), deps(s)));
     expect((s.putSuggestion as ReturnType<typeof vi.fn>).mock.calls[0][0]).not.toHaveProperty("bookId");
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: 5 }), deps())).status).toBe(400);
+    log.mockRestore();
   });
   it("400s a bookId with characters outside the allowed set", async () => {
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: "bad/id" }), deps())).status).toBe(400);
@@ -105,11 +111,13 @@ describe("admin routes", () => {
     expect(parse(await handle(event("POST", "/api/suggestions/s1/reject", undefined), deps())).status).toBe(403);
   });
   it("creates a category directly", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const s = store();
     const { status, json } = parse(await handle(event("POST", "/api/categories", { name: "Cookery" }, admin), deps(s)));
     expect(status).toBe(201);
     expect(json).toEqual({ name: "Cookery" });
     expect(s.putCategory).toHaveBeenCalledWith({ name: "Cookery", nameLower: "cookery", createdBy: "a@x", createdAt: NOW, source: "admin" });
+    log.mockRestore();
   });
   it("409s duplicates on create, including when the conditional put loses a race", async () => {
     expect(parse(await handle(event("POST", "/api/categories", { name: "Fiction" }, admin), deps())).status).toBe(409);
@@ -118,6 +126,8 @@ describe("admin routes", () => {
     expect(parse(await handle(event("POST", "/api/categories", { name: "Fresh" }, admin), deps(s))).status).toBe(409);
   });
   it("accepts a suggestion in one transaction that creates the category and moves the book", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const s = store();
     const { status } = parse(await handle(event("POST", "/api/suggestions/s1/accept", undefined, admin), deps(s)));
     expect(status).toBe(204);
@@ -127,8 +137,12 @@ describe("admin routes", () => {
       { bookId: "b1", category: "Cookbooks", changedBy: "a@x", changedAt: NOW },
       "a@x", NOW,
     );
+    expect(events()).toContainEqual(expect.objectContaining({ event: "suggestion.accepted", suggestionId: "s1", by: "a@x" }));
+    expect(events()).toContainEqual(expect.objectContaining({ event: "category.created", name: "Cookbooks", source: "suggestion" }));
+    log.mockRestore();
   });
   it("accept: passes no book when the suggestion has none; 404 unknown; 409 resolved, taken, or lost transaction", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const noBook = store({ getSuggestion: vi.fn().mockResolvedValue({ ...pending, bookId: undefined }) });
     await handle(event("POST", "/api/suggestions/s1/accept", undefined, admin), deps(noBook));
     expect((noBook.acceptSuggestion as ReturnType<typeof vi.fn>).mock.calls[0][2]).toBeUndefined();
@@ -141,25 +155,33 @@ describe("admin routes", () => {
       deps(store({ getSuggestion: vi.fn().mockResolvedValue({ ...pending, name: "Fiction", nameLower: "fiction" }) })))).status).toBe(409);
     expect(parse(await handle(event("POST", "/api/suggestions/s1/accept", undefined, admin),
       deps(store({ acceptSuggestion: vi.fn().mockResolvedValue(false) })))).status).toBe(409);
+    log.mockRestore();
   });
   it("rejects a pending suggestion; 404 unknown; 409 already resolved", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const s = store();
     expect(parse(await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin), deps(s))).status).toBe(204);
     expect(s.rejectSuggestion).toHaveBeenCalledWith("s1", "a@x", NOW);
+    expect(events()).toContainEqual(expect.objectContaining({ event: "suggestion.rejected", suggestionId: "s1" }));
     expect(parse(await handle(event("POST", "/api/suggestions/zz/reject", undefined, admin),
       deps(store({ getSuggestion: vi.fn().mockResolvedValue(undefined) })))).status).toBe(404);
     expect(parse(await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin),
       deps(store({ rejectSuggestion: vi.fn().mockResolvedValue(false) })))).status).toBe(409);
+    log.mockRestore();
   });
 });
 
 describe("notifications", () => {
   it("suggest notifies admins with the suggestion payload", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const d = deps();
     await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: "b1" }), d);
     expect(d.notify).toHaveBeenCalledWith("suggestion_pending", { suggestionId: "id-1", name: "Cookery", bookId: "b1", suggestedBy: "u@x" }, "admins");
+    log.mockRestore();
   });
   it("accept notifies the suggester and everyone; reject notifies the suggester", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const d = deps();
     await handle(event("POST", "/api/suggestions/s1/accept", undefined, admin), d);
     expect(d.notify).toHaveBeenNthCalledWith(1, "suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "accepted", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
@@ -167,13 +189,19 @@ describe("notifications", () => {
     const r = deps();
     await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin), r);
     expect(r.notify).toHaveBeenCalledWith("suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "rejected", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
+    log.mockRestore();
   });
   it("direct category creation notifies everyone", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const d = deps();
     await handle(event("POST", "/api/categories", { name: "Essays" }, admin), d);
     expect(d.notify).toHaveBeenCalledWith("category_created", { name: "Essays", createdBy: "a@x", source: "admin" }, "everyone");
+    expect(events()).toContainEqual(expect.objectContaining({ event: "category.created", name: "Essays", source: "admin" }));
+    log.mockRestore();
   });
   it("does not notify on failed writes, and a notify failure does not change the response", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const dup = deps(store({ putCategory: vi.fn().mockResolvedValue(false) }));
     await handle(event("POST", "/api/categories", { name: "Fresh" }, admin), dup);
     expect(dup.notify).not.toHaveBeenCalled();
@@ -182,6 +210,7 @@ describe("notifications", () => {
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "Cookery" }), broken)).status).toBe(201);
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+    log.mockRestore();
   });
 });
 

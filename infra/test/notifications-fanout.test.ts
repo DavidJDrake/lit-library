@@ -37,11 +37,15 @@ describe("notify", () => {
     };
   }
   it("resolves 'everyone', 'admins', and explicit lists", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const d = deps();
     expect(await notify("books_added", { count: 1, bookIds: ["a"] }, "everyone", d)).toBe(2);
     expect(await notify("suggestion_pending", { suggestionId: "s", name: "N", suggestedBy: "b@example.com" }, "admins", d)).toBe(1);
     expect(await notify("suggestion_resolved", { suggestionId: "s", name: "N", status: "accepted", resolvedBy: "a@example.com" }, ["b@example.com"], d)).toBe(1);
     expect(d.written.map((r) => r.pk)).toEqual(["USER#a@example.com", "USER#b@example.com", "USER#a@example.com", "USER#b@example.com"]);
+    expect(events()).toContainEqual(expect.objectContaining({ event: "notification.fanout", type: "books_added", recipients: 2 }));
+    log.mockRestore();
   });
   it("writes nothing and returns 0 when there are no recipients", async () => {
     const d = deps({ directory: { listEveryone: vi.fn().mockResolvedValue([]), listAdmins: vi.fn().mockResolvedValue([]) } });
