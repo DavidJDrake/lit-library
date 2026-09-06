@@ -167,13 +167,13 @@ Expected: FAIL in each.
   }
 ```
 
-`infra/config.example.json`: add `"kindleSender": "library@lit.example.com"`. Also add `"kindleSender": "library@lit.davidjdrake.com"` to the gitignored `infra/config.local.json` on this machine (not committed).
+`infra/config.example.json`: add `"kindleSender": "library@lit.example.com"`. Also add `"kindleSender": "library@lit.example.com"` to the gitignored `infra/config.local.json` on this machine (not committed).
 
 `infra/lib/ebook-share-stack.ts`: `new CfnOutput(this, "KindleSender", { value: config.kindleSender });`
 
 `scripts/write-web-env.py`: in `render`, append `f"VITE_KINDLE_SENDER={outputs['KindleSender']}"` after the `VITE_API_URL` line.
 
-`web/vite.config.ts`: add `"VITE_KINDLE_SENDER"` to `REQUIRED_ENV_KEYS`. `web/src/config.ts`: add `kindleSender: string` to `AppConfig`, `kindleSender: "VITE_KINDLE_SENDER"` to `KEYS`, and `kindleSender: env[KEYS.kindleSender]!` to the returned object. `web/src/test/setup.ts`: add `(import.meta.env as Record<string, string>).VITE_KINDLE_SENDER ??= "library@lit.example.com";`. `.github/workflows/ci.yml`: add `VITE_KINDLE_SENDER: library@example.com` to the web job's `env`. Until Task 12 regenerates them, append `VITE_KINDLE_SENDER=library@lit.davidjdrake.com` to both gitignored `web/.env.*.local` files by hand so `npm run build` keeps working.
+`web/vite.config.ts`: add `"VITE_KINDLE_SENDER"` to `REQUIRED_ENV_KEYS`. `web/src/config.ts`: add `kindleSender: string` to `AppConfig`, `kindleSender: "VITE_KINDLE_SENDER"` to `KEYS`, and `kindleSender: env[KEYS.kindleSender]!` to the returned object. `web/src/test/setup.ts`: add `(import.meta.env as Record<string, string>).VITE_KINDLE_SENDER ??= "library@lit.example.com";`. `.github/workflows/ci.yml`: add `VITE_KINDLE_SENDER: library@example.com` to the web job's `env`. Until Task 12 regenerates them, append `VITE_KINDLE_SENDER=library@lit.example.com` to both gitignored `web/.env.*.local` files by hand so `npm run build` keeps working.
 
 - [ ] **Step 4: Run all three suites**
 
@@ -2022,8 +2022,8 @@ git commit -m "feat(web): kindle_bounce notification; docs for Send to Kindle an
 ### Task 12: Deploy and smoke test (controller; needs AWS credentials and Jay)
 
 - [ ] **Step 1**: `cd infra && npx cdk diff` — additive: SES identity, 3 CNAMEs, configuration set + event destination, SNS topic + subscription, two Lambdas + roles, 3 routes, 2 alarms, `KindleSender` output; in-place changes on the existing Lambdas (log lines only). No replacements. Then `npm run deploy`, `python3 ../scripts/apply-outputs.py`, `python3 ../scripts/write-web-env.py`.
-- [ ] **Step 2**: `aws sesv2 get-email-identity --email-identity lit.davidjdrake.com --query '{verified:VerifiedForSendingStatus,dkim:DkimAttributes.Status}'` → wait for `SUCCESS` (minutes).
-- [ ] **Step 3** (Jay): SES console → verify your own Kindle address as a sandbox identity (confirmation arrives as a Kindle document); Amazon → add `library@lit.davidjdrake.com` to approved senders.
+- [ ] **Step 2**: `aws sesv2 get-email-identity --email-identity lit.example.com --query '{verified:VerifiedForSendingStatus,dkim:DkimAttributes.Status}'` → wait for `SUCCESS` (minutes).
+- [ ] **Step 3** (Jay): SES console → verify your own Kindle address as a sandbox identity (confirmation arrives as a Kindle document); Amazon → add `library@lit.example.com` to approved senders.
 - [ ] **Step 4**: `scripts/deploy-web.sh` → `/settings` → save address → open a small EPUB → Send to Kindle → toast → the book appears on the Kindle.
 - [ ] **Step 5**: bounce test — remove the sender from the approved list, send again → bell shows the 📵 row, the alerts email arrives; restore the sender.
 - [ ] **Step 6** (Jay): request SES production access. `scripts/backup.sh`.
