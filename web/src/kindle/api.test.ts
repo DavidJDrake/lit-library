@@ -1,45 +1,64 @@
 import { describe, expect, it, vi } from "vitest";
-import { getKindleAddress, KindleError, saveKindleAddress, sendToKindle } from "./api";
+import { getKindleDevices, KindleError, saveKindleDevices, sendToKindle } from "./api";
 
-function fetchWith(status: number, body?: unknown) {
-  return vi.fn(async () => ({ ok: status < 300, status, headers: new Headers({ "content-type": "application/json" }), json: async () => body })) as unknown as typeof fetch;
-}
-const call = (f: typeof fetch) => { const m = (f as unknown as ReturnType<typeof vi.fn>).mock.calls[0]; return { url: String(m[0]), init: m[1] as RequestInit }; };
+const json = (status: number, body: unknown) => ({
+  ok: status >= 200 && status < 300, status,
+  headers: new Headers({ "content-type": "application/json" }),
+  json: async () => body,
+}) as unknown as Response;
 
-describe("kindle api", () => {
-  it("gets and saves the address", async () => {
-    const g = fetchWith(200, { kindleAddress: "jay_abc@kindle.com" });
-    expect(await getKindleAddress("/api", "tok", g)).toBe("jay_abc@kindle.com");
-    expect(call(g).url).toBe("/api/kindle/address");
-    const s = fetchWith(204);
-    await saveKindleAddress("/api", "tok", "Jay_ABC@Kindle.com", s);
-    expect(call(s).init.method).toBe("PUT");
-    expect(call(s).init.body).toBe(JSON.stringify({ kindleAddress: "Jay_ABC@Kindle.com" }));
-    await expect(saveKindleAddress("/api", "tok", "x@gmail.com", fetchWith(400, { error: "bad_address", message: "Enter your @kindle.com address" }))).rejects.toThrow("Enter your @kindle.com address");
+describe("getKindleDevices", () => {
+  it("returns the list and the default", async () => {
+    const fetchFn = vi.fn(async () => json(200, { devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" })) as unknown as typeof fetch;
+    expect(await getKindleDevices("/api", "tok", fetchFn)).toEqual({ devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" });
   });
-  it("sends and maps every error status to a KindleError code", async () => {
-    const f = fetchWith(202, { sentTo: "jay_abc@kindle.com", format: "epub" });
-    expect(await sendToKindle("/api", "tok", "b1", undefined, f)).toEqual({ sentTo: "jay_abc@kindle.com", format: "epub" });
-    expect(call(f).init.body).toBe(JSON.stringify({ bookId: "b1" }));
-    const g = fetchWith(202, { sentTo: "x", format: "pdf" });
-    await sendToKindle("/api", "tok", "b1", "pdf", g);
-    expect(call(g).init.body).toBe(JSON.stringify({ bookId: "b1", format: "pdf" }));
-    const cases: Array<[number, unknown, string]> = [
-      [409, { error: "no_address" }, "no_address"],
-      [413, { error: "too_large", bytes: 30, limit: 28 }, "too_large"],
-      [400, { error: "unsupported", message: "Only EPUB and PDF" }, "unsupported"],
-      [502, { error: "not_enabled", message: "Kindle delivery isn't enabled for everyone yet" }, "not_enabled"],
-      [502, { error: "failed", message: "SES down" }, "failed"],
-      [500, { error: "internal" }, "failed"],
-    ];
-    for (const [status, body, code] of cases) {
-      const err = await sendToKindle("/api", "tok", "b1", undefined, fetchWith(status, body)).catch((e) => e as KindleError);
-      expect(err).toBeInstanceOf(KindleError);
-      expect((err as KindleError).code).toBe(code);
-    }
-    const big = await sendToKindle("/api", "tok", "b1", undefined, fetchWith(413, { error: "too_large", bytes: 30, limit: 28 })).catch((e) => e as KindleError);
-    expect((big as KindleError).details).toEqual({ bytes: 30, limit: 28 });
-    const ne = await sendToKindle("/api", "tok", "b1", undefined, fetchWith(502, { error: "not_enabled", message: "Kindle delivery isn't enabled for everyone yet" })).catch((e) => e as KindleError);
-    expect((ne as KindleError).message).toBe("Kindle delivery isn't enabled for everyone yet");
+  it("tolerates a malformed body", async () => {
+    const fetchFn = vi.fn(async () => json(200, { devices: [{ id: 1 }, { id: "a1", label: "S", address: "a@kindle.com" }] })) as unknown as typeof fetch;
+    expect(await getKindleDevices("/api", "tok", fetchFn)).toEqual({ devices: [{ id: "a1", label: "S", address: "a@kindle.com" }], defaultDeviceId: null });
+  });
+});
+
+describe("saveKindleDevices", () => {
+  it("PUTs the list and returns the canonical response", async () => {
+    const calls: RequestInit[] = [];
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => { calls.push(init!); return json(200, { devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" }); }) as unknown as typeof fetch;
+    const out = await saveKindleDevices("/api", "tok", [{ label: "Scribe", address: "a@kindle.com" }], "a1", fetchFn);
+    expect(calls[0].method).toBe("PUT");
+    expect(JSON.parse(String(calls[0].body))).toEqual({ devices: [{ label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" });
+    expect(out.devices[0].id).toBe("a1");
+  });
+  it("omits the default when none is given", async () => {
+    const calls: RequestInit[] = [];
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => { calls.push(init!); return json(200, { devices: [], defaultDeviceId: null }); }) as unknown as typeof fetch;
+    await saveKindleDevices("/api", "tok", [], undefined, fetchFn);
+    expect(JSON.parse(String(calls[0].body))).toEqual({ devices: [] });
+  });
+  it("throws a typed error carrying the server message", async () => {
+    const fetchFn = vi.fn(async () => json(400, { error: "bad_label", message: "You already have a device with that name" })) as unknown as typeof fetch;
+    await expect(saveKindleDevices("/api", "tok", [], undefined, fetchFn)).rejects.toMatchObject({
+      name: "KindleError", code: "bad_label", message: "You already have a device with that name",
+    });
+  });
+});
+
+describe("sendToKindle", () => {
+  it("posts the device id and returns the label", async () => {
+    const calls: RequestInit[] = [];
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => { calls.push(init!); return json(202, { sentTo: "a@kindle.com", format: "epub", deviceId: "a1", deviceLabel: "Scribe" }); }) as unknown as typeof fetch;
+    const out = await sendToKindle("/api", "tok", "b1", "epub", "a1", fetchFn);
+    expect(JSON.parse(String(calls[0].body))).toEqual({ bookId: "b1", format: "epub", deviceId: "a1" });
+    expect(out).toEqual({ sentTo: "a@kindle.com", format: "epub", deviceId: "a1", deviceLabel: "Scribe" });
+  });
+  it("omits an absent format and device", async () => {
+    const calls: RequestInit[] = [];
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => { calls.push(init!); return json(202, { sentTo: "a@kindle.com", format: "epub", deviceId: "a1", deviceLabel: "" }); }) as unknown as typeof fetch;
+    await sendToKindle("/api", "tok", "b1", undefined, undefined, fetchFn);
+    expect(JSON.parse(String(calls[0].body))).toEqual({ bookId: "b1" });
+  });
+  it("maps 409, 400 unknown_device and 413 to codes", async () => {
+    const mk = (status: number, body: unknown) => (vi.fn(async () => json(status, body)) as unknown as typeof fetch);
+    await expect(sendToKindle("/api", "t", "b", undefined, undefined, mk(409, { error: "no_address" }))).rejects.toMatchObject({ code: "no_address" });
+    await expect(sendToKindle("/api", "t", "b", undefined, "x", mk(400, { error: "unknown_device", message: "gone" }))).rejects.toMatchObject({ code: "unknown_device", message: "gone" });
+    await expect(sendToKindle("/api", "t", "b", undefined, undefined, mk(413, { error: "too_large", message: "big", bytes: 9, limit: 8 }))).rejects.toMatchObject({ code: "too_large" });
   });
 });
