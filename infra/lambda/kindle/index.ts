@@ -82,7 +82,7 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     const code = classifySesError(e);
     console.error("kindle send failed:", e);
     logEvent("kindle.send_failed", { email, bookId, format: type, code, reason: (e as Error).message }, deps.now);
-    return json(502, { error: code, message: code === "not_enabled" ? NOT_ENABLED_MESSAGE : (e as Error).message });
+    return json(502, { error: code, message: code === "not_enabled" ? NOT_ENABLED_MESSAGE : "Could not send the book right now" });
   }
   const timestamp = deps.now().toISOString();
   try {

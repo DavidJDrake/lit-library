@@ -124,7 +124,7 @@ describe("send", () => {
     const broken = deps({ sender: { send: vi.fn().mockRejectedValue(new Error("SES down")) } });
     const r2 = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), broken));
     expect(r2.status).toBe(502);
-    expect(r2.json).toEqual({ error: "failed", message: "SES down" });
+    expect(r2.json).toEqual({ error: "failed", message: "Could not send the book right now" });
     expect(log.mock.calls.map((c) => JSON.parse(String(c[0]))).filter((e) => e.event === "kindle.send_failed")).toHaveLength(2);
     log.mockRestore(); spy.mockRestore();
   });
