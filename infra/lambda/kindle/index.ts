@@ -40,8 +40,13 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
   if (typeof bookId !== "string" || !bookId) return json(400, { error: "bad_request", message: "Body must be JSON {bookId, format?}" });
   const requested = typeof body.format === "string" ? body.format.toLowerCase() : undefined;
 
-  const address = await deps.store.getAddress(email);
-  if (!address) return json(409, { error: "no_address" });
+  const { devices, defaultDeviceId } = await deps.store.getDevices(email);
+  if (devices.length === 0) return json(409, { error: "no_address" });
+  const requestedDeviceId = typeof body.deviceId === "string" && body.deviceId ? body.deviceId : undefined;
+  const device = requestedDeviceId
+    ? devices.find((d) => d.id === requestedDeviceId)
+    : devices.find((d) => d.id === defaultDeviceId) ?? devices[0];
+  if (!device) return json(400, { error: "unknown_device", message: "That device is no longer saved — reload and try again" });
 
   let catalog: Catalog;
   try {
@@ -74,16 +79,16 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
   }
   const type = format.type as "epub" | "pdf";
   const raw = buildMime({
-    from: deps.senderAddress, to: address, subject: book.title,
+    from: deps.senderAddress, to: device.address, subject: book.title,
     filename: downloadFilename(book.title, type, book.id), contentType: CONTENT_TYPES[type], body: bytes, date: deps.now(),
   });
   let messageId: string;
   try {
-    ({ messageId } = await deps.sender.send(raw, { recipient: tagValue(email), bookId }));
+    ({ messageId } = await deps.sender.send(raw, { recipient: tagValue(email), bookId, deviceId: device.id }));
   } catch (e) {
     const code = classifySesError(e);
     console.error("kindle send failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, format: type, code, reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, format: type, deviceId: device.id, code, reason: (e as Error).message }, deps.now);
     return json(502, { error: code, message: code === "not_enabled" ? NOT_ENABLED_MESSAGE : "Could not send the book right now" });
   }
   const timestamp = deps.now().toISOString();
@@ -93,8 +98,8 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     console.error("kindle log row failed:", e);
     logEvent("kindle.send_failed", { email, bookId, format: type, code: "log", reason: (e as Error).message }, deps.now);
   }
-  logEvent("kindle.sent", { email, bookId, format: type, bytes: bytes.byteLength, sesMessageId: messageId }, deps.now);
-  return json(202, { sentTo: address, format: type });
+  logEvent("kindle.sent", { email, bookId, format: type, deviceId: device.id, bytes: bytes.byteLength, sesMessageId: messageId }, deps.now);
+  return json(202, { sentTo: device.address, format: type, deviceId: device.id, deviceLabel: device.label });
 }
 
 export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, deps: Deps): Promise<APIGatewayProxyResultV2> {

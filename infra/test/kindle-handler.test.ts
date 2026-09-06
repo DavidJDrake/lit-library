@@ -115,16 +115,16 @@ describe("send", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const { status, json } = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), d));
     expect(status).toBe(202);
-    expect(json).toEqual({ sentTo: "jay_abc@kindle.com", format: "epub" });
+    expect(json).toEqual({ sentTo: "jay_abc@kindle.com", format: "epub", deviceId: "abcd1234", deviceLabel: "Kindle" });
     expect(d.loadObject).toHaveBeenCalledWith("books/a.epub");
     const [raw, tags] = (d.sender.send as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(raw).toContain("To: jay_abc@kindle.com\r\n");
     expect(raw).toContain("From: library@lit.example.com\r\n");
     expect(raw).toContain("Subject: Attacking Network Protocols\r\n");
     expect(raw).toContain('filename="Attacking Network Protocols.epub"');
-    expect(tags).toEqual({ recipient: tagValue("jay@example.com"), bookId: "b1" });
+    expect(tags).toEqual({ recipient: tagValue("jay@example.com"), bookId: "b1", deviceId: "abcd1234" });
     expect(d.logSend).toHaveBeenCalledWith({ email: "jay@example.com", sk: `${NOW}#b1`, bookId: "b1", format: "kindle:epub", title: "Attacking Network Protocols", timestamp: NOW });
-    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.sent", email: "jay@example.com", bookId: "b1", format: "epub", bytes: 6, sesMessageId: "ses-1" }));
+    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.sent", email: "jay@example.com", bookId: "b1", format: "epub", bytes: 6, sesMessageId: "ses-1", deviceId: "abcd1234" }));
     log.mockRestore();
   });
   it("honours an explicit pdf request", async () => {
@@ -134,7 +134,7 @@ describe("send", () => {
     expect(d.loadObject).toHaveBeenCalledWith("books/a.pdf");
   });
   it("409 no_address, 404 unknown, 400 unsupported, 413 too_large (before reading S3)", async () => {
-    expect(parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), deps({ store: store(null) }))).json).toEqual({ error: "no_address" });
+    expect(parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), deps({ store: storeStub({ devices: [], defaultDeviceId: null }).store }))).json).toEqual({ error: "no_address" });
     expect(parse(await handle(ev("POST", "/api/kindle/send", { bookId: "zz" }), deps())).status).toBe(404);
     expect(parse(await handle(ev("POST", "/api/kindle/send", { bookId: "cbz" }), deps())).json).toEqual({ error: "unsupported" });
     const d = deps();
@@ -190,18 +190,63 @@ describe("send", () => {
     const d = deps({ logSend: vi.fn().mockRejectedValue(new Error("ddb throttled")) });
     const r = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), d));
     expect(r.status).toBe(202);
-    expect(r.json).toEqual({ sentTo: "jay_abc@kindle.com", format: "epub" });
+    expect(r.json).toEqual({ sentTo: "jay_abc@kindle.com", format: "epub", deviceId: "abcd1234", deviceLabel: "Kindle" });
     const events = log.mock.calls.map((c) => JSON.parse(String(c[0])));
     expect(events).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", code: "log", reason: "ddb throttled" }));
-    expect(events).toContainEqual(expect.objectContaining({ event: "kindle.sent", bookId: "b1", format: "epub" }));
+    expect(events).toContainEqual(expect.objectContaining({ event: "kindle.sent", bookId: "b1", format: "epub", deviceId: "abcd1234" }));
     log.mockRestore(); spy.mockRestore();
   });
   it("401 without email, 404 on unknown routes, 500 on unexpected errors", async () => {
-    expect(parse(await handle(ev("GET", "/api/kindle/address", undefined, undefined), deps())).status).toBe(401);
-    expect(parse(await handle(ev("DELETE", "/api/kindle/address"), deps())).status).toBe(404);
+    expect(parse(await handle(ev("GET", "/api/kindle/devices", undefined, undefined), deps())).status).toBe(401);
+    expect(parse(await handle(ev("DELETE", "/api/kindle/devices"), deps())).status).toBe(404);
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(parse(await handle(ev("GET", "/api/kindle/address"), deps({ store: { getAddress: vi.fn().mockRejectedValue(new Error("boom")), setAddress: vi.fn() } }))).status).toBe(500);
+    expect(parse(await handle(ev("GET", "/api/kindle/devices"), deps({ store: { getDevices: vi.fn().mockRejectedValue(new Error("boom")), setDevices: vi.fn() } }))).status).toBe(500);
     spy.mockRestore();
+  });
+});
+
+describe("send targets a device", () => {
+  it("sends to the default device and reports its label", async () => {
+    const sent: Array<{ raw: string; tags: Record<string, string> }> = [];
+    const { store } = storeStub(TWO);
+    const res = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), deps({
+      store, sender: { send: async (raw, tags) => { sent.push({ raw, tags }); return { messageId: "m1" }; } },
+    })));
+    expect(res.status).toBe(202);
+    expect(res.json).toEqual({ sentTo: "b@kindle.com", format: "epub", deviceId: "bbbbbbbb", deviceLabel: "Phone" });
+    expect(sent[0].tags.deviceId).toBe("bbbbbbbb");
+    expect(sent[0].raw).toContain("To: b@kindle.com");
+  });
+
+  it("sends to an explicitly chosen device", async () => {
+    const sent: Array<{ tags: Record<string, string> }> = [];
+    const { store } = storeStub(TWO);
+    const res = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1", deviceId: "aaaaaaaa" }), deps({
+      store, sender: { send: async (_r, tags) => { sent.push({ tags }); return { messageId: "m1" }; } },
+    })));
+    expect(res.json).toMatchObject({ sentTo: "a@kindle.com", deviceId: "aaaaaaaa", deviceLabel: "Scribe" });
+    expect(sent[0].tags.deviceId).toBe("aaaaaaaa");
+  });
+
+  it("rejects a device the user no longer has", async () => {
+    const { store } = storeStub(TWO);
+    const res = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1", deviceId: "gone" }), deps({ store })));
+    expect(res.status).toBe(400);
+    expect(res.json).toEqual({ error: "unknown_device", message: "That device is no longer saved — reload and try again" });
+  });
+
+  it("409s with no devices saved", async () => {
+    const { store } = storeStub({ devices: [], defaultDeviceId: null });
+    const res = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), deps({ store })));
+    expect(res.status).toBe(409);
+    expect(res.json).toEqual({ error: "no_address" });
+  });
+
+  it("reports an empty label for an unnamed migrated device", async () => {
+    const legacy: DeviceList = { devices: [{ id: "abcd1234", label: "", address: "me_x@kindle.com", addedAt: "" }], defaultDeviceId: "abcd1234" };
+    const { store } = storeStub(legacy);
+    const res = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), deps({ store })));
+    expect(res.json).toMatchObject({ sentTo: "me_x@kindle.com", deviceLabel: "" });
   });
 });
 
