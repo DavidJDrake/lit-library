@@ -34,4 +34,24 @@ describe("SettingsPage", () => {
     mount(server(null).fetchFn);
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toHaveValue(""));
   });
+  it("clears the Saved status after a later save fails", async () => {
+    let fail = false;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        if (fail) return { ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
+        return { ok: true, status: 204, headers: new Headers() };
+      }
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: "jay_abc@kindle.com" }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toHaveValue("jay_abc@kindle.com"));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
+    fail = true;
+    await userEvent.clear(screen.getByRole("textbox", { name: "Your Kindle email" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "new_2@kindle.com");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+  });
 });

@@ -19,7 +19,7 @@ export default function SettingsPage() {
         </ol>
         {kindle.address === undefined ? <p className="empty">Loading…</p> : (
           <KindleAddressForm key={kindle.address ?? ""} sender={kindle.sender} initial={kindle.address ?? ""} submitLabel="Save"
-            onSubmit={async (a) => { await kindle.save(a); setSaved(true); }} />
+            onSubmit={async (a) => { setSaved(false); await kindle.save(a); setSaved(true); }} />
         )}
         {saved && <p className="meta" role="status">Saved</p>}
       </section>
