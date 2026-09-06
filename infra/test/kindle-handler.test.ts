@@ -128,6 +128,18 @@ describe("send", () => {
     expect(log.mock.calls.map((c) => JSON.parse(String(c[0]))).filter((e) => e.event === "kindle.send_failed")).toHaveLength(2);
     log.mockRestore(); spy.mockRestore();
   });
+  it("still 202s and logs kindle.sent when the downloads-row write fails (SES already accepted)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const d = deps({ logSend: vi.fn().mockRejectedValue(new Error("ddb throttled")) });
+    const r = parse(await handle(ev("POST", "/api/kindle/send", { bookId: "b1" }), d));
+    expect(r.status).toBe(202);
+    expect(r.json).toEqual({ sentTo: "jay_abc@kindle.com", format: "epub" });
+    const events = log.mock.calls.map((c) => JSON.parse(String(c[0])));
+    expect(events).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", code: "log", reason: "ddb throttled" }));
+    expect(events).toContainEqual(expect.objectContaining({ event: "kindle.sent", bookId: "b1", format: "epub" }));
+    log.mockRestore(); spy.mockRestore();
+  });
   it("401 without email, 404 on unknown routes, 500 on unexpected errors", async () => {
     expect(parse(await handle(ev("GET", "/api/kindle/address", undefined, undefined), deps())).status).toBe(401);
     expect(parse(await handle(ev("DELETE", "/api/kindle/address"), deps())).status).toBe(404);

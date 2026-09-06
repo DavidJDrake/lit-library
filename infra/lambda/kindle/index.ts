@@ -85,7 +85,12 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     return json(502, { error: code, message: code === "not_enabled" ? NOT_ENABLED_MESSAGE : (e as Error).message });
   }
   const timestamp = deps.now().toISOString();
-  await deps.logSend({ email, sk: `${timestamp}#${bookId}`, bookId, format: `kindle:${type}`, title: book.title, timestamp });
+  try {
+    await deps.logSend({ email, sk: `${timestamp}#${bookId}`, bookId, format: `kindle:${type}`, title: book.title, timestamp });
+  } catch (e) {
+    console.error("kindle log row failed:", e);
+    logEvent("kindle.send_failed", { email, bookId, format: type, code: "log", reason: (e as Error).message }, deps.now);
+  }
   logEvent("kindle.sent", { email, bookId, format: type, bytes: bytes.byteLength, sesMessageId: messageId }, deps.now);
   return json(202, { sentTo: address, format: type });
 }
