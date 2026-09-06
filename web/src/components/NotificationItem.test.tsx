@@ -35,4 +35,10 @@ describe("NotificationItem", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Admin only"));
     expect(screen.getByRole("button", { name: "Reject Cosmic Horror" })).toBeEnabled();
   });
+  it("renders a kindle_bounce notification with the sender and a link to settings", () => {
+    const bounce: Notification = { id: "y", type: "kindle_bounce", payload: { bookId: "b1", kind: "Bounce", reason: "Permanent/General" }, read: false, createdAt: "2026-09-05T11:00:00.000Z" };
+    render(<ul><NotificationItem n={bounce} isAdmin={false} titleOf={titleOf} sender="library@lit.example.com" nowMs={NOW} /></ul>);
+    expect(screen.getByRole("link", { name: 'Your Kindle rejected "Black Hound of Death" — add library@lit.example.com to your approved senders' }))
+      .toHaveAttribute("href", "/settings");
+  });
 });

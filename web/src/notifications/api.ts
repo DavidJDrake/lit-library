@@ -1,6 +1,6 @@
 import { apiCall } from "../catalog/apiCall";
 
-export type NotificationType = "suggestion_pending" | "suggestion_resolved" | "books_added" | "category_created";
+export type NotificationType = "suggestion_pending" | "suggestion_resolved" | "books_added" | "category_created" | "kindle_bounce";
 export interface Notification { id: string; type: NotificationType; payload: Record<string, unknown>; read: boolean; createdAt: string }
 export interface NotificationsPage { items: Notification[]; unread: number; next?: string }
 

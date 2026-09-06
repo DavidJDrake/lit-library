@@ -6,7 +6,7 @@ Items move to "Done" with the commit or plan that closed them.
 
 ## Soon
 
-1. **#7 — Send-to-Kindle.** Kick off the SES production-access request early; it has a wait.
+_(none queued)_
 
 ## Product polish (independent, each S)
 
@@ -15,7 +15,6 @@ Items move to "Done" with the commit or plan that closed them.
 | 4 | Reading status per user — downloaded / want to read / finished. | "Downloaded" is free from the existing log; the rest is one small table and a toggle on the card. |
 | 5 | Shareable URLs — put search and filters in the query string. | Half done: `?category=` seeds the facet (notifications plan). Remaining: search text, other facets, sort, and writing the params back on change. Also makes a "New category" link clicked twice re-seed (today a no-op because the URL doesn't change). |
 | 6 | Second enrichment pass for descriptions (25% coverage today). | Google Books by title+author, only for books still lacking a description; likely doubles coverage. |
-| 7 | **Send-to-Kindle.** | Email delivery to the user's `@kindle.com` address. Design (agreed 2026-09-05): per-user Kindle address setting (one DynamoDB item); "Send to Kindle" button → `POST /api/send-to-kindle` → Lambda reads the EPUB from S3 and sends a raw MIME email via **SES** from `library@<domain>`; logged like a download. Setup: verify the domain in SES (Route 53 records), request SES production access (one-time form, ~1 day), SNS bounce notifications to your email. Each friend adds the sender to their Amazon "Approved Personal Document E-mail List" once. Limits: 50 MB per file (larger → fall back to download), EPUB/PDF only (no CBZ), DRM-free. Effort **M**. |
 | 16 | OPDS feed. | Another view of `catalog.json` behind the same session cookie; e-reader apps (KOReader, Moon+) can browse it directly. |
 | 8 | Progressive cover loading — virtualize or page the grid. | 1,065 lazy images is fine on desktop, heavy on phones. |
 
@@ -60,6 +59,7 @@ Items move to "Done" with the commit or plan that closed them.
 | 11 | **GitHub Actions CI** — infra (typecheck, tests, `cdk synth` on the example config), web (typecheck, tests, build), indexer (pytest) on every push/PR; badge in the README. | `.github/workflows/ci.yml` |
 | 12 | **Dependabot** — weekly grouped minor/patch PRs for `/infra`, `/web`, `/indexer`, and the workflow actions. | `.github/dependabot.yml` |
 | — | **Notifications.** Header bell + popover + `/notifications` page; fan-out per recipient with a 90-day TTL; suggestion/category events from the library Lambda, "N new books added" from `publish-new.sh`; in-app router; `?category=` seeding. | PR #2, spec/plan `2026-09-05-notifications` |
+| 7 | **Send-to-Kindle.** One-click delivery of the EPUB (or PDF) to the user's `@kindle.com` address via SES, with SES domain verification, a `/settings` page for the address, size/format limits, and a `kindle_bounce` notification when Amazon rejects a send. | `infra/lib/kindle.ts`, spec/plan `2026-09-05-send-to-kindle` |
 | 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | plan `2026-09-04-backlog-1-3` |
 | 3 | **Back up what can't be regenerated.** Script that copies `metadata/` (enrichment cache, `added.json`, `overrides.yaml`, publish state), `infra/outputs.json`, `infra/config.local.json`, and a DynamoDB export to a private S3 prefix. | plan `2026-09-04-backlog-1-3` |

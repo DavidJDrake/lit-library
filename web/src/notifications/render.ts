@@ -1,6 +1,6 @@
 import type { Notification } from "./api";
 
-export interface RenderContext { titleOf(bookId: string): string | undefined }
+export interface RenderContext { titleOf(bookId: string): string | undefined; sender?: string }
 export interface Rendered { icon: string; text: string; href?: string }
 
 export function localPart(email: string): string {
@@ -28,6 +28,10 @@ const RENDERERS: Record<Notification["type"], (p: Record<string, unknown>, ctx: 
     return { icon: "📚", text: `${count} new ${count === 1 ? "book" : "books"} added`, href: "/" };
   },
   category_created: (p) => ({ icon: "🏷️", text: `New category "${str(p.name)}"`, href: categoryHref(p.name) }),
+  kindle_bounce: (p, ctx) => {
+    const title = typeof p.bookId === "string" ? ctx.titleOf(p.bookId) : undefined;
+    return { icon: "📵", text: `Your Kindle rejected "${title ?? "a book"}" — add ${ctx.sender ?? "the library address"} to your approved senders`, href: "/settings" };
+  },
 };
 
 export function renderNotification(n: Notification, ctx: RenderContext): Rendered {

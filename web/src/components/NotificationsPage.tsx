@@ -4,10 +4,11 @@ import NotificationItem from "./NotificationItem";
 interface Props {
   isAdmin: boolean;
   titleOf(bookId: string): string | undefined;
+  sender?: string;
   onResolve?: (suggestionId: string, action: "accept" | "reject") => Promise<void>;
 }
 
-export default function NotificationsPage({ isAdmin, titleOf, onResolve }: Props) {
+export default function NotificationsPage({ isAdmin, titleOf, sender, onResolve }: Props) {
   const { items, unread, status, error, hasMore, refresh, loadMore, markAllRead } = useNotifications();
   return (
     <main className="page notifications-page">
@@ -24,7 +25,7 @@ export default function NotificationsPage({ isAdmin, titleOf, onResolve }: Props
       {status === "ready" && items.length === 0 && <p className="empty">No notifications yet</p>}
       {items.length > 0 && (
         <ul className="notif-list panel">
-          {items.map((n) => <NotificationItem key={n.id} n={n} isAdmin={isAdmin} titleOf={titleOf} onResolve={onResolve} />)}
+          {items.map((n) => <NotificationItem key={n.id} n={n} isAdmin={isAdmin} titleOf={titleOf} sender={sender} onResolve={onResolve} />)}
         </ul>
       )}
       {hasMore && <button type="button" className="btn secondary" onClick={() => void loadMore()}>Load more</button>}

@@ -6,10 +6,11 @@ import NotificationItem from "./NotificationItem";
 interface Props {
   isAdmin: boolean;
   titleOf(bookId: string): string | undefined;
+  sender?: string;
   onResolve?: (suggestionId: string, action: "accept" | "reject") => Promise<void>;
 }
 
-export default function NotificationBell({ isAdmin, titleOf, onResolve }: Props) {
+export default function NotificationBell({ isAdmin, titleOf, sender, onResolve }: Props) {
   const { items, unread, seen, markRead, markAllRead } = useNotifications();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -45,7 +46,7 @@ export default function NotificationBell({ isAdmin, titleOf, onResolve }: Props)
         <div className="popover" role="dialog" aria-label="Notifications">
           <ul className="notif-list">
             {shown.map((n) => (
-              <NotificationItem key={n.id} n={n} isAdmin={isAdmin} titleOf={titleOf} onResolve={onResolve} onNavigate={() => setOpen(false)} />
+              <NotificationItem key={n.id} n={n} isAdmin={isAdmin} titleOf={titleOf} sender={sender} onResolve={onResolve} onNavigate={() => setOpen(false)} />
             ))}
           </ul>
           <div className="popover-footer">
