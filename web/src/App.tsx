@@ -7,8 +7,10 @@ import Header from "./components/Header";
 import Library from "./components/Library";
 import NotificationBell from "./components/NotificationBell";
 import NotificationsPage from "./components/NotificationsPage";
+import SettingsPage from "./components/SettingsPage";
 import SignInPage from "./components/SignInPage";
 import StaticPage from "./components/StaticPage";
+import { KindleProvider, useKindle } from "./kindle/KindleProvider";
 import { NotificationsProvider, useNotifications } from "./notifications/NotificationsProvider";
 import { useRoute } from "./route";
 
@@ -19,6 +21,7 @@ function Shell({ fetchFn }: { fetchFn: typeof fetch }) {
   const { path, search } = useRoute();
   const { titleOf, refreshOverlay } = useLibraryData();
   const notifications = useNotifications();
+  const kindle = useKindle();
 
   const signOut = useCallback(async () => {
     await endSession(auth.apiUrl, fetchFn);
@@ -35,9 +38,11 @@ function Shell({ fetchFn }: { fetchFn: typeof fetch }) {
   return (
     <>
       <Header email={auth.email} onSignOut={() => void signOut()} bell={bell} />
-      {path === "/notifications"
+      {path === "/settings"
+        ? <SettingsPage />
+        : path === "/notifications"
         ? <NotificationsPage isAdmin={auth.isAdmin} titleOf={titleOf} onResolve={resolveFromBell} />
-        : <Library key={search} apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} isAdmin={auth.isAdmin} onChanged={() => void notifications.refresh()} />}
+        : <Library key={search} apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} isAdmin={auth.isAdmin} onChanged={() => void notifications.refresh()} kindle={kindle} />}
     </>
   );
 }
@@ -52,7 +57,9 @@ export default function App({ fetchFn = fetch }: Props) {
   return (
     <LibraryDataProvider apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn}>
       <NotificationsProvider apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn}>
-        <Shell fetchFn={fetchFn} />
+        <KindleProvider apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} sender={auth.kindleSender}>
+          <Shell fetchFn={fetchFn} />
+        </KindleProvider>
       </NotificationsProvider>
     </LibraryDataProvider>
   );

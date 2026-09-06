@@ -104,3 +104,6 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .page-head h2 { margin: 0.5rem 0; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin: 0.75rem 0; }
 .notifications-page .btn { margin-top: 0.5rem; }
+.settings-link { text-decoration: none; font-size: 1.1rem; color: inherit; }
+.settings-section h3 { margin-top: 0; }
+.settings-section { padding: 1rem; }

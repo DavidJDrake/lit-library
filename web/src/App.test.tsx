@@ -32,6 +32,10 @@ describe("App", () => {
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
+      if (u.includes("/kindle/address")) {
+        if (init?.method === "PUT") return { ok: true, status: 204, headers: new Headers() };
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: null }) };
+      }
       if (u.includes("/notifications")) {
         return {
           ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
@@ -60,6 +64,10 @@ describe("App", () => {
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
+      if (u.includes("/kindle/address")) {
+        if (init?.method === "PUT") return { ok: true, status: 204, headers: new Headers() };
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: null }) };
+      }
       if (u.includes("/notifications")) {
         return {
           ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
@@ -83,5 +91,33 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/notifications");
     await userEvent.click(screen.getByRole("link", { name: "Lit Library" }));
     await waitFor(() => expect(screen.getByRole("searchbox")).toBeInTheDocument());
+  });
+
+  it("links to Settings from the header and renders the page", async () => {
+    const jwt = (p: object) => { const b = (o: object) => btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); return `${b({ alg: "none" })}.${b(p)}.sig`; };
+    window.sessionStorage.setItem("lit.tokens", JSON.stringify({ idToken: jwt({ email: "u@example.com" }), accessToken: "a", expiresAt: Date.now() + 100_000 }));
+    window.history.replaceState({}, "", "/");
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
+      if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
+      if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
+      if (u.includes("/kindle/address")) {
+        if (init?.method === "PUT") return { ok: true, status: 204, headers: new Headers() };
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: null }) };
+      }
+      if (u.includes("/notifications")) {
+        return {
+          ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
+          json: async () => ({ items: [], unread: 0 }),
+        };
+      }
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ generatedAt: "t", books: [] }) };
+    }) as unknown as typeof fetch;
+    render(<AuthProvider config={cfg} fetchFn={fetchFn}><App fetchFn={fetchFn} /></AuthProvider>);
+    await waitFor(() => expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("link", { name: "Settings" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument());
+    expect(window.location.pathname).toBe("/settings");
   });
 });
