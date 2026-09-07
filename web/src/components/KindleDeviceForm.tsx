@@ -7,15 +7,19 @@ interface Props {
   onSubmit(label: string, address: string): Promise<void>;
   onCancel?(): void;
   showHelp?: boolean;
+  disabled?: boolean;
 }
 
 // Shared by the book dialog (first send) and the Settings device list (add a device).
 // Messages match the server's so a client-side and a server-side rejection read alike.
-export default function KindleDeviceForm({ sender, submitLabel, onSubmit, onCancel, showHelp = true }: Props) {
+export default function KindleDeviceForm({ sender, submitLabel, onSubmit, onCancel, showHelp = true, disabled = false }: Props) {
   const [label, setLabel] = useState("");
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  // The caller (e.g. the device list) can disable the form while its own mutation is in
+  // flight, on top of this form's own busy flag, so the two compose.
+  const locked = busy || disabled;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -37,10 +41,10 @@ export default function KindleDeviceForm({ sender, submitLabel, onSubmit, onCanc
   return (
     <form className="kindle-form" onSubmit={(e) => void submit(e)}>
       <label>Name
-        <input type="text" value={label} disabled={busy} placeholder="Scribe" onChange={(e) => setLabel(e.target.value)} />
+        <input type="text" value={label} disabled={locked} placeholder="Scribe" onChange={(e) => setLabel(e.target.value)} />
       </label>
       <label>Your Kindle email
-        <input type="email" value={address} disabled={busy} placeholder="name_123@kindle.com" onChange={(e) => setAddress(e.target.value)} />
+        <input type="email" value={address} disabled={locked} placeholder="name_123@kindle.com" onChange={(e) => setAddress(e.target.value)} />
       </label>
       {showHelp && (
         <p className="meta">
@@ -50,7 +54,7 @@ export default function KindleDeviceForm({ sender, submitLabel, onSubmit, onCanc
       )}
       {error && <div className="notif-error" role="alert">{error}</div>}
       <div className="suggest-form">
-        <button type="submit" className="btn" disabled={busy}>{submitLabel}</button>
+        <button type="submit" className="btn" disabled={locked}>{submitLabel}</button>
         {onCancel && <button type="button" className="btn secondary" disabled={busy} onClick={onCancel}>Cancel</button>}
       </div>
     </form>

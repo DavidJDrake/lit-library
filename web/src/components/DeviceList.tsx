@@ -19,13 +19,22 @@ export default function DeviceList({ devices, defaultDeviceId, sender, onSave }:
   // how a rejected rename gets reverted without discarding the input's DOM node.
   const [revision, setRevision] = useState(0);
 
-  async function save(next: DeviceInput[], nextDefault?: string) {
-    setError(undefined); setBusy(true);
+  // Every mutation — a rename, a default change, a remove, or an add — shares this
+  // single busy flag and runs through here, so two of them can never be in flight at
+  // once computing whole-list replacements from the same stale snapshot.
+  async function mutate(next: DeviceInput[], nextDefault: string | undefined, opts?: { silent?: boolean }) {
+    if (!opts?.silent) setError(undefined);
+    setBusy(true);
     try {
       await onSave(next, nextDefault);
     } catch (e) {
-      setError((e as Error).message);
-      setRevision((r) => r + 1);
+      // The add form owns and displays its own rejection; only rename, make-default,
+      // and remove report through this list's outer alert, so a failure is never
+      // announced in two live regions at once.
+      if (!opts?.silent) {
+        setError((e as Error).message);
+        setRevision((r) => r + 1);
+      }
       throw e;
     } finally {
       setBusy(false);
@@ -35,17 +44,17 @@ export default function DeviceList({ devices, defaultDeviceId, sender, onSave }:
   const keptDefault = defaultDeviceId ?? undefined;
 
   async function rename(id: string, label: string) {
-    await save(devices.map((d) => (d.id === id ? { ...toInput(d), label } : toInput(d))), keptDefault);
+    await mutate(devices.map((d) => (d.id === id ? { ...toInput(d), label } : toInput(d))), keptDefault);
   }
   async function makeDefault(id: string) {
-    await save(devices.map(toInput), id);
+    await mutate(devices.map(toInput), id);
   }
   async function remove(id: string) {
     const next = devices.filter((d) => d.id !== id);
-    await save(next.map(toInput), next.some((d) => d.id === defaultDeviceId) ? keptDefault : undefined);
+    await mutate(next.map(toInput), next.some((d) => d.id === defaultDeviceId) ? keptDefault : undefined);
   }
   async function add(label: string, address: string) {
-    await save([...devices.map(toInput), { label, address }], keptDefault);
+    await mutate([...devices.map(toInput), { label, address }], keptDefault, { silent: true });
   }
 
   return (
@@ -65,7 +74,7 @@ export default function DeviceList({ devices, defaultDeviceId, sender, onSave }:
         : (
           <>
             <h4>Add a device</h4>
-            <KindleDeviceForm sender={sender} submitLabel="Add device" showHelp={false} onSubmit={add} />
+            <KindleDeviceForm sender={sender} submitLabel="Add device" showHelp={false} disabled={busy} onSubmit={add} />
           </>
         )}
     </div>

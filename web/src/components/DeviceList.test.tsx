@@ -74,6 +74,39 @@ describe("DeviceList", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith([{ id: "b2", label: "Phone", address: "b@kindle.com" }], "b2"));
   });
 
+  it("promotes a new default when the current default is removed", async () => {
+    const THREE: KindleDevice[] = [
+      { id: "a1", label: "Scribe", address: "a@kindle.com" },
+      { id: "b2", label: "Phone", address: "b@kindle.com" },
+      { id: "c3", label: "Tablet", address: "c@kindle.com" },
+    ];
+    const onSave = vi.fn(async () => {});
+    const { rerender } = render(
+      <DeviceList devices={THREE} defaultDeviceId="a1" sender="library@lit.example.com" onSave={onSave} />,
+    );
+    await userEvent.click(within(row("Scribe")).getByRole("button", { name: "Remove" }));
+    const remaining: KindleDevice[] = [
+      { id: "b2", label: "Phone", address: "b@kindle.com" },
+      { id: "c3", label: "Tablet", address: "c@kindle.com" },
+    ];
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(remaining, undefined));
+    // The server always assigns a default to a non-empty list; simulate its canonical
+    // response (first remaining device promoted) reaching the list as new props.
+    rerender(<DeviceList devices={remaining} defaultDeviceId="b2" sender="library@lit.example.com" onSave={onSave} />);
+    expect(within(row("Phone")).getByText("default")).toBeInTheDocument();
+  });
+
+  it("disables the add form while a row mutation is in flight", async () => {
+    let resolveSave: () => void = () => {};
+    const onSave = vi.fn(() => new Promise<void>((resolve) => { resolveSave = resolve; }));
+    mount(TWO, "b2", onSave);
+    await userEvent.click(within(row("Scribe")).getByRole("button", { name: "Remove" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add device" })).toBeDisabled();
+    resolveSave();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).not.toBeDisabled());
+  });
+
   it("adds a device through the form", async () => {
     const onSave = mount(TWO, "b2");
     await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Tablet");
@@ -83,6 +116,20 @@ describe("DeviceList", () => {
       [...TWO, { label: "Tablet", address: "c@kindle.com" }],
       "b2",
     ));
+  });
+
+  it("shows an add failure only in the form and keeps the original devices", async () => {
+    const onSave = vi.fn(async () => { throw new Error("That address is already saved"); });
+    mount(TWO, "b2", onSave);
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Tablet");
+    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "a@kindle.com");
+    await userEvent.click(screen.getByRole("button", { name: "Add device" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That address is already saved");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Tablet");
+    expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toHaveValue("a@kindle.com");
+    expect(within(row("Scribe")).getByText("a@kindle.com")).toBeInTheDocument();
+    expect(within(row("Phone")).getByText("b@kindle.com")).toBeInTheDocument();
   });
 
   it("hides the add form at the cap", () => {
