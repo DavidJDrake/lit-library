@@ -26,6 +26,13 @@ export default function SendToKindleButton({ devices, defaultDeviceId, pdf = fal
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onClick); };
   }, [open]);
 
+  // The caret/menu block unmounts while sending (below) but this component instance — and its
+  // open state — survives across the send. Without this, a menu opened just before a send from
+  // the main button pops back on screen, over whatever renders next, once the send resolves.
+  useEffect(() => {
+    if (!sending) setOpen(false);
+  }, [sending]);
+
   const target = devices.find((d) => d.id === defaultDeviceId) ?? devices[0];
   const verb = pdf ? "Send PDF to" : "Send to";
   const mainLabel = sending ? "Sending…" : `${verb} ${target?.label || "Kindle"}`;
@@ -33,7 +40,7 @@ export default function SendToKindleButton({ devices, defaultDeviceId, pdf = fal
   return (
     <div className="kindle-send" ref={wrap}>
       <button className={pdf ? "more" : "btn secondary"} disabled={disabled || sending} title={title}
-        onClick={() => onSend(target?.id)}>
+        onClick={() => { setOpen(false); onSend(target?.id); }}>
         {mainLabel}
       </button>
       {devices.length > 1 && !sending && (
@@ -43,7 +50,7 @@ export default function SendToKindleButton({ devices, defaultDeviceId, pdf = fal
           {open && (
             <div className="kindle-menu" role="menu">
               {devices.map((d) => (
-                <button key={d.id} type="button" role="menuitem" aria-checked={d.id === (target?.id ?? null)}
+                <button key={d.id} type="button" role="menuitemradio" aria-checked={d.id === (target?.id ?? null)}
                   onClick={() => { setOpen(false); onSend(d.id); }}>
                   {d.label || d.address}
                 </button>

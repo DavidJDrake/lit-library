@@ -41,10 +41,25 @@ describe("SendToKindleButton", () => {
     expect(caret).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(caret);
     expect(caret).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("menuitem", { name: "Phone" })).toHaveAttribute("aria-checked", "true");
-    await userEvent.click(screen.getByRole("menuitem", { name: "Scribe" }));
+    expect(screen.getByRole("menuitemradio", { name: "Phone" })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Scribe" }));
     expect(onSend).toHaveBeenCalledWith("a1");
     await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  });
+
+  it("does not let the menu pop back open after opening it and then sending from the main button", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(<SendToKindleButton devices={TWO} defaultDeviceId="b2" disabled={false} sending={false} onSend={onSend} />);
+    await userEvent.click(screen.getByRole("button", { name: "Choose a device" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send to Phone" }));
+    expect(onSend).toHaveBeenCalledWith("b2");
+    // Sending hides the caret/menu block entirely while in flight...
+    rerender(<SendToKindleButton devices={TWO} defaultDeviceId="b2" disabled={false} sending onSend={onSend} />);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    // ...and must not silently reappear once the send resolves and the block remounts.
+    rerender(<SendToKindleButton devices={TWO} defaultDeviceId="b2" disabled={false} sending={false} onSend={onSend} />);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("closes the menu on Escape without sending", async () => {

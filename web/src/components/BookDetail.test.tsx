@@ -175,7 +175,7 @@ describe("BookDetail", () => {
     const k = { devices, defaultDeviceId: "a1", sender: "s@x.com", onSend, onSaveDevice: vi.fn().mockResolvedValue(undefined) };
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getAllByRole("button", { name: "Choose a device" })[0]);
-    await userEvent.click(screen.getByRole("menuitem", { name: "Phone" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Phone" }));
     await waitFor(() => expect(onSend).toHaveBeenCalledWith(book, "epub", "b2"));
   });
   it("reopens the form when the server says the device list is empty", async () => {
