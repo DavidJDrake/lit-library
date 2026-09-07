@@ -47,3 +47,41 @@ def test_missing_outputs_is_a_warning_not_a_failure(tmp_path):
     r = run(tmp_path, {}, {"b": "y"}, "--outputs", str(tmp_path / "missing.json"))
     assert r.returncode == 0
     assert "warning" in r.stderr
+
+
+def test_missing_added_is_a_warning_not_a_failure(tmp_path):
+    b = tmp_path / "before.json"
+    b.write_text(json.dumps({}))
+    missing_added = tmp_path / "added.json"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--before", str(b), "--added", str(missing_added)],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0
+    assert "warning" in r.stderr
+
+
+def test_corrupt_added_is_a_warning_not_a_failure(tmp_path):
+    b = tmp_path / "before.json"
+    a = tmp_path / "added.json"
+    b.write_text(json.dumps({}))
+    a.write_text("{not valid json")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--before", str(b), "--added", str(a)],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0
+    assert "warning" in r.stderr
+
+
+def test_corrupt_before_is_a_warning_not_a_failure(tmp_path):
+    b = tmp_path / "before.json"
+    a = tmp_path / "added.json"
+    b.write_text("{not valid json")
+    a.write_text(json.dumps({"b": "y"}))
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--before", str(b), "--added", str(a)],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0
+    assert "warning" in r.stderr
