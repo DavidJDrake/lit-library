@@ -17,7 +17,6 @@ _(none queued)_
 | 6 | Second enrichment pass for descriptions (25% coverage today). | Google Books by title+author, only for books still lacking a description; likely doubles coverage. |
 | 16 | OPDS feed. | Another view of `catalog.json` behind the same session cookie; e-reader apps (KOReader, Moon+) can browse it directly. |
 | 8 | Progressive cover loading — virtualize or page the grid. | 1,065 lazy images is fine on desktop, heavy on phones. |
-| 25 | Multiple Kindle devices per user. | Amazon issues one `@kindle.com` address per device (a Scribe, a Paperwhite, the phone app…), and readers with more than one want to pick a target. Settings row grows to a named list `[{label, address}]` with a default; the Send to Kindle button becomes a split button (default device, ▾ to choose) when more than one is saved. Bounce notification names the device. Data migration: today's single `kindleAddress` becomes the first entry. Effort S–M. |
 
 ## Polish deferred from reviews (each S, none blocking)
 
@@ -61,6 +60,7 @@ _(none queued)_
 | 12 | **Dependabot** — weekly grouped minor/patch PRs for `/infra`, `/web`, `/indexer`, and the workflow actions. | `.github/dependabot.yml` |
 | — | **Notifications.** Header bell + popover + `/notifications` page; fan-out per recipient with a 90-day TTL; suggestion/category events from the library Lambda, "N new books added" from `publish-new.sh`; in-app router; `?category=` seeding. | PR #2, spec/plan `2026-09-05-notifications` |
 | 7 | **Send-to-Kindle.** One-click delivery of the EPUB (or PDF) to the user's `@kindle.com` address via SES, with SES domain verification, a `/settings` page for the address, size/format limits, and a `kindle_bounce` notification when Amazon rejects a send. | `infra/lib/kindle.ts`, spec/plan `2026-09-05-send-to-kindle` |
+| 25 | **Multiple Kindle devices per user.** | Named device list (up to 5) with a default, split-button send with a device menu, bounce rows naming the device, lazy migration of the single saved address. `infra/lambda/kindle/devices.ts`, `web/src/components/DeviceList.tsx`, `web/src/components/SendToKindleButton.tsx`; spec and plan `2026-09-06-kindle-devices`. |
 | 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | plan `2026-09-04-backlog-1-3` |
 | 3 | **Back up what can't be regenerated.** Script that copies `metadata/` (enrichment cache, `added.json`, `overrides.yaml`, publish state), `infra/outputs.json`, `infra/config.local.json`, and a DynamoDB export to a private S3 prefix. | plan `2026-09-04-backlog-1-3` |
