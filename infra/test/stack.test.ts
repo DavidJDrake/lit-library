@@ -44,13 +44,17 @@ describe("EbookShareStack", () => {
     });
   });
 
-  it("requires the JWT authorizer on every GET/PUT/POST /api/* route except DELETE /api/session", () => {
+  it("points every GET/PUT/POST /api/* route's AuthorizerId at the stack's one JWT authorizer, except DELETE /api/session", () => {
     const t = synthStack();
+    const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
+    expect(authorizerIds).toHaveLength(1);
+    const jwtAuthorizerRef = { Ref: authorizerIds[0] };
+
     const routes = t.findResources("AWS::ApiGatewayV2::Route");
     const properties = Object.values(routes).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
     const authorized = properties.filter((p) => /^(GET|PUT|POST) \/api\//.test(p.RouteKey));
     for (const p of authorized) {
-      expect(p).toHaveProperty("AuthorizerId");
+      expect(p.AuthorizerId).toEqual(jwtAuthorizerRef);
     }
     expect(authorized.length).toBeGreaterThanOrEqual(13);
 

@@ -1,14 +1,20 @@
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpUserPoolAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as cognito from "aws-cdk-lib/aws-cognito";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Notifications } from "../lib/notifications";
 
 function synth() {
   const stack = new Stack(new App(), "Test", { env: { account: "123456789012", region: "us-east-1" } });
-  const httpApi = new apigw.HttpApi(stack, "HttpApi");
   const userPool = new cognito.UserPool(stack, "Pool");
+  const client = userPool.addClient("Client");
+  // Mirrors how the real stack wires the API: one HttpApi whose defaultAuthorizer is
+  // the pool's JWT authorizer, shared by every construct that calls addRoutes on it.
+  const httpApi = new apigw.HttpApi(stack, "HttpApi", {
+    defaultAuthorizer: new HttpUserPoolAuthorizer("Jwt", userPool, { userPoolClients: [client] }),
+  });
   new Notifications(stack, "Notifications", { httpApi, userPool });
   return Template.fromStack(stack);
 }
@@ -42,5 +48,17 @@ describe("Notifications", () => {
     }
     t.resourceCountIs("AWS::ApiGatewayV2::Route", 2);
     t.resourceCountIs("AWS::ApiGatewayV2::Integration", 1);
+  });
+  it("authenticates every notifications route with the pool's JWT authorizer", () => {
+    const t = synth();
+    const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
+    expect(authorizerIds).toHaveLength(1);
+    const jwtAuthorizerRef = { Ref: authorizerIds[0] };
+
+    const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
+    expect(routes).toHaveLength(2);
+    for (const r of routes) {
+      expect(r.AuthorizerId).toEqual(jwtAuthorizerRef);
+    }
   });
 });

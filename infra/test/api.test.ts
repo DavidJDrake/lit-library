@@ -73,4 +73,17 @@ describe("Api", () => {
       JwtConfiguration: Match.objectLike({ Audience: [Match.anyValue()], Issuer: Match.anyValue() }),
     });
   });
+
+  it("points POST /api/download and GET /api/session at the same JWT authorizer; DELETE /api/session has none", () => {
+    const t = synth();
+    const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
+    expect(authorizerIds).toHaveLength(1);
+    const jwtAuthorizerRef = { Ref: authorizerIds[0] };
+
+    const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
+    const byKey = Object.fromEntries(routes.map((r) => [r.RouteKey, r.AuthorizerId]));
+    expect(byKey["POST /api/download"]).toEqual(jwtAuthorizerRef);
+    expect(byKey["GET /api/session"]).toEqual(jwtAuthorizerRef);
+    expect(byKey["DELETE /api/session"]).toBeUndefined();
+  });
 });

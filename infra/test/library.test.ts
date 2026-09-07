@@ -1,6 +1,7 @@
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpUserPoolAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { describe, expect, it } from "vitest";
@@ -9,8 +10,13 @@ import { Library } from "../lib/library";
 
 function synth() {
   const stack = new Stack(new App(), "Test", { env: { account: "123456789012", region: "us-east-1" } });
-  const httpApi = new apigw.HttpApi(stack, "HttpApi");
   const userPool = new cognito.UserPool(stack, "Pool");
+  const client = userPool.addClient("Client");
+  // Mirrors how the real stack wires the API: one HttpApi whose defaultAuthorizer is
+  // the pool's JWT authorizer, shared by every construct that calls addRoutes on it.
+  const httpApi = new apigw.HttpApi(stack, "HttpApi", {
+    defaultAuthorizer: new HttpUserPoolAuthorizer("Jwt", userPool, { userPoolClients: [client] }),
+  });
   const notificationsTable = new dynamodb.Table(stack, "Notif", {
     partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
     sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
@@ -65,6 +71,19 @@ describe("Library", () => {
     }
     t.resourceCountIs("AWS::ApiGatewayV2::Route", 6);
     t.resourceCountIs("AWS::ApiGatewayV2::Integration", 1);
+  });
+
+  it("authenticates every library route with the pool's JWT authorizer", () => {
+    const { t } = synth();
+    const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
+    expect(authorizerIds).toHaveLength(1);
+    const jwtAuthorizerRef = { Ref: authorizerIds[0] };
+
+    const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
+    expect(routes).toHaveLength(6);
+    for (const r of routes) {
+      expect(r.AuthorizerId).toEqual(jwtAuthorizerRef);
+    }
   });
 
   it("may write notifications and list Cognito users", () => {
