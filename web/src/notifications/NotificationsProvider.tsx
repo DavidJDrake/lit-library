@@ -7,6 +7,9 @@ export const POPOVER_COUNT = 5;
 
 export interface NotificationsState {
   items: Notification[]; unread: number; status: "loading" | "ready" | "error"; error?: string; hasMore: boolean; seen: boolean;
+  // Separate from `status`/`error`, which describe the initial load only: a failed loadMore
+  // (fetching the next page) must not read as a full-page failure — see loadMore below.
+  loadMoreError?: string;
   refresh(): Promise<void>; loadMore(): Promise<void>; markRead(ids: string[]): Promise<void>; markAllRead(): Promise<void>;
 }
 
@@ -19,6 +22,7 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   const [next, setNext] = useState<string>();
   const [status, setStatus] = useState<NotificationsState["status"]>("loading");
   const [error, setError] = useState<string>();
+  const [loadMoreError, setLoadMoreError] = useState<string>();
   const [seen, setSeen] = useState(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -53,36 +57,44 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   const loadMore = useCallback(async () => {
     if (!next || loadingMore.current) return;
     loadingMore.current = true;
+    setLoadMoreError(undefined);
     try {
       const page = await fetchNotifications(apiUrl, await getIdToken(), { limit: PAGE_SIZE, before: next }, fetchFn);
       if (!mounted.current) return;
       setItems((cur) => [...cur, ...page.items]); setNext(page.next); setUnread(page.unread);
     } catch (e) {
-      if (mounted.current) { setStatus("error"); setError((e as Error).message); }
+      // Own field, not `status`/`error`: a second-page failure must not read as an
+      // initial-load failure and blow away the page-wide view of items already shown.
+      if (mounted.current) setLoadMoreError((e as Error).message);
     } finally {
       loadingMore.current = false;
     }
   }, [apiUrl, getIdToken, fetchFn, next]);
 
-  // Optimistic: flip locally first so the badge reacts instantly. A failed write reverts to
-  // the pre-flip snapshot rather than calling refresh() (which would drop pagination loaded
-  // via loadMore). A successful write bumps seqRef so a refresh already in flight when the
-  // write started can't later overwrite it with stale (pre-write) data.
+  // Optimistic: flip locally first so the badge reacts instantly. A failed write reverts
+  // only the ids *this call* flipped (not a whole pre-flip snapshot — two markRead calls can
+  // be in flight at once for different notifications, and one failing must not undo the
+  // other's already-applied or still-pending flip). A successful write bumps seqRef so a
+  // refresh already in flight when the write started can't later overwrite it with stale
+  // (pre-write) data.
   const markRead = useCallback(async (ids: string[]) => {
     const targets = new Set(ids.filter(Boolean));
     if (targets.size === 0) return;
     seqRef.current += 1;
-    const prevItems = itemsRef.current;
-    const prevUnread = unreadRef.current;
-    const flipped = prevItems.filter((n) => targets.has(n.id) && !n.read).length;
-    if (flipped > 0) {
-      setItems((cur) => cur.map((n) => (targets.has(n.id) && !n.read ? { ...n, read: true } : n)));
-      setUnread((u) => Math.max(0, u - flipped));
+    const flippedIds = itemsRef.current.filter((n) => targets.has(n.id) && !n.read).map((n) => n.id);
+    if (flippedIds.length > 0) {
+      const flippedSet = new Set(flippedIds);
+      setItems((cur) => cur.map((n) => (flippedSet.has(n.id) ? { ...n, read: true } : n)));
+      setUnread((u) => Math.max(0, u - flippedIds.length));
     }
     try {
       await markNotificationsRead(apiUrl, await getIdToken(), [...targets], fetchFn);
     } catch {
-      if (mounted.current) { setItems(prevItems); setUnread(prevUnread); }
+      if (mounted.current && flippedIds.length > 0) {
+        const revertSet = new Set(flippedIds);
+        setItems((cur) => cur.map((n) => (revertSet.has(n.id) ? { ...n, read: false } : n)));
+        setUnread((u) => u + flippedIds.length);
+      }
     }
   }, [apiUrl, getIdToken, fetchFn]);
 
@@ -108,8 +120,8 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   }, [refresh]);
 
   const value = useMemo<NotificationsState>(() => ({
-    items, unread, status, error, hasMore: Boolean(next), seen, refresh, loadMore, markRead, markAllRead,
-  }), [items, unread, status, error, next, seen, refresh, loadMore, markRead, markAllRead]);
+    items, unread, status, error, hasMore: Boolean(next), seen, loadMoreError, refresh, loadMore, markRead, markAllRead,
+  }), [items, unread, status, error, next, seen, loadMoreError, refresh, loadMore, markRead, markAllRead]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

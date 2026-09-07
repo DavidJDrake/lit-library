@@ -35,7 +35,10 @@ function Probe() {
       <span data-testid="unread">{s.unread}</span>
       <span data-testid="seen">{String(s.seen)}</span>
       <span data-testid="more">{String(s.hasMore)}</span>
+      <span data-testid="loadMoreError">{s.loadMoreError ?? ""}</span>
+      <span data-testid="read-ids">{s.items.filter((i) => i.read).map((i) => i.id).join(",")}</span>
       <button onClick={() => void s.markRead([s.items[0]?.id])}>read-first</button>
+      <button onClick={() => void s.markRead([s.items[1]?.id])}>read-second</button>
       <button onClick={() => void s.markAllRead()}>read-all</button>
       <button onClick={() => void s.loadMore()}>more</button>
       <button onClick={() => void s.refresh()}>refresh</button>
@@ -90,6 +93,40 @@ describe("NotificationsProvider", () => {
     expect(screen.getAllByTestId("unread")[1]).toHaveTextContent("1");
     expect(screen.getAllByTestId("count")[1]).toHaveTextContent("1");
     expect(failing.gets()).toBe(getsBeforeWrite);
+  });
+  it("a failed markRead reverts only the notification it flipped, leaving an overlapping successful markRead's flip alone", async () => {
+    const deferredA = deferred<{ ok: boolean; status: number; headers: Headers; json: () => Promise<unknown> }>();
+    const deferredB = deferred<{ ok: boolean; status: number; headers: Headers; json: () => Promise<unknown> }>();
+    const posted: string[] = [];
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        const body = String(init.body);
+        posted.push(body);
+        return body.includes(n(1).id) ? deferredA.promise : deferredB.promise;
+      }
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1), n(2)], unread: 2 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("2"));
+
+    // Two overlapping markRead calls for different notifications, both left in flight.
+    await userEvent.click(screen.getByRole("button", { name: "read-first" })); // flips n(1)
+    await userEvent.click(screen.getByRole("button", { name: "read-second" })); // flips n(2)
+    expect(screen.getByTestId("unread")).toHaveTextContent("0");
+    await waitFor(() => expect(posted).toHaveLength(2));
+
+    // The first call's request fails; the second succeeds.
+    await act(async () => {
+      deferredA.resolve({ ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "x" }) });
+      deferredB.resolve({ ok: true, status: 204, headers: new Headers({ "content-type": "application/json" }), json: async () => ({}) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+
+    // Only n(1) (the failed call's own flip) reverts; n(2) stays read, and the unread
+    // count is adjusted by exactly the one reverted item, not restored from a snapshot
+    // that would also undo n(2)'s successful flip.
+    expect(screen.getByTestId("unread")).toHaveTextContent("1");
+    expect(screen.getByTestId("read-ids")).toHaveTextContent(n(2).id);
   });
   it("a stale in-flight refresh cannot clobber a markRead that already succeeded", async () => {
     const posted: string[] = [];
@@ -170,7 +207,7 @@ describe("NotificationsProvider", () => {
     await waitFor(() => expect(posted).toEqual([JSON.stringify({ ids: [n(1).id] })]));
     expect(screen.getByTestId("unread")).toHaveTextContent("0");
   });
-  it("loadMore reports an error and keeps existing items when the second page fails", async () => {
+  it("loadMore reports its own loadMoreError, leaving status/error (the initial-load fields) untouched, and keeps existing items", async () => {
     let gets = 0;
     const fetchFn = vi.fn(async () => {
       gets += 1;
@@ -182,9 +219,26 @@ describe("NotificationsProvider", () => {
     mount(fetchFn);
     await waitFor(() => expect(screen.getByTestId("more")).toHaveTextContent("true"));
     await userEvent.click(screen.getByRole("button", { name: "more" }));
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("error"));
+    await waitFor(() => expect(screen.getByTestId("loadMoreError")).toHaveTextContent("boom"));
+    expect(screen.getByTestId("status")).toHaveTextContent("ready");
     expect(screen.getByTestId("count")).toHaveTextContent("1");
     expect(screen.getByTestId("more")).toHaveTextContent("true");
+  });
+  it("a retried loadMore clears a previous loadMoreError once it succeeds", async () => {
+    let gets = 0;
+    const fetchFn = vi.fn(async () => {
+      gets += 1;
+      if (gets === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1, next: "2026-09-05T10:00:01.000Z#1" }) };
+      if (gets === 2) return { ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(2)], unread: 1 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("more")).toHaveTextContent("true"));
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("loadMoreError")).toHaveTextContent("boom"));
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("2"));
+    expect(screen.getByTestId("loadMoreError")).toHaveTextContent("");
   });
   it("polls every NOTIFICATIONS_POLL_MS and on visibility, and reports errors without throwing", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
