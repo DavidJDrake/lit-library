@@ -30,12 +30,6 @@ _(none queued)_
 | 22 | `PUT /api/books/{id}/category` matches category names case-sensitively. | UI always sends canonical names; a differently-cased valid name gets a 400. |
 | 23 | Small test gaps. | `AuthorizerId` asserted only at stack level; disabled-state of chip ✓/✗ while resolving; overlapping `markRead` calls where the first fails can revert the second (poll self-corrects). |
 
-## Dependency migrations (deferred majors, each M)
-
-| # | Item | Notes |
-|---|---|---|
-| 24 | Major upgrades Dependabot is told to ignore: **TypeScript 7** and **vitest 4** (both `infra` and `web`, CI failed in `infra`), **React 19** (`web`, CI failed), `@types/node` 26 (Lambdas run Node 22 — bump with the runtime, not before). | Take each as its own branch with CI; remove the matching `ignore` entry in `.github/dependabot.yml` when done. |
-
 ## Security and operations
 
 | # | Item | Effort | Notes |
@@ -61,6 +55,7 @@ _(none queued)_
 | — | **Notifications.** Header bell + popover + `/notifications` page; fan-out per recipient with a 90-day TTL; suggestion/category events from the library Lambda, "N new books added" from `publish-new.sh`; in-app router; `?category=` seeding. | PR #2, spec/plan `2026-09-05-notifications` |
 | 7 | **Send-to-Kindle.** One-click delivery of the EPUB (or PDF) to the user's `@kindle.com` address via SES, with SES domain verification, a `/settings` page for the address, size/format limits, and a `kindle_bounce` notification when Amazon rejects a send. | `infra/lib/kindle.ts`, spec/plan `2026-09-05-send-to-kindle` |
 | 9 | **CloudFront security headers.** Response-headers policy on all three behaviours: CSP built from config (connect-src the Cognito host, frame-src the books bucket for the download iframe), HSTS, nosniff, frame-ancestors none, referrer policy. | PR #29, `infra/lib/site.ts` |
+| 24 | **Dependency majors.** Vite 8 + `@vitejs/plugin-react` 6 + vitest 4 together (none can land alone), React 19, TypeScript 7 with infra moving off the removed `moduleResolution: node10` to `module: node18`. Dependabot's deferrals are gone; only the `@types/node` rule remains, and that tracks the Lambda runtime rather than deferring anything. | PRs #31, #35, and the TypeScript one |
 | 25 | **Multiple Kindle devices per user.** Named device list (up to 5) with a default, split-button send with a device menu, bounce rows naming the device, lazy migration of the single saved address. | `infra/lambda/kindle/devices.ts`, `web/src/components/DeviceList.tsx`, `web/src/components/SendToKindleButton.tsx`; spec and plan `2026-09-06-kindle-devices`. |
 | 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | plan `2026-09-04-backlog-1-3` |
