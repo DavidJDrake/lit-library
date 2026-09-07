@@ -1,8 +1,15 @@
 import { useKindle } from "../kindle/KindleProvider";
 import { KINDLE_HELP_URL } from "../kindle/limits";
 import DeviceList from "./DeviceList";
+import OpdsSection from "./OpdsSection";
 
-export default function SettingsPage() {
+interface Props {
+  apiUrl: string;
+  getIdToken(): Promise<string>;
+  fetchFn?: typeof fetch;
+}
+
+export default function SettingsPage({ apiUrl, getIdToken, fetchFn = fetch }: Props) {
   const kindle = useKindle();
 
   return (
@@ -26,6 +33,7 @@ export default function SettingsPage() {
           ? <p className="empty">Loading…</p>
           : <DeviceList devices={kindle.devices} defaultDeviceId={kindle.defaultDeviceId} sender={kindle.sender} onSave={kindle.save} />}
       </section>
+      <OpdsSection apiUrl={apiUrl} getIdToken={getIdToken} fetchFn={fetchFn} />
     </main>
   );
 }

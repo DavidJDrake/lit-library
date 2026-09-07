@@ -129,3 +129,6 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .device-list li.device input { min-width: 10rem; }
 .device-list li.unnamed input { border-color: var(--accent); }
 .device-list h4 { margin: 0.75rem 0 0.35rem; }
+.opds-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.opds-url-row { display: flex; gap: 0.5rem; align-items: center; }
+.opds-url-row input { flex: 1; min-width: 0; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-family: monospace; font-size: 0.85rem; }
