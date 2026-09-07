@@ -6,7 +6,7 @@ dependencies = [
     "pymupdf>=1.28.2",
     "Pillow>=12.3.0",
     "requests>=2.34.2",
-    "boto3>=1.43.87",
+    "boto3>=1.43.88",
     "PyYAML>=6.0.3",
 ]
 
