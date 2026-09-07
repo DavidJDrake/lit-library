@@ -44,7 +44,24 @@ describe("EbookShareStack", () => {
     });
   });
 
-  it("points every GET/PUT/POST /api/* route's AuthorizerId at the stack's one JWT authorizer, except DELETE /api/session", () => {
+  // Every /api/* route must sit behind the real Cognito JWT authorizer, with a short,
+  // explicit, individually justified exemption list — never a pattern match. A pattern
+  // (e.g. "anything under /api/opds") would let a future unauthenticated route slip in
+  // unnoticed just by sharing a path prefix with one of these two. Add to this set only
+  // when the route authenticates itself some other way, and say how.
+  const OPEN_ROUTES: ReadonlySet<string> = new Set([
+    // Clears cookies only, so sign-out can still end the CloudFront session even after
+    // the Cognito ID token itself is no longer valid.
+    "DELETE /api/session",
+    // A reader app has no way to obtain a Cognito token. Authenticates itself instead
+    // with a per-reader, revocable, hashed bearer token carried as a query parameter and
+    // checked inside the handler (infra/lambda/download/opds-store.ts) — read-only
+    // catalogue access and nothing else; see infra/test/download-handler.test.ts.
+    "GET /api/opds",
+    "GET /api/opds/download/{bookId}/{format}",
+  ]);
+
+  it("points every GET/PUT/POST /api/* route's AuthorizerId at the stack's one JWT authorizer, except the explicitly exempted open routes", () => {
     const t = synthStack();
     const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
     expect(authorizerIds).toHaveLength(1);
@@ -52,15 +69,19 @@ describe("EbookShareStack", () => {
 
     const routes = t.findResources("AWS::ApiGatewayV2::Route");
     const properties = Object.values(routes).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
-    const authorized = properties.filter((p) => /^(GET|PUT|POST) \/api\//.test(p.RouteKey));
+    const authorized = properties.filter((p) => /^(GET|PUT|POST) \/api\//.test(p.RouteKey) && !OPEN_ROUTES.has(p.RouteKey));
     for (const p of authorized) {
       expect(p.AuthorizerId).toEqual(jwtAuthorizerRef);
     }
     expect(authorized.length).toBeGreaterThanOrEqual(13);
 
-    const deleteSession = properties.find((p) => p.RouteKey === "DELETE /api/session");
-    expect(deleteSession).toBeDefined();
-    expect(deleteSession).not.toHaveProperty("AuthorizerId");
+    // Every exempted route really exists and really has no authorizer — so the exemption
+    // can't quietly hide a route that no longer needs it, or one that was never open at all.
+    for (const key of OPEN_ROUTES) {
+      const route = properties.find((p) => p.RouteKey === key);
+      expect(route).toBeDefined();
+      expect(route).not.toHaveProperty("AuthorizerId");
+    }
   });
 
   it("alarms on errors from every function, including the two Kindle Lambdas", () => {

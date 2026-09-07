@@ -53,7 +53,7 @@ describe("Library", () => {
     expect(SEED_CATEGORIES).toContain("Other/Lifestyle");
   });
 
-  it("wires one Lambda with read/write on the library table only and the seven routes", () => {
+  it("wires one Lambda with read/write on the library table only and the ten routes", () => {
     const { t } = synth();
     t.hasResourceProperties("AWS::Lambda::Function", {
       Runtime: "nodejs22.x",
@@ -70,21 +70,22 @@ describe("Library", () => {
     for (const key of [
       "GET /api/library", "PUT /api/books/{id}/category", "PUT /api/books/{id}/status", "POST /api/suggestions", "POST /api/categories",
       "POST /api/suggestions/{id}/accept", "POST /api/suggestions/{id}/reject",
+      "GET /api/opds/token", "POST /api/opds/token", "DELETE /api/opds/token",
     ]) {
       t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key });
     }
-    t.resourceCountIs("AWS::ApiGatewayV2::Route", 7);
+    t.resourceCountIs("AWS::ApiGatewayV2::Route", 10);
     t.resourceCountIs("AWS::ApiGatewayV2::Integration", 1);
   });
 
-  it("authenticates every library route with the pool's JWT authorizer", () => {
+  it("authenticates every library route with the pool's JWT authorizer, including all three OPDS token routes", () => {
     const { t } = synth();
     const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
     expect(authorizerIds).toHaveLength(1);
     const jwtAuthorizerRef = { Ref: authorizerIds[0] };
 
     const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
-    expect(routes).toHaveLength(7);
+    expect(routes).toHaveLength(10);
     for (const r of routes) {
       expect(r.AuthorizerId).toEqual(jwtAuthorizerRef);
     }

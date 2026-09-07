@@ -44,7 +44,7 @@ function Shell({ fetchFn }: { fetchFn: typeof fetch }) {
     <>
       <Header email={auth.email} onSignOut={() => void signOut()} bell={bell} />
       {path === "/settings"
-        ? <SettingsPage />
+        ? <SettingsPage apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} />
         : path === "/notifications"
         ? <NotificationsPage isAdmin={auth.isAdmin} titleOf={titleOf} sender={auth.kindleSender} deviceLabelOf={deviceLabelOf} onResolve={resolveFromBell} />
         : <Library key={search} apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} isAdmin={auth.isAdmin} onChanged={() => void notifications.refresh()} kindle={kindle} />}

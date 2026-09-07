@@ -61,20 +61,25 @@ describe("Api", () => {
     });
   });
 
-  it("exposes the /api routes: JWT on download and session GET, none on session DELETE; no CORS", () => {
+  it("exposes the /api routes: JWT on download and session GET, none on session DELETE or the public OPDS routes; no CORS", () => {
     const t = synth();
     const api = Object.values(t.findResources("AWS::ApiGatewayV2::Api"))[0] as { Properties: Record<string, unknown> };
     expect(api.Properties.CorsConfiguration).toBeUndefined();
     const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizationType: string } }).Properties);
     const byKey = Object.fromEntries(routes.map((r) => [r.RouteKey, r.AuthorizationType]));
-    expect(byKey).toEqual({ "POST /api/download": "JWT", "GET /api/session": "JWT", "DELETE /api/session": "NONE" });
+    expect(byKey).toEqual({
+      "POST /api/download": "JWT", "GET /api/session": "JWT", "DELETE /api/session": "NONE",
+      // Public and token-gated inside the handler itself — see infra/lib/api.ts and the
+      // explicit, justified exemption in infra/test/stack.test.ts.
+      "GET /api/opds": "NONE", "GET /api/opds/download/{bookId}/{format}": "NONE",
+    });
     t.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
       AuthorizerType: "JWT",
       JwtConfiguration: Match.objectLike({ Audience: [Match.anyValue()], Issuer: Match.anyValue() }),
     });
   });
 
-  it("points POST /api/download and GET /api/session at the same JWT authorizer; DELETE /api/session has none", () => {
+  it("points POST /api/download and GET /api/session at the same JWT authorizer; DELETE /api/session and the OPDS routes have none", () => {
     const t = synth();
     const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
     expect(authorizerIds).toHaveLength(1);
@@ -85,5 +90,23 @@ describe("Api", () => {
     expect(byKey["POST /api/download"]).toEqual(jwtAuthorizerRef);
     expect(byKey["GET /api/session"]).toEqual(jwtAuthorizerRef);
     expect(byKey["DELETE /api/session"]).toBeUndefined();
+    expect(byKey["GET /api/opds"]).toBeUndefined();
+    expect(byKey["GET /api/opds/download/{bookId}/{format}"]).toBeUndefined();
+  });
+
+  it("the OPDS feed and acquisition routes share the download Lambda's integration, not a new function", () => {
+    const t = synth();
+    // Only two integrations exist at all: one shared by /api/download, /api/opds, and
+    // /api/opds/download/{bookId}/{format}, the other by the session routes. If the OPDS
+    // routes had their own Lambda, there would be a third.
+    const integrations = t.findResources("AWS::ApiGatewayV2::Integration");
+    expect(Object.keys(integrations)).toHaveLength(2);
+    const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route"))
+      .map((r) => (r as { Properties: { RouteKey: string; Target: string } }).Properties);
+    const integrationRefOf = (routeKey: string) => routes.find((r) => r.RouteKey === routeKey)?.Target;
+    const downloadTarget = integrationRefOf("POST /api/download");
+    expect(downloadTarget).toBeDefined();
+    expect(integrationRefOf("GET /api/opds")).toEqual(downloadTarget);
+    expect(integrationRefOf("GET /api/opds/download/{bookId}/{format}")).toEqual(downloadTarget);
   });
 });

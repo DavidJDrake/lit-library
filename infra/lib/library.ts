@@ -85,7 +85,10 @@ export class Library extends Construct {
     props.downloadsTable.grantReadData(fn); // read-only: derives the "downloaded" overlay, never writes
     fn.addToRolePolicy(new iam.PolicyStatement({ actions: COGNITO_LIST_ACTIONS, resources: [props.userPool.userPoolArn] }));
 
-    // One integration, seven routes; the API's default JWT authorizer applies to all of them.
+    // One integration, ten routes; the API's default JWT authorizer applies to all of
+    // them — including the three OPDS token routes below, which manage the token itself
+    // (generate/status/revoke) and so are never reachable without a real sign-in, unlike
+    // the feed and acquisition routes on the download Lambda that the token unlocks.
     const integration = new HttpLambdaIntegration("LibraryIntegration", fn);
     const routes: Array<[string, apigw.HttpMethod]> = [
       ["/api/library", apigw.HttpMethod.GET],
@@ -95,6 +98,9 @@ export class Library extends Construct {
       ["/api/categories", apigw.HttpMethod.POST],
       ["/api/suggestions/{id}/accept", apigw.HttpMethod.POST],
       ["/api/suggestions/{id}/reject", apigw.HttpMethod.POST],
+      ["/api/opds/token", apigw.HttpMethod.GET],
+      ["/api/opds/token", apigw.HttpMethod.POST],
+      ["/api/opds/token", apigw.HttpMethod.DELETE],
     ];
     for (const [routePath, method] of routes) {
       props.httpApi.addRoutes({ path: routePath, methods: [method], integration });

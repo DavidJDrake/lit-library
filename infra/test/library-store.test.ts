@@ -207,3 +207,63 @@ describe("DynamoStore writes", () => {
     await expect(new DynamoStore(ddb, "T").rejectSuggestion("s1", "c", "a@x", NOW)).rejects.toThrow("network");
   });
 });
+
+describe("DynamoStore OPDS tokens", () => {
+  it("getOpdsTokenStatus reads the caller's own USER#.../OPDS row and reports only createdAt", async () => {
+    const { ddb, send } = client(() => ({ Item: { pk: "USER#u@x", sk: "OPDS", tokenHash: "deadbeef", createdAt: NOW } }));
+    const status = await new DynamoStore(ddb, "T").getOpdsTokenStatus("U@X");
+    expect(status).toEqual({ createdAt: NOW });
+    const cmd = send.mock.calls[0][0] as GetCommand;
+    expect(cmd).toBeInstanceOf(GetCommand);
+    expect(cmd.input).toEqual({ TableName: "T", Key: { pk: "USER#u@x", sk: "OPDS" } });
+  });
+  it("getOpdsTokenStatus is undefined when there is no row", async () => {
+    const { ddb } = client(() => ({}));
+    expect(await new DynamoStore(ddb, "T").getOpdsTokenStatus("u@x")).toBeUndefined();
+  });
+
+  it("setOpdsTokenHash with no previous token: reads the descriptor, then a two-item transaction", async () => {
+    const calls: unknown[] = [{}, {}]; // Get (no existing row), TransactWrite
+    const { ddb, send } = client(() => calls.shift());
+    await new DynamoStore(ddb, "T").setOpdsTokenHash("U@X", "hash1", NOW);
+    expect(send.mock.calls[0][0]).toBeInstanceOf(GetCommand);
+    expect((send.mock.calls[0][0] as GetCommand).input).toEqual({ TableName: "T", Key: { pk: "USER#u@x", sk: "OPDS" } });
+    const cmd = send.mock.calls[1][0] as TransactWriteCommand;
+    expect(cmd).toBeInstanceOf(TransactWriteCommand);
+    expect(cmd.input.TransactItems).toEqual([
+      { Put: { TableName: "T", Item: { pk: "USER#u@x", sk: "OPDS", tokenHash: "hash1", createdAt: NOW } } },
+      { Put: { TableName: "T", Item: { pk: "OPDSTOKEN#hash1", sk: "TOKEN", email: "U@X", createdAt: NOW }, ConditionExpression: "attribute_not_exists(pk)" } },
+    ]);
+  });
+
+  it("setOpdsTokenHash with a previous token: the same transaction also deletes the old lookup row", async () => {
+    const calls: unknown[] = [{ Item: { pk: "USER#u@x", sk: "OPDS", tokenHash: "oldhash", createdAt: "2020-01-01T00:00:00.000Z" } }, {}];
+    const { ddb, send } = client(() => calls.shift());
+    await new DynamoStore(ddb, "T").setOpdsTokenHash("u@x", "newhash", NOW);
+    const cmd = send.mock.calls[1][0] as TransactWriteCommand;
+    expect(cmd.input.TransactItems).toEqual([
+      { Put: { TableName: "T", Item: { pk: "USER#u@x", sk: "OPDS", tokenHash: "newhash", createdAt: NOW } } },
+      { Put: { TableName: "T", Item: { pk: "OPDSTOKEN#newhash", sk: "TOKEN", email: "u@x", createdAt: NOW }, ConditionExpression: "attribute_not_exists(pk)" } },
+      { Delete: { TableName: "T", Key: { pk: "OPDSTOKEN#oldhash", sk: "TOKEN" } } },
+    ]);
+  });
+
+  it("clearOpdsToken deletes the descriptor and the lookup row in one transaction", async () => {
+    const calls: unknown[] = [{ Item: { pk: "USER#u@x", sk: "OPDS", tokenHash: "hash1", createdAt: NOW } }, {}];
+    const { ddb, send } = client(() => calls.shift());
+    await new DynamoStore(ddb, "T").clearOpdsToken("u@x");
+    const cmd = send.mock.calls[1][0] as TransactWriteCommand;
+    expect(cmd).toBeInstanceOf(TransactWriteCommand);
+    expect(cmd.input.TransactItems).toEqual([
+      { Delete: { TableName: "T", Key: { pk: "USER#u@x", sk: "OPDS" } } },
+      { Delete: { TableName: "T", Key: { pk: "OPDSTOKEN#hash1", sk: "TOKEN" } } },
+    ]);
+  });
+
+  it("clearOpdsToken is a no-op (no write at all) when the caller has no token", async () => {
+    const { ddb, send } = client(() => ({}));
+    await new DynamoStore(ddb, "T").clearOpdsToken("u@x");
+    expect(send).toHaveBeenCalledTimes(1); // the Get only
+    expect(send.mock.calls[0][0]).toBeInstanceOf(GetCommand);
+  });
+});

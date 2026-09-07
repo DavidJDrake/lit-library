@@ -1,7 +1,8 @@
 import {
   DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { BookCategory, Category, ReadingStatus, ReadingStatusRow, Store, Suggestion } from "./index";
+import { OPDS_READER_SK, opdsReaderPk, opdsTokenPk, OPDS_TOKEN_SK } from "../shared/opds-token";
+import type { BookCategory, Category, OpdsTokenStatus, ReadingStatus, ReadingStatusRow, Store, Suggestion } from "./index";
 
 // Per-reader rows share the library table with everything else, keyed by pk = USER#<email>
 // (lowercased, matching the Kindle settings row at the same pk) so one query returns both —
@@ -193,5 +194,43 @@ export class DynamoStore implements Store {
       if (isConditionFailure(e)) return false;
       throw e;
     }
+  }
+
+  async getOpdsTokenStatus(email: string): Promise<OpdsTokenStatus | undefined> {
+    const out = await this.ddb.send(new GetCommand({ TableName: this.table, Key: { pk: opdsReaderPk(email), sk: OPDS_READER_SK } }));
+    const createdAt = out.Item?.createdAt;
+    return typeof createdAt === "string" ? { createdAt } : undefined;
+  }
+
+  // Reads the descriptor first (outside the transaction) only to learn the previous
+  // hash, if any, so its lookup row can be deleted in the same transaction that creates
+  // the new one. There is no window where both the old and new token resolve, and none
+  // where neither does once this returns.
+  async setOpdsTokenHash(email: string, tokenHash: string, createdAt: string): Promise<void> {
+    const pk = opdsReaderPk(email);
+    const existing = await this.ddb.send(new GetCommand({ TableName: this.table, Key: { pk, sk: OPDS_READER_SK } }));
+    const previousHash = existing.Item?.tokenHash;
+    const TransactItems = [
+      { Put: { TableName: this.table, Item: { pk, sk: OPDS_READER_SK, tokenHash, createdAt } } },
+      // attribute_not_exists guards against the practically-impossible case of a hash
+      // collision with another reader's still-active token; anything else must fail loudly.
+      { Put: { TableName: this.table, Item: { pk: opdsTokenPk(tokenHash), sk: OPDS_TOKEN_SK, email, createdAt }, ConditionExpression: "attribute_not_exists(pk)" } },
+      ...(typeof previousHash === "string" && previousHash !== tokenHash
+        ? [{ Delete: { TableName: this.table, Key: { pk: opdsTokenPk(previousHash), sk: OPDS_TOKEN_SK } } }]
+        : []),
+    ];
+    await this.ddb.send(new TransactWriteCommand({ TransactItems }));
+  }
+
+  async clearOpdsToken(email: string): Promise<void> {
+    const pk = opdsReaderPk(email);
+    const existing = await this.ddb.send(new GetCommand({ TableName: this.table, Key: { pk, sk: OPDS_READER_SK } }));
+    const hash = existing.Item?.tokenHash;
+    if (typeof hash !== "string") return; // nothing to revoke
+    const TransactItems = [
+      { Delete: { TableName: this.table, Key: { pk, sk: OPDS_READER_SK } } },
+      { Delete: { TableName: this.table, Key: { pk: opdsTokenPk(hash), sk: OPDS_TOKEN_SK } } },
+    ];
+    await this.ddb.send(new TransactWriteCommand({ TransactItems }));
   }
 }

@@ -51,7 +51,10 @@ export type Route =
   | { kind: "suggest" }
   | { kind: "createCategory" }
   | { kind: "accept"; id: string }
-  | { kind: "reject"; id: string };
+  | { kind: "reject"; id: string }
+  | { kind: "opdsTokenStatus" }
+  | { kind: "opdsTokenGenerate" }
+  | { kind: "opdsTokenRevoke" };
 
 export const ADMIN_ROUTES: ReadonlySet<Route["kind"]> = new Set(["createCategory", "accept", "reject"]);
 
@@ -64,6 +67,9 @@ const ROUTES: Array<[string, RegExp, (m: RegExpMatchArray) => Route]> = [
   ["POST", /^\/api\/categories$/, () => ({ kind: "createCategory" })],
   ["POST", new RegExp(`^/api/suggestions/${SEGMENT}/accept$`), (m) => ({ kind: "accept", id: decodeURIComponent(m[1]) })],
   ["POST", new RegExp(`^/api/suggestions/${SEGMENT}/reject$`), (m) => ({ kind: "reject", id: decodeURIComponent(m[1]) })],
+  ["GET", /^\/api\/opds\/token$/, () => ({ kind: "opdsTokenStatus" })],
+  ["POST", /^\/api\/opds\/token$/, () => ({ kind: "opdsTokenGenerate" })],
+  ["DELETE", /^\/api\/opds\/token$/, () => ({ kind: "opdsTokenRevoke" })],
 ];
 
 export function matchRoute(method: string, path: string): Route | undefined {

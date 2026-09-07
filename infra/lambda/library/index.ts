@@ -1,6 +1,7 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
 import type { NotifyFn } from "../notifications/fanout";
 import { logEvent } from "../shared/log";
+import { hashOpdsToken } from "../shared/opds-token";
 import type { DownloadsStore } from "./downloads";
 import { ADMIN_ROUTES, isAdmin, matchRoute, normalizeName, parseJsonBody, type Route } from "./lib";
 
@@ -16,6 +17,11 @@ export interface Suggestion {
 export type ReadingStatus = "want to read" | "reading" | "finished";
 export const READING_STATUSES: readonly ReadingStatus[] = ["want to read", "reading", "finished"];
 export interface ReadingStatusRow { bookId: string; status: ReadingStatus; updatedAt: string }
+
+// Existence and creation time only — never the token or its hash. That is all the
+// interface needs to say "a feed link exists, made on <date>" without being able to
+// reveal or reconstruct it.
+export interface OpdsTokenStatus { createdAt: string }
 
 export interface Store {
   listCategories(): Promise<Category[]>;
@@ -36,9 +42,23 @@ export interface Store {
   putReadingStatus(email: string, bookId: string, status: ReadingStatus, updatedAt: string): Promise<void>;
   /** Clears a status by deleting its row rather than storing an empty value. */
   deleteReadingStatus(email: string, bookId: string): Promise<void>;
+  /** The caller's own OPDS token descriptor; undefined when none has been generated. */
+  getOpdsTokenStatus(email: string): Promise<OpdsTokenStatus | undefined>;
+  /**
+   * One transaction: records the new hash on the caller's descriptor, creates the new
+   * lookup row, and deletes the previous lookup row (if any) — so the old token stops
+   * resolving the instant the new one starts working, never both at once.
+   */
+  setOpdsTokenHash(email: string, tokenHash: string, createdAt: string): Promise<void>;
+  /** One transaction: deletes the descriptor and its lookup row. A no-op when there is none. */
+  clearOpdsToken(email: string): Promise<void>;
 }
 
-export interface Deps { store: Store; downloads: DownloadsStore; now: () => Date; newId: () => string; notify: NotifyFn }
+export interface Deps {
+  store: Store; downloads: DownloadsStore; now: () => Date; newId: () => string; notify: NotifyFn;
+  /** A fresh, cryptographically random OPDS token. Only its hash (via hashOpdsToken) is ever stored. */
+  newOpdsToken: () => string;
+}
 
 const BOOK_ID_MAX = 64;
 const BOOK_ID_RE = /^[A-Za-z0-9._-]+$/;
@@ -166,6 +186,24 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "rejected", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
       return noContent();
     }
+    case "opdsTokenStatus": {
+      const status = await store.getOpdsTokenStatus(email);
+      return json(200, { exists: !!status, createdAt: status?.createdAt ?? null });
+    }
+    case "opdsTokenGenerate": {
+      // The plaintext token exists only for the lifetime of this request: it is handed
+      // back once in the response body and never logged, stored, or held in memory
+      // longer than it takes to hash it.
+      const token = deps.newOpdsToken();
+      await store.setOpdsTokenHash(email, hashOpdsToken(token), at);
+      logEvent("opds.token_generated", { email }, deps.now);
+      return json(201, { token, createdAt: at });
+    }
+    case "opdsTokenRevoke": {
+      await store.clearOpdsToken(email);
+      logEvent("opds.token_revoked", { email }, deps.now);
+      return noContent();
+    }
   }
 }
 
@@ -190,6 +228,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "node:crypto";
 import { CognitoDirectory, DynamoNotificationWriter, notify } from "../notifications/fanout";
+import { generateOpdsToken } from "../shared/opds-token";
 import { DynamoDownloadsStore } from "./downloads";
 import { DynamoStore } from "./store";
 
@@ -208,6 +247,7 @@ export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
       downloads: new DynamoDownloadsStore(ddb, process.env.DOWNLOADS_TABLE ?? ""),
       now: () => new Date(),
       newId: () => randomUUID(),
+      newOpdsToken: () => generateOpdsToken(),
       notify: (type, payload, recipients, opts) => notify(type, payload, recipients, notifyDeps, opts),
     };
   }
