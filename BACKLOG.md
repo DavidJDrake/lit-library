@@ -18,18 +18,11 @@ _(none queued)_
 | 16 | OPDS feed. | Another view of `catalog.json` behind the same session cookie; e-reader apps (KOReader, Moon+) can browse it directly. |
 | 8 | Progressive cover loading — virtualize or page the grid. | 1,065 lazy images is fine on desktop, heavy on phones. |
 
-## Polish deferred from reviews (each S, none blocking)
+## Deferred from reviews
 
 | # | Item | Notes |
 |---|---|---|
-| 17 | Notification popover focus management. | Move focus into the dialog on open, back to the bell on close; scope the Escape handler to the popover. |
-| 18 | Don't notify the actor about their own action. | The three authenticated call sites in the library Lambda (suggest, create category, accept) know the actor's email; an `excludeEmail` option on `notify` covers all three. |
 | 26 | Don't notify the publisher about their own upload. | Split out of #18 after survey: `books_added` fires from a direct Lambda invoke by `scripts/notify-books-added.py`, which has no Cognito session and no notion of who ran it. Fixing it means inventing a publisher identity and threading it through the script, the invoke payload and the event validation. Effort **M**, and worth deciding whether it earns that. |
-| 19 | `loadMore` failure UX on `/notifications`. | The page-wide error banner shows over already-loaded items and Retry resets to page 1; show an inline "couldn't load more — retry" under the list instead. |
-| 20 | `notify-books-added.py` hardening. | A missing/corrupt `added.json` or `--before` file tracebacks instead of warn-and-exit-0 (shielded by `publish-new.sh`); tests for the invoke-failure branches. |
-| 21 | Suggestion duplicate check is not atomic. | Two simultaneous identical suggestions can both persist as pending; accept 409s the second, so no corruption. A `nameLower` lock item would close it. |
-| 22 | `PUT /api/books/{id}/category` matches category names case-sensitively. | UI always sends canonical names; a differently-cased valid name gets a 400. |
-| 23 | Small test gaps. | `AuthorizerId` asserted only at stack level; disabled-state of chip ✓/✗ while resolving; overlapping `markRead` calls where the first fails can revert the second (poll self-corrects). |
 
 ## Security and operations
 
