@@ -15,7 +15,14 @@ export default function SettingsPage() {
           <li>Find your Kindle email under Amazon → Content &amp; Devices → Preferences → <a href={KINDLE_HELP_URL} target="_blank" rel="noreferrer">Personal Document Settings</a>.</li>
           <li>On the same page, add <code>{kindle.sender}</code> to your approved personal-document senders.</li>
         </ol>
-        {kindle.devices === undefined
+        {kindle.loadFailed ? (
+          // Never render the device list from a load that failed: it would look like a
+          // first-time setup, and the add form's whole-list PUT would wipe the stored devices.
+          <div className="notif-error" role="alert">
+            <p>Couldn't load your devices. Nothing has been changed.</p>
+            <button type="button" className="btn secondary" onClick={() => void kindle.reload().catch(() => {})}>Try again</button>
+          </div>
+        ) : kindle.devices === undefined
           ? <p className="empty">Loading…</p>
           : <DeviceList devices={kindle.devices} defaultDeviceId={kindle.defaultDeviceId} sender={kindle.sender} onSave={kindle.save} />}
       </section>

@@ -10,6 +10,7 @@ import SuggestForm from "./SuggestForm";
 interface KindleDialogProps {
   devices: KindleDevice[] | undefined;
   defaultDeviceId: string | null;
+  loadFailed?: boolean;
   sender: string;
   onSend(book: Book, format?: "epub" | "pdf", deviceId?: string): Promise<void>;
   onSaveDevice(label: string, address: string): Promise<void>;
@@ -62,7 +63,10 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
     if (!kindle) return;
     // undefined covers the GET /api/kindle/devices window still in flight; treat it the
     // same as an empty list so a click during that window opens the form instead of 409ing.
-    if (!kindle.devices || kindle.devices.length === 0) { setKindleState({ kind: "form", format }); return; }
+    // A load that failed is different: we have no idea what the reader has saved, so let the
+    // send go to the server, which is authoritative and answers no_address on its own.
+    const noneKnown = kindle.devices ? kindle.devices.length === 0 : !kindle.loadFailed;
+    if (noneKnown) { setKindleState({ kind: "form", format }); return; }
     setKindleState({ kind: "sending" });
     try {
       await kindle.onSend(book!, format, deviceId);

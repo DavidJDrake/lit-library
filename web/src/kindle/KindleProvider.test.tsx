@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { KindleProvider, useKindle } from "./KindleProvider";
+import { KindleProvider, LOAD_FAILED_MESSAGE, useKindle } from "./KindleProvider";
 
 const json = (status: number, body: unknown) => ({
   ok: status >= 200 && status < 300, status,
@@ -9,12 +9,15 @@ const json = (status: number, body: unknown) => ({
   json: async () => body,
 }) as unknown as Response;
 
+const saveErrors: string[] = [];
 function Probe() {
   const k = useKindle();
+  const state = k.loadFailed ? "failed" : k.devices === undefined ? "loading" : `${k.devices.length}:${k.defaultDeviceId ?? "-"}`;
   return (
     <div>
-      <span data-testid="state">{k.devices === undefined ? "loading" : `${k.devices.length}:${k.defaultDeviceId ?? "-"}`}</span>
-      <button onClick={() => void k.save([{ label: "Phone", address: "b@kindle.com" }], undefined)}>save</button>
+      <span data-testid="state">{state}</span>
+      <button onClick={() => void k.save([{ label: "Phone", address: "b@kindle.com" }], undefined).catch((e: Error) => saveErrors.push(e.message))}>save</button>
+      <button onClick={() => void k.reload().catch(() => {})}>reload</button>
     </div>
   );
 }
@@ -30,10 +33,40 @@ describe("KindleProvider", () => {
     await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("1:a1"));
   });
 
-  it("treats a failed load as no devices, so the send path still guards", async () => {
+  // Reversal of the old "a failed load is an empty list" behaviour: PUT replaces the whole
+  // list, so an empty list read out of a failure is one add away from deleting every device.
+  it("reports a failed load instead of pretending the list is empty", async () => {
     const fetchFn = vi.fn(async () => { throw new Error("offline"); }) as unknown as typeof fetch;
     mount(fetchFn);
-    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("0:-"));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("failed"));
+  });
+
+  it("refuses a save after a failed load, so no PUT can replace the stored list", async () => {
+    saveErrors.length = 0;
+    const fetchFn = vi.fn(async () => { throw new Error("offline"); }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("failed"));
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await waitFor(() => expect(saveErrors).toEqual([LOAD_FAILED_MESSAGE]));
+    const methods = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => (c[1] as RequestInit | undefined)?.method);
+    expect(methods).not.toContain("PUT");
+  });
+
+  it("reload recovers from a failed load and lets a save through again", async () => {
+    saveErrors.length = 0;
+    let attempt = 0;
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return json(200, { devices: [{ id: "srv1", label: "Phone", address: "b@kindle.com" }], defaultDeviceId: "srv1" });
+      if (attempt++ === 0) throw new Error("offline");
+      return json(200, { devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" });
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("failed"));
+    await userEvent.click(screen.getByRole("button", { name: "reload" }));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("1:a1"));
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("1:srv1"));
+    expect(saveErrors).toEqual([]);
   });
 
   it("adopts the canonical list returned by a save", async () => {

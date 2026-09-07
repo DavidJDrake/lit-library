@@ -356,7 +356,7 @@ describe("Library", () => {
   it("names the device in the success toast", async () => {
     const kindle = {
       devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1",
-      sender: "library@lit.example.com", save: vi.fn().mockResolvedValue(undefined),
+      sender: "library@lit.example.com", loadFailed: false, reload: vi.fn().mockResolvedValue([]), save: vi.fn().mockResolvedValue(undefined),
       send: vi.fn().mockResolvedValue({ sentTo: "a@kindle.com", format: "epub", deviceId: "a1", deviceLabel: "Scribe" }),
     };
     renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog), kindle });
@@ -370,7 +370,7 @@ describe("Library", () => {
   it("falls back to the address when the device has no name yet", async () => {
     const kindle = {
       devices: [{ id: "a1", label: "", address: "a@kindle.com" }], defaultDeviceId: "a1",
-      sender: "library@lit.example.com", save: vi.fn().mockResolvedValue(undefined),
+      sender: "library@lit.example.com", loadFailed: false, reload: vi.fn().mockResolvedValue([]), save: vi.fn().mockResolvedValue(undefined),
       send: vi.fn().mockResolvedValue({ sentTo: "a@kindle.com", format: "epub", deviceId: "a1", deviceLabel: "" }),
     };
     renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog), kindle });
@@ -383,7 +383,7 @@ describe("Library", () => {
   it("toasts a failed send that is not a no_address rejection", async () => {
     const kindle = {
       devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1",
-      sender: "library@lit.example.com", save: vi.fn().mockResolvedValue(undefined),
+      sender: "library@lit.example.com", loadFailed: false, reload: vi.fn().mockResolvedValue([]), save: vi.fn().mockResolvedValue(undefined),
       send: vi.fn().mockRejectedValue(Object.assign(new Error("Kindle delivery isn't enabled for everyone yet"), { code: "not_enabled" })),
     };
     renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog), kindle });
@@ -393,10 +393,34 @@ describe("Library", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Kindle delivery isn't enabled for everyone yet"));
   });
 
+  it("reads the real list before the book dialog's inline form composes a save", async () => {
+    const stored = [
+      { id: "a1", label: "Scribe", address: "a@kindle.com" },
+      { id: "b2", label: "Phone", address: "b@kindle.com" },
+    ];
+    const kindle = {
+      devices: undefined, defaultDeviceId: null, loadFailed: true,
+      reload: vi.fn().mockResolvedValue(stored),
+      sender: "library@lit.example.com", save: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn().mockRejectedValue(Object.assign(new Error("no"), { code: "no_address" })),
+    };
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog), kindle });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = () => screen.getByRole("dialog", { hidden: true });
+    // The load failed, so the send goes to the server; its no_address opens the form.
+    await userEvent.click(within(dialog()).getByRole("button", { name: "Send to Kindle" }));
+    await userEvent.type(await within(dialog()).findByRole("textbox", { name: "Name" }), "Tablet");
+    await userEvent.type(within(dialog()).getByRole("textbox", { name: "Your Kindle email" }), "c@kindle.com");
+    await userEvent.click(within(dialog()).getByRole("button", { name: "Save and send" }));
+    await waitFor(() => expect(kindle.save).toHaveBeenCalledWith([...stored, { label: "Tablet", address: "c@kindle.com" }]));
+    expect(kindle.reload).toHaveBeenCalled();
+  });
+
   it("does not toast a no_address rejection, so the dialog can open the form", async () => {
     const kindle = {
       devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1",
-      sender: "library@lit.example.com", save: vi.fn().mockResolvedValue(undefined),
+      sender: "library@lit.example.com", loadFailed: false, reload: vi.fn().mockResolvedValue([]), save: vi.fn().mockResolvedValue(undefined),
       send: vi.fn().mockRejectedValue(Object.assign(new Error("no"), { code: "no_address" })),
     };
     renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog), kindle });

@@ -7,7 +7,7 @@ import { useLibraryData } from "../catalog/LibraryDataProvider";
 import { applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, searchBooks, sortBooks } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
 import type { KindleError } from "../kindle/api";
-import type { KindleState } from "../kindle/KindleProvider";
+import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
 import CategorySuggestions from "./CategorySuggestions";
@@ -119,7 +119,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
   }, [mutate, apiUrl, fetchFn, overlay]);
 
   const kindleForDialog = useMemo(() => kindle && {
-    devices: kindle.devices, defaultDeviceId: kindle.defaultDeviceId, sender: kindle.sender,
+    devices: kindle.devices, defaultDeviceId: kindle.defaultDeviceId, sender: kindle.sender, loadFailed: kindle.loadFailed,
     onSend: async (book: Book, format?: "epub" | "pdf", deviceId?: string) => {
       try {
         const r = await kindle.send(book.id, format, deviceId);
@@ -131,9 +131,12 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
         throw e;
       }
     },
+    // Never compose a whole-list PUT out of a list we do not have: read the real one
+    // first, so a load that failed cannot turn "add one device" into "delete the rest".
+    // The failure is rendered by the form that raised it, not toasted here as well.
     onSaveDevice: async (label: string, address: string) => {
-      try { await kindle.save([...(kindle.devices ?? []), { label, address }]); }
-      catch (e) { fail((e as Error).message); throw e; }
+      const current = kindle.devices ?? await kindle.reload().catch(() => { throw new Error(LOAD_FAILED_MESSAGE); });
+      await kindle.save([...current, { label, address }]);
     },
   }, [kindle, ok, fail]);
 
