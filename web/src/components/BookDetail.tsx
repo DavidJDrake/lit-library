@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { formatSize } from "../catalog/search";
 import type { Book } from "../catalog/types";
-import type { KindleError } from "../kindle/api";
+import type { KindleDevice } from "../kindle/api";
 import { KINDLE_MAX_BYTES, kindleFormat } from "../kindle/limits";
-import KindleAddressForm from "./KindleAddressForm";
+import KindleDeviceForm from "./KindleDeviceForm";
+import SendToKindleButton from "./SendToKindleButton";
 import SuggestForm from "./SuggestForm";
 
 interface KindleDialogProps {
-  address: string | null | undefined;
+  devices: KindleDevice[] | undefined;
+  defaultDeviceId: string | null;
   sender: string;
-  onSend(book: Book, format?: "epub" | "pdf"): Promise<void>;
-  onSaveAddress(address: string): Promise<void>;
+  onSend(book: Book, format?: "epub" | "pdf", deviceId?: string): Promise<void>;
+  onSaveDevice(label: string, address: string): Promise<void>;
 }
 
 interface Props {
@@ -56,17 +58,17 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
     }
   }
 
-  async function sendToKindle(format: "epub" | "pdf") {
+  async function sendToKindle(format: "epub" | "pdf", deviceId?: string) {
     if (!kindle) return;
-    // undefined covers the GET /api/kindle/address window still in flight; treat it the same
-    // as a known-absent address so a click during that window opens the form instead of 409ing.
-    if (kindle.address == null) { setKindleState({ kind: "form", format }); return; }
+    // undefined covers the GET /api/kindle/devices window still in flight; treat it the
+    // same as an empty list so a click during that window opens the form instead of 409ing.
+    if (!kindle.devices || kindle.devices.length === 0) { setKindleState({ kind: "form", format }); return; }
     setKindleState({ kind: "sending" });
     try {
-      await kindle.onSend(book!, format);
+      await kindle.onSend(book!, format, deviceId);
       setKindleState({ kind: "idle" });
     } catch (e) {
-      setKindleState((e as KindleError).code === "no_address" ? { kind: "form", format } : { kind: "idle" });
+      setKindleState((e as { code?: string }).code === "no_address" ? { kind: "form", format } : { kind: "idle" });
     }
   }
 
@@ -121,23 +123,29 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
             const pdf = primary.type === "epub" ? kindleFormat(book, "pdf") : undefined;
             const tooLarge = primary.size > KINDLE_MAX_BYTES;
             const sending = kindleState.kind === "sending";
+            const devices = kindle.devices ?? [];
             return (
               <div className="kindle">
                 {kindleState.kind === "form" ? (
-                  <KindleAddressForm sender={kindle.sender}
-                    onSubmit={async (a) => { const format = kindleState.format; await kindle.onSaveAddress(a); setKindleState({ kind: "sending" }); try { await kindle.onSend(book!, format); } finally { setKindleState({ kind: "idle" }); } }}
+                  <KindleDeviceForm sender={kindle.sender} submitLabel="Save and send"
+                    onSubmit={async (label, address) => {
+                      const format = kindleState.format;
+                      await kindle.onSaveDevice(label, address);
+                      setKindleState({ kind: "sending" });
+                      try { await kindle.onSend(book!, format, undefined); } finally { setKindleState({ kind: "idle" }); }
+                    }}
                     onCancel={() => setKindleState({ kind: "idle" })} />
                 ) : (
                   <>
-                    <button className="btn secondary" disabled={busy || sending || tooLarge}
+                    <SendToKindleButton devices={devices} defaultDeviceId={kindle.defaultDeviceId}
+                      disabled={busy || tooLarge} sending={sending}
                       title={tooLarge ? "Too large for Kindle delivery — download instead" : undefined}
-                      onClick={() => void sendToKindle(primary.type as "epub" | "pdf")}>
-                      {sending ? "Sending…" : "Send to Kindle"}
-                    </button>
+                      onSend={(deviceId) => void sendToKindle(primary.type as "epub" | "pdf", deviceId)} />
                     {pdf && !sending && (
-                      <button type="button" className="more" disabled={busy || pdf.size > KINDLE_MAX_BYTES}
+                      <SendToKindleButton devices={devices} defaultDeviceId={kindle.defaultDeviceId} pdf
+                        disabled={busy || pdf.size > KINDLE_MAX_BYTES} sending={false}
                         title={pdf.size > KINDLE_MAX_BYTES ? "Too large for Kindle delivery — download instead" : undefined}
-                        onClick={() => void sendToKindle("pdf")}>Send PDF to Kindle</button>
+                        onSend={(deviceId) => void sendToKindle("pdf", deviceId)} />
                     )}
                   </>
                 )}

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { Book } from "../catalog/types";
+import type { KindleDevice } from "../kindle/api";
 import BookDetail from "./BookDetail";
 
 const book: Book = {
@@ -89,7 +90,16 @@ describe("BookDetail", () => {
     expect(select).toHaveValue("Security & Hacking");
   });
 
-  const kindle = (address: string | null) => ({ address, sender: "library@lit.example.com", onSend: vi.fn().mockResolvedValue(undefined), onSaveAddress: vi.fn().mockResolvedValue(undefined) });
+  // Keeps the old single-address call style: an address (or null) produces the equivalent
+  // one-device (or zero-device) list, with the empty label a migrated device would carry —
+  // which is also why every assertion below still reads "Send to Kindle".
+  const kindle = (address: string | null) => ({
+    devices: address == null ? [] : [{ id: "a1", label: "", address }],
+    defaultDeviceId: address == null ? null : "a1",
+    sender: "library@lit.example.com",
+    onSend: vi.fn().mockResolvedValue(undefined),
+    onSaveDevice: vi.fn().mockResolvedValue(undefined),
+  });
   const base = { onClose: () => {}, onDownload: async () => {}, categories: [], onChangeCategory: async () => {}, onSuggest: async () => {} };
   it("renders no Kindle button without the kindle prop or without an eligible format", () => {
     const { rerender } = render(<BookDetail book={book} {...base} />);
@@ -103,12 +113,12 @@ describe("BookDetail", () => {
     k.onSend = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
-    expect(k.onSend).toHaveBeenCalledWith(book, "epub");
+    expect(k.onSend).toHaveBeenCalledWith(book, "epub", "a1");
     expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
     resolve();
     await waitFor(() => expect(screen.getByRole("button", { name: "Send to Kindle" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "Send PDF to Kindle" }));
-    expect(k.onSend).toHaveBeenLastCalledWith(book, "pdf");
+    expect(k.onSend).toHaveBeenLastCalledWith(book, "pdf", "a1");
   });
   it("disables the button with a tooltip when the file is too large", () => {
     const huge = { ...book, formats: [{ type: "epub", size: 29 * 1024 * 1024, s3Key: "a" }] };
@@ -117,15 +127,16 @@ describe("BookDetail", () => {
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute("title", "Too large for Kindle delivery — download instead");
   });
-  it("collects the address inline when none is saved, then saves and sends", async () => {
+  it("opens the two-field form when no device is saved, then saves and sends", async () => {
     const k = kindle(null);
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Scribe");
     await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "jay_abc@kindle.com");
     await userEvent.click(screen.getByRole("button", { name: "Save and send" }));
-    await waitFor(() => expect(k.onSend).toHaveBeenCalledWith(book, "epub"));
-    expect(k.onSaveAddress).toHaveBeenCalledWith("jay_abc@kindle.com");
-    expect((k.onSaveAddress as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((k.onSend as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
+    await waitFor(() => expect(k.onSend).toHaveBeenCalled());
+    expect(k.onSaveDevice).toHaveBeenCalledWith("Scribe", "jay_abc@kindle.com");
+    expect((k.onSaveDevice as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((k.onSend as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Your Kindle email" })).toBeNull());
   });
   it("reopens the inline form when the server rejects a send with no_address", async () => {
@@ -133,7 +144,7 @@ describe("BookDetail", () => {
     k.onSend = vi.fn().mockRejectedValue(Object.assign(new Error("no_address"), { code: "no_address" }));
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
-    expect(k.onSend).toHaveBeenCalledWith(book, "epub");
+    expect(k.onSend).toHaveBeenCalledWith(book, "epub", "a1");
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toBeInTheDocument());
   });
   it("returns to idle (not the form) when a send rejects for a reason other than no_address", async () => {
@@ -144,14 +155,37 @@ describe("BookDetail", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Send to Kindle" })).toBeEnabled());
     expect(screen.queryByRole("textbox", { name: "Your Kindle email" })).toBeNull();
   });
-  it("remembers the requested format across the inline address form: PDF stays PDF", async () => {
+  it("remembers the requested format across the form: PDF stays PDF", async () => {
     const k = kindle(null);
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getByRole("button", { name: "Send PDF to Kindle" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Scribe");
     await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "jay_abc@kindle.com");
     await userEvent.click(screen.getByRole("button", { name: "Save and send" }));
-    await waitFor(() => expect(k.onSend).toHaveBeenCalledWith(book, "pdf"));
-    expect(k.onSaveAddress).toHaveBeenCalledWith("jay_abc@kindle.com");
-    expect(k.onSend).not.toHaveBeenCalledWith(book, "epub");
+    await waitFor(() => expect(k.onSend).toHaveBeenCalledWith(book, "pdf", undefined));
+    expect(k.onSaveDevice).toHaveBeenCalledWith("Scribe", "jay_abc@kindle.com");
+    expect(k.onSend).not.toHaveBeenCalledWith(book, "epub", undefined);
+  });
+  it("passes the chosen device through to onSend", async () => {
+    const devices: KindleDevice[] = [
+      { id: "a1", label: "Scribe", address: "a@kindle.com" },
+      { id: "b2", label: "Phone", address: "b@kindle.com" },
+    ];
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    const k = { devices, defaultDeviceId: "a1", sender: "s@x.com", onSend, onSaveDevice: vi.fn().mockResolvedValue(undefined) };
+    render(<BookDetail book={book} {...base} kindle={k} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "Choose a device" })[0]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Phone" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith(book, "epub", "b2"));
+  });
+  it("reopens the form when the server says the device list is empty", async () => {
+    const onSend = vi.fn(async () => { throw Object.assign(new Error("no"), { code: "no_address" }); });
+    const k = {
+      devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1",
+      sender: "s@x.com", onSend, onSaveDevice: vi.fn().mockResolvedValue(undefined),
+    };
+    render(<BookDetail book={book} {...base} kindle={k} />);
+    await userEvent.click(screen.getByRole("button", { name: "Send to Scribe" }));
+    expect(await screen.findByRole("textbox", { name: "Name" })).toBeInTheDocument();
   });
 });

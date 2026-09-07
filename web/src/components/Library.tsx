@@ -119,11 +119,11 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
   }, [mutate, apiUrl, fetchFn, overlay]);
 
   const kindleForDialog = useMemo(() => kindle && {
-    address: kindle.address, sender: kindle.sender,
-    onSend: async (book: Book, format?: "epub" | "pdf") => {
+    devices: kindle.devices, defaultDeviceId: kindle.defaultDeviceId, sender: kindle.sender,
+    onSend: async (book: Book, format?: "epub" | "pdf", deviceId?: string) => {
       try {
-        const r = await kindle.send(book.id, format);
-        ok(`Sent to ${r.sentTo} — it usually arrives within a couple of minutes`);
+        const r = await kindle.send(book.id, format, deviceId);
+        ok(`Sent to ${r.deviceLabel || r.sentTo} — it usually arrives within a couple of minutes`);
       } catch (e) {
         // no_address is handled by the dialog reopening the inline form, not a toast; every
         // other failure toasts here and still rethrows so the dialog resets its sending state.
@@ -131,8 +131,9 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
         throw e;
       }
     },
-    onSaveAddress: async (address: string) => {
-      try { await kindle.save(address); } catch (e) { fail((e as Error).message); throw e; }
+    onSaveDevice: async (label: string, address: string) => {
+      try { await kindle.save([...(kindle.devices ?? []), { label, address }]); }
+      catch (e) { fail((e as Error).message); throw e; }
     },
   }, [kindle, ok, fail]);
 
