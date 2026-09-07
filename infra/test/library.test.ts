@@ -21,7 +21,11 @@ function synth() {
     partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
     sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
   });
-  const library = new Library(stack, "Library", { httpApi, notificationsTable, userPool });
+  const downloadsTable = new dynamodb.Table(stack, "Downloads", {
+    partitionKey: { name: "email", type: dynamodb.AttributeType.STRING },
+    sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
+  });
+  const library = new Library(stack, "Library", { httpApi, notificationsTable, userPool, downloadsTable });
   return { t: Template.fromStack(stack), library };
 }
 
@@ -49,7 +53,7 @@ describe("Library", () => {
     expect(SEED_CATEGORIES).toContain("Other/Lifestyle");
   });
 
-  it("wires one Lambda with read/write on the library table only and the six routes", () => {
+  it("wires one Lambda with read/write on the library table only and the seven routes", () => {
     const { t } = synth();
     t.hasResourceProperties("AWS::Lambda::Function", {
       Runtime: "nodejs22.x",
@@ -64,12 +68,12 @@ describe("Library", () => {
       })]) },
     });
     for (const key of [
-      "GET /api/library", "PUT /api/books/{id}/category", "POST /api/suggestions", "POST /api/categories",
+      "GET /api/library", "PUT /api/books/{id}/category", "PUT /api/books/{id}/status", "POST /api/suggestions", "POST /api/categories",
       "POST /api/suggestions/{id}/accept", "POST /api/suggestions/{id}/reject",
     ]) {
       t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key });
     }
-    t.resourceCountIs("AWS::ApiGatewayV2::Route", 6);
+    t.resourceCountIs("AWS::ApiGatewayV2::Route", 7);
     t.resourceCountIs("AWS::ApiGatewayV2::Integration", 1);
   });
 
@@ -80,10 +84,35 @@ describe("Library", () => {
     const jwtAuthorizerRef = { Ref: authorizerIds[0] };
 
     const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
-    expect(routes).toHaveLength(6);
+    expect(routes).toHaveLength(7);
     for (const r of routes) {
       expect(r.AuthorizerId).toEqual(jwtAuthorizerRef);
     }
+  });
+
+  it("may only read the downloads table, not write it", () => {
+    const { t } = synth();
+    t.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: { Statement: Match.arrayWith([Match.objectLike({
+        Action: Match.arrayWith(["dynamodb:Query", "dynamodb:GetItem"]), // grantReadData's action order
+        Resource: Match.arrayWith([Match.objectLike({ "Fn::GetAtt": [Match.stringLikeRegexp("^Downloads"), "Arn"] })]),
+      })]) },
+    });
+    const rendered = JSON.stringify(t.toJSON());
+    // The downloads table's own logical id never appears alongside a write action anywhere
+    // in the synthesized template — this Lambda has no write grant on it.
+    const policies = t.findResources("AWS::IAM::Policy");
+    for (const policy of Object.values(policies)) {
+      const statements = (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } })
+        .Properties.PolicyDocument.Statement;
+      for (const s of statements) {
+        const resources = JSON.stringify(s.Resource);
+        if (!resources.includes("Downloads")) continue;
+        const actions = ([] as string[]).concat(s.Action);
+        for (const a of actions) expect(a).not.toMatch(/PutItem|UpdateItem|DeleteItem/);
+      }
+    }
+    expect(rendered).toContain("Downloads");
   });
 
   it("may write notifications and list Cognito users", () => {

@@ -31,7 +31,7 @@ describe("App", () => {
       const u = String(url);
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
-      if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
+      if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [], readingStatuses: {}, downloaded: [] }) };
       if (u.includes("/kindle/devices")) {
         const list = { devices: [], defaultDeviceId: null };
         return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => list };
@@ -63,7 +63,7 @@ describe("App", () => {
       const u = String(url);
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
-      if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
+      if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [], readingStatuses: {}, downloaded: [] }) };
       if (u.includes("/kindle/devices")) {
         const list = { devices: [], defaultDeviceId: null };
         return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => list };
@@ -101,7 +101,7 @@ describe("App", () => {
       const u = String(url);
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
-      if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
+      if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [], readingStatuses: {}, downloaded: [] }) };
       if (u.includes("/kindle/devices")) {
         const list = { devices: [{ id: "d1", label: "Scribe", address: "jay_abc@kindle.com" }], defaultDeviceId: "d1" };
         return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => list };

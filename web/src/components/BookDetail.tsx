@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { formatSize } from "../catalog/search";
-import type { Book } from "../catalog/types";
+import { READING_STATUSES, type Book, type ReadingStatus } from "../catalog/types";
 import type { KindleDevice } from "../kindle/api";
 import { KINDLE_MAX_BYTES, kindleFormat } from "../kindle/limits";
 import KindleDeviceForm from "./KindleDeviceForm";
 import SendToKindleButton from "./SendToKindleButton";
 import SuggestForm from "./SuggestForm";
+
+const STATUS_LABELS: Record<ReadingStatus, string> = { "want to read": "Want to read", reading: "Reading", finished: "Finished" };
 
 interface KindleDialogProps {
   devices: KindleDevice[] | undefined;
@@ -23,12 +25,14 @@ interface Props {
   categories: string[];
   onChangeCategory: (book: Book, category: string) => Promise<void>;
   onSuggest: (name: string, bookId: string) => Promise<void>;
+  onChangeStatus: (book: Book, status: ReadingStatus | null) => Promise<void>;
   kindle?: KindleDialogProps;
 }
 
 export const SUGGEST_OPTION = "__suggest__";
+const NO_STATUS = "";
 
-export default function BookDetail({ book, onClose, onDownload, categories, onChangeCategory, onSuggest, kindle }: Props) {
+export default function BookDetail({ book, onClose, onDownload, categories, onChangeCategory, onSuggest, onChangeStatus, kindle }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -87,6 +91,15 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
     }
   }
 
+  async function changeStatus(value: string) {
+    setBusy(true);
+    try {
+      await onChangeStatus(book!, value === NO_STATUS ? null : (value as ReadingStatus));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <dialog ref={ref} className="detail" onClose={onClose}
       onClick={(e) => { if (e.target === ref.current) onClose(); }}>
@@ -113,6 +126,19 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
           {suggesting && (
             <SuggestForm label="New category name" onSubmit={(name) => onSuggest(name, book!.id)} onCancel={() => setSuggesting(false)} />
           )}
+          <p className="meta status-row">
+            <select aria-label="Reading status" value={book.readingStatus ?? NO_STATUS} disabled={busy}
+              onChange={(e) => void changeStatus(e.target.value)}>
+              <option value={NO_STATUS}>No status</option>
+              {READING_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+            </select>
+            {/* Independent of the select above, not a fourth option in it: downloaded can be
+                true at the same time as any chosen status (or none), and is never settable
+                here — it's read-only, derived from download history. */}
+            {book.downloaded && (
+              <span className="downloaded-tag" title="Detected automatically from your download history">Downloaded (auto)</span>
+            )}
+          </p>
           {book.description && <div className="desc">{book.description}</div>}
           <div className="downloads">
             {book.formats.map((f) => (

@@ -1,4 +1,4 @@
-import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand, DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { describe, expect, it, vi } from "vitest";
 import { DynamoStore } from "../lambda/library/store";
 
@@ -60,6 +60,49 @@ describe("DynamoStore reads", () => {
     expect((await store.getSuggestion("s1"))?.id).toBe("s1");
     expect(await store.getSuggestion("nope")).toBeUndefined();
     expect(send.mock.calls[0][0]).toBeInstanceOf(GetCommand);
+  });
+});
+
+describe("DynamoStore reading statuses", () => {
+  it("lists only the caller's own STATUS# rows, scoped by begins_with, lowercasing the email into pk", async () => {
+    const { ddb, send } = client(() => ({
+      Items: [{ pk: "USER#u@x", sk: "STATUS#b1", status: "reading", updatedAt: NOW }],
+    }));
+    const out = await new DynamoStore(ddb, "T").listReadingStatuses("U@X");
+    expect(out).toEqual([{ bookId: "b1", status: "reading", updatedAt: NOW }]);
+    const cmd = send.mock.calls[0][0] as QueryCommand;
+    expect(cmd).toBeInstanceOf(QueryCommand);
+    expect(cmd.input).toMatchObject({
+      TableName: "T", KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: { ":pk": "USER#u@x", ":prefix": "STATUS#" },
+    });
+  });
+  it("follows pagination and returns an empty list rather than throwing when there are no rows", async () => {
+    const pages = [
+      { Items: [{ pk: "USER#u@x", sk: "STATUS#b1", status: "want to read", updatedAt: NOW }], LastEvaluatedKey: { pk: "USER#u@x", sk: "STATUS#b1" } },
+      { Items: [{ pk: "USER#u@x", sk: "STATUS#b2", status: "finished", updatedAt: NOW }] },
+    ];
+    const { ddb, send } = client(() => pages.shift());
+    const out = await new DynamoStore(ddb, "T").listReadingStatuses("u@x");
+    expect(out.map((r) => r.bookId)).toEqual(["b1", "b2"]);
+    expect((send.mock.calls[1][0] as QueryCommand).input.ExclusiveStartKey).toEqual({ pk: "USER#u@x", sk: "STATUS#b1" });
+
+    const empty = client(() => ({}));
+    expect(await new DynamoStore(empty.ddb, "T").listReadingStatuses("nobody@x")).toEqual([]);
+  });
+  it("putReadingStatus writes a STATUS# row under the lowercased-email pk", async () => {
+    const { ddb, send } = client(() => ({}));
+    await new DynamoStore(ddb, "T").putReadingStatus("U@X", "b1", "reading", NOW);
+    expect((send.mock.calls[0][0] as PutCommand).input).toEqual({
+      TableName: "T", Item: { pk: "USER#u@x", sk: "STATUS#b1", status: "reading", updatedAt: NOW },
+    });
+  });
+  it("deleteReadingStatus deletes rather than writes an empty value", async () => {
+    const { ddb, send } = client(() => ({}));
+    await new DynamoStore(ddb, "T").deleteReadingStatus("U@X", "b1");
+    const cmd = send.mock.calls[0][0] as DeleteCommand;
+    expect(cmd).toBeInstanceOf(DeleteCommand);
+    expect(cmd.input).toEqual({ TableName: "T", Key: { pk: "USER#u@x", sk: "STATUS#b1" } });
   });
 });
 

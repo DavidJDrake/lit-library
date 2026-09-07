@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 import { describe, expect, it, vi } from "vitest";
+import type { DownloadsStore } from "../lambda/library/downloads";
 import type { Category, Deps, Store, Suggestion } from "../lambda/library/index";
 import { handle } from "../lambda/library/index";
 
@@ -18,11 +19,17 @@ function store(over: Partial<Store> = {}): Store {
     putSuggestion: vi.fn().mockResolvedValue(true),
     acceptSuggestion: vi.fn().mockResolvedValue(true),
     rejectSuggestion: vi.fn().mockResolvedValue(true),
+    listReadingStatuses: vi.fn().mockResolvedValue([{ bookId: "b1", status: "reading", updatedAt: NOW }]),
+    putReadingStatus: vi.fn().mockResolvedValue(undefined),
+    deleteReadingStatus: vi.fn().mockResolvedValue(undefined),
     ...over,
   };
 }
+function downloads(over: Partial<DownloadsStore> = {}): DownloadsStore {
+  return { listDownloadedBookIds: vi.fn().mockResolvedValue(["b1", "b7"]), ...over };
+}
 function deps(s: Store = store(), over: Partial<Deps> = {}): Deps {
-  return { store: s, now: () => new Date(NOW), newId: () => "id-1", notify: vi.fn().mockResolvedValue(1), ...over };
+  return { store: s, downloads: downloads(), now: () => new Date(NOW), newId: () => "id-1", notify: vi.fn().mockResolvedValue(1), ...over };
 }
 function event(method: string, path: string, body?: unknown, claims: Record<string, unknown> = { email: "u@x" }) {
   return {
@@ -38,7 +45,7 @@ function parse(res: Awaited<ReturnType<typeof handle>>) {
 }
 
 describe("GET /api/library", () => {
-  it("returns sorted categories, the book map, and pending suggestions", async () => {
+  it("returns sorted categories, the book map, pending suggestions, reading statuses, and the downloaded set", async () => {
     const s = store({ listCategories: vi.fn().mockResolvedValue([fiction, { ...fiction, name: "Comics", nameLower: "comics" }]) });
     const { status, json } = parse(await handle(event("GET", "/api/library"), deps(s)));
     expect(status).toBe(200);
@@ -46,7 +53,23 @@ describe("GET /api/library", () => {
       categories: [{ name: "Comics", source: "seed" }, { name: "Fiction", source: "seed" }],
       bookCategories: { b9: "Fiction" },
       suggestions: [{ id: "s1", name: "Cookbooks", bookId: "b1", suggestedBy: "z@x", createdAt: NOW }],
+      readingStatuses: { b1: "reading" },
+      downloaded: ["b1", "b7"],
     });
+  });
+  it("passes the caller's own email to both the status and downloads lookups", async () => {
+    const s = store();
+    const d = downloads();
+    await handle(event("GET", "/api/library"), deps(s, { downloads: d }));
+    expect(s.listReadingStatuses).toHaveBeenCalledWith("u@x");
+    expect(d.listDownloadedBookIds).toHaveBeenCalledWith("u@x");
+  });
+  it("a reader with no reading statuses or download history gets empty maps/sets, not an error", async () => {
+    const s = store({ listReadingStatuses: vi.fn().mockResolvedValue([]) });
+    const { status, json } = parse(await handle(event("GET", "/api/library"), deps(s, { downloads: downloads({ listDownloadedBookIds: vi.fn().mockResolvedValue([]) }) })));
+    expect(status).toBe(200);
+    expect(json.readingStatuses).toEqual({});
+    expect(json.downloaded).toEqual([]);
   });
   it("404s unknown routes and 401s tokens without an email", async () => {
     expect(parse(await handle(event("GET", "/api/nope"), deps())).status).toBe(404);
@@ -76,6 +99,42 @@ describe("PUT /api/books/{id}/category", () => {
     const long = "x".repeat(65);
     expect(parse(await handle(event("PUT", `/api/books/${long}/category`, { category: "Fiction" }), deps())).status).toBe(400);
     expect(parse(await handle(event("PUT", "/api/books/a b/category", { category: "Fiction" }), deps())).status).toBe(400);
+  });
+});
+
+describe("PUT /api/books/{id}/status", () => {
+  it.each(["want to read", "reading", "finished"] as const)("sets a settable status (%s)", async (value) => {
+    const s = store();
+    const { status } = parse(await handle(event("PUT", "/api/books/b1/status", { status: value }), deps(s)));
+    expect(status).toBe(204);
+    expect(s.putReadingStatus).toHaveBeenCalledWith("u@x", "b1", value, NOW);
+    expect(s.deleteReadingStatus).not.toHaveBeenCalled();
+  });
+  it("clears a status by deleting the row rather than storing an empty value", async () => {
+    const s = store();
+    const { status } = parse(await handle(event("PUT", "/api/books/b1/status", { status: null }), deps(s)));
+    expect(status).toBe(204);
+    expect(s.deleteReadingStatus).toHaveBeenCalledWith("u@x", "b1");
+    expect(s.putReadingStatus).not.toHaveBeenCalled();
+  });
+  it("rejects an attempt to set the derived 'downloaded' state", async () => {
+    const s = store();
+    const { status } = parse(await handle(event("PUT", "/api/books/b1/status", { status: "downloaded" }), deps(s)));
+    expect(status).toBe(400);
+    expect(s.putReadingStatus).not.toHaveBeenCalled();
+    expect(s.deleteReadingStatus).not.toHaveBeenCalled();
+  });
+  it("400s any other unrecognised or malformed value", async () => {
+    expect(parse(await handle(event("PUT", "/api/books/b1/status", { status: "reading now" }), deps())).status).toBe(400);
+    expect(parse(await handle(event("PUT", "/api/books/b1/status", { status: 5 }), deps())).status).toBe(400);
+    expect(parse(await handle(event("PUT", "/api/books/b1/status", { status: "" }), deps())).status).toBe(400);
+    expect(parse(await handle(event("PUT", "/api/books/b1/status"), deps())).status).toBe(400);
+    expect(parse(await handle(event("PUT", "/api/books/b1/status", {}), deps())).status).toBe(400);
+  });
+  it("400s an invalid book id (too long or containing disallowed characters)", async () => {
+    const long = "x".repeat(65);
+    expect(parse(await handle(event("PUT", `/api/books/${long}/status`, { status: "reading" }), deps())).status).toBe(400);
+    expect(parse(await handle(event("PUT", "/api/books/a b/status", { status: "reading" }), deps())).status).toBe(400);
   });
 });
 

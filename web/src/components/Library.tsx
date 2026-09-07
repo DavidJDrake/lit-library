@@ -8,7 +8,7 @@ import {
   applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, queryFromSearch,
   searchBooks, searchFromView, sortBooks, sortFromSearch,
 } from "../catalog/search";
-import { FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
+import { FACET_KEYS, type Book, type FacetKey, type Filters, type ReadingStatus, type SortKey } from "../catalog/types";
 import type { KindleError } from "../kindle/api";
 import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
@@ -32,10 +32,11 @@ interface Props {
 
 const FACET_TITLES: Record<FacetKey, string> = {
   category: "Category", format: "Format", publisher: "Publisher", bundle: "Bundle", author: "Author", year: "Year",
+  status: "Reading status",
 };
 
 export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false, onChanged, kindle }: Props) {
-  const { books, overlay, loadError, overlayError, refreshOverlay } = useLibraryData();
+  const { books, overlay, loadError, overlayError, refreshOverlay, setReadingStatus } = useLibraryData();
   const [query, setQuery] = useState(() => queryFromSearch(window.location.search));
   const [filters, setFilters] = useState<Filters>(() => filtersFromSearch(window.location.search));
   const [sort, setSort] = useState<SortKey>(() => sortFromSearch(window.location.search));
@@ -154,6 +155,16 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
 
   const changeCategory = useCallback((book: Book, category: string) =>
     mutate((t) => setBookCategory(apiUrl, t, book.id, category, fetchFn), `Moved to ${category}`), [mutate, apiUrl, fetchFn]);
+  // Optimistic, unlike changeCategory above: setReadingStatus (from LibraryDataProvider)
+  // already patches the overlay locally and reverts only this book on failure, so there is
+  // no refreshOverlay round trip here — just surface a failure as a toast.
+  const changeStatus = useCallback(async (book: Book, status: ReadingStatus | null) => {
+    try {
+      await setReadingStatus(book.id, status);
+    } catch (e) {
+      fail((e as Error).message);
+    }
+  }, [setReadingStatus, fail]);
   const suggest = useCallback((name: string, bookId?: string) =>
     mutate((t) => suggestCategory(apiUrl, t, name, bookId, fetchFn), `Suggested '${name}' — waiting for approval`), [mutate, apiUrl, fetchFn]);
   const addCategory = useCallback((name: string) =>
@@ -228,7 +239,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
       </section>
       <BookDetail book={selected} onClose={() => setSelectedId(null)} onDownload={download}
         categories={categoryNames} onChangeCategory={changeCategory} onSuggest={(name, bookId) => suggest(name, bookId)}
-        kindle={kindleForDialog} />
+        onChangeStatus={changeStatus} kindle={kindleForDialog} />
       <Toast message={toast?.message} variant={toast?.variant} onDismiss={dismissToast} />
     </div>
   );

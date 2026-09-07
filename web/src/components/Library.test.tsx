@@ -37,6 +37,8 @@ const overlay = {
   categories: [{ name: "Fiction", source: "seed" }, { name: "Security & Hacking", source: "seed" }, { name: "TTRPG", source: "seed" }],
   bookCategories: {},
   suggestions: [{ id: "s1", name: "Cookbooks", suggestedBy: "friend@example.com", createdAt: "2026-09-04T00:00:00Z" }],
+  readingStatuses: {} as Record<string, string>,
+  downloaded: [] as string[],
 };
 
 type Handler = (url: string, init?: RequestInit) => Promise<unknown> | unknown;
@@ -96,6 +98,57 @@ describe("Library", () => {
     await userEvent.type(screen.getByRole("searchbox"), "forshaw");
     await waitFor(() => expect(screen.queryByRole("button", { name: /The Black Company/ })).toBeNull());
     expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument();
+  });
+
+  it("filters by the reading-status facet, across a chosen status and the derived downloaded value", async () => {
+    const fetchFn = fetchFor(catalog, undefined, { "GET /library$": () => ({
+      ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ ...overlay, readingStatuses: { "1": "reading" }, downloaded: ["2"] }),
+    }) });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /^reading/ }));
+    expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /The Black Company/ })).toBeNull();
+    await userEvent.click(screen.getByRole("checkbox", { name: /^reading/ }));
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /^downloaded/ }));
+    expect(screen.queryByRole("button", { name: /Attacking Network Protocols/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument();
+  });
+
+  it("sets a reading status from the dialog without an overlay refetch, and shows it on the card immediately", async () => {
+    let libraryCalls = 0;
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /books/1/status$": () => ({ ok: true, status: 204, headers: new Headers() }),
+      "GET /library$": () => { libraryCalls += 1; return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => overlay }; },
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    expect(libraryCalls).toBe(1);
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Reading status" }), "Reading");
+    await waitFor(() => expect(within(dialog).getByRole("combobox", { name: "Reading status" })).toHaveValue("reading"));
+    // The optimistic overlay patch — not a GET /library refetch, unlike the category flow — is
+    // what updated the dialog and the card, so the request count stays at the initial load.
+    expect(libraryCalls).toBe(1);
+    const put = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.find((c) => String(c[0]).endsWith("/books/1/status"))!;
+    expect(JSON.parse(put[1].body)).toEqual({ status: "reading" });
+  });
+
+  it("toasts and reverts when setting a reading status fails", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /books/1/status$": () => ({ ok: false, status: 400, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "nope" }) }),
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Reading status" }), "Reading");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("nope"));
+    expect(within(dialog).getByRole("combobox", { name: "Reading status" })).toHaveValue("");
   });
 
   it("opens the detail dialog and downloads with the ID token", async () => {
