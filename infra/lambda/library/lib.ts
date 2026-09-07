@@ -47,6 +47,7 @@ export function parseJsonBody(body: string | undefined): Record<string, unknown>
 export type Route =
   | { kind: "overlay" }
   | { kind: "setBookCategory"; bookId: string }
+  | { kind: "setReadingStatus"; bookId: string }
   | { kind: "suggest" }
   | { kind: "createCategory" }
   | { kind: "accept"; id: string }
@@ -58,6 +59,7 @@ const SEGMENT = "([^/]+)";
 const ROUTES: Array<[string, RegExp, (m: RegExpMatchArray) => Route]> = [
   ["GET", /^\/api\/library$/, () => ({ kind: "overlay" })],
   ["PUT", new RegExp(`^/api/books/${SEGMENT}/category$`), (m) => ({ kind: "setBookCategory", bookId: decodeURIComponent(m[1]) })],
+  ["PUT", new RegExp(`^/api/books/${SEGMENT}/status$`), (m) => ({ kind: "setReadingStatus", bookId: decodeURIComponent(m[1]) })],
   ["POST", /^\/api\/suggestions$/, () => ({ kind: "suggest" })],
   ["POST", /^\/api\/categories$/, () => ({ kind: "createCategory" })],
   ["POST", new RegExp(`^/api/suggestions/${SEGMENT}/accept$`), (m) => ({ kind: "accept", id: decodeURIComponent(m[1]) })],

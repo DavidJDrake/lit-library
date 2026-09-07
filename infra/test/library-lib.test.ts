@@ -43,9 +43,10 @@ describe("parseJsonBody", () => {
 });
 
 describe("matchRoute", () => {
-  it("matches the six routes", () => {
+  it("matches the seven routes", () => {
     expect(matchRoute("GET", "/api/library")).toEqual({ kind: "overlay" });
     expect(matchRoute("PUT", "/api/books/abc123/category")).toEqual({ kind: "setBookCategory", bookId: "abc123" });
+    expect(matchRoute("PUT", "/api/books/abc123/status")).toEqual({ kind: "setReadingStatus", bookId: "abc123" });
     expect(matchRoute("POST", "/api/suggestions")).toEqual({ kind: "suggest" });
     expect(matchRoute("POST", "/api/categories")).toEqual({ kind: "createCategory" });
     expect(matchRoute("POST", "/api/suggestions/s1/accept")).toEqual({ kind: "accept", id: "s1" });
@@ -55,11 +56,14 @@ describe("matchRoute", () => {
     expect(matchRoute("POST", "/api/library")).toBeUndefined();
     expect(matchRoute("GET", "/api/books/abc/category")).toBeUndefined();
     expect(matchRoute("PUT", "/api/books//category")).toBeUndefined();
+    expect(matchRoute("GET", "/api/books/abc/status")).toBeUndefined();
     expect(matchRoute("POST", "/api/suggestions/s1/approve")).toBeUndefined();
     expect(matchRoute("PUT", "/api/books/a%20b/category")).toEqual({ kind: "setBookCategory", bookId: "a b" });
+    expect(matchRoute("PUT", "/api/books/a%20b/status")).toEqual({ kind: "setReadingStatus", bookId: "a b" });
   });
   it("doesn't throw on a malformed percent-encoded segment", () => {
     expect(matchRoute("PUT", "/api/books/%/category")).toBeUndefined();
+    expect(matchRoute("PUT", "/api/books/%/status")).toBeUndefined();
   });
   it("names the admin-only routes", () => {
     expect([...ADMIN_ROUTES].sort()).toEqual(["accept", "createCategory", "reject"]);

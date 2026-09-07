@@ -1,6 +1,7 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
 import type { NotifyFn } from "../notifications/fanout";
 import { logEvent } from "../shared/log";
+import type { DownloadsStore } from "./downloads";
 import { ADMIN_ROUTES, isAdmin, matchRoute, normalizeName, parseJsonBody, type Route } from "./lib";
 
 export interface Category { name: string; nameLower: string; createdBy: string; createdAt: string; source: "seed" | "admin" | "suggestion" }
@@ -9,6 +10,12 @@ export interface Suggestion {
   id: string; name: string; nameLower: string; bookId?: string; suggestedBy: string; createdAt: string;
   status: "pending" | "accepted" | "rejected"; resolvedBy?: string; resolvedAt?: string;
 }
+
+// The three states a reader sets deliberately. "downloaded" is a fourth, derived state
+// (see DownloadsStore) that is never accepted here as a settable value.
+export type ReadingStatus = "want to read" | "reading" | "finished";
+export const READING_STATUSES: readonly ReadingStatus[] = ["want to read", "reading", "finished"];
+export interface ReadingStatusRow { bookId: string; status: ReadingStatus; updatedAt: string }
 
 export interface Store {
   listCategories(): Promise<Category[]>;
@@ -24,9 +31,14 @@ export interface Store {
   acceptSuggestion(id: string, category: Category, book: BookCategory | undefined, resolvedBy: string, resolvedAt: string): Promise<boolean>;
   /** One transaction: mark rejected and release the name reservation. false when the suggestion is no longer pending. */
   rejectSuggestion(id: string, nameLower: string, resolvedBy: string, resolvedAt: string): Promise<boolean>;
+  /** The caller's own reading-status rows only. */
+  listReadingStatuses(email: string): Promise<ReadingStatusRow[]>;
+  putReadingStatus(email: string, bookId: string, status: ReadingStatus, updatedAt: string): Promise<void>;
+  /** Clears a status by deleting its row rather than storing an empty value. */
+  deleteReadingStatus(email: string, bookId: string): Promise<void>;
 }
 
-export interface Deps { store: Store; now: () => Date; newId: () => string; notify: NotifyFn }
+export interface Deps { store: Store; downloads: DownloadsStore; now: () => Date; newId: () => string; notify: NotifyFn }
 
 const BOOK_ID_MAX = 64;
 const BOOK_ID_RE = /^[A-Za-z0-9._-]+$/;
@@ -59,8 +71,9 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
   const at = deps.now().toISOString();
   switch (route.kind) {
     case "overlay": {
-      const [categories, books, pending] = await Promise.all([
+      const [categories, books, pending, statuses, downloaded] = await Promise.all([
         store.listCategories(), store.listBookCategories(), store.listPendingSuggestions(),
+        store.listReadingStatuses(email), deps.downloads.listDownloadedBookIds(email),
       ]);
       return json(200, {
         categories: [...categories].sort((a, b) => a.name.localeCompare(b.name)).map((c) => ({ name: c.name, source: c.source })),
@@ -68,6 +81,8 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
         suggestions: [...pending].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((s) => ({
           id: s.id, name: s.name, ...(s.bookId ? { bookId: s.bookId } : {}), suggestedBy: s.suggestedBy, createdAt: s.createdAt,
         })),
+        readingStatuses: Object.fromEntries(statuses.map((s) => [s.bookId, s.status])),
+        downloaded,
       });
     }
     case "setBookCategory": {
@@ -79,6 +94,22 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const match = categories.find((c) => c.nameLower === n.nameLower);
       if (!match) return json(400, { error: "Unknown category" });
       await store.putBookCategory({ bookId: route.bookId, category: match.name, changedBy: email, changedAt: at });
+      return noContent();
+    }
+    case "setReadingStatus": {
+      if (!isValidBookId(route.bookId)) return json(400, { error: "Invalid book id" });
+      const body = parseJsonBody(event.body);
+      if (!body || !("status" in body)) return json(400, { error: "Body must be JSON {status}" });
+      const { status } = body;
+      // null clears: the row is deleted rather than storing an empty value.
+      if (status === null) {
+        await store.deleteReadingStatus(email, route.bookId);
+        return noContent();
+      }
+      if (typeof status !== "string" || !READING_STATUSES.includes(status as ReadingStatus)) {
+        return json(400, { error: `status must be one of ${READING_STATUSES.join(", ")}, or null to clear` });
+      }
+      await store.putReadingStatus(email, route.bookId, status as ReadingStatus, at);
       return noContent();
     }
     case "suggest": {
@@ -159,6 +190,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "node:crypto";
 import { CognitoDirectory, DynamoNotificationWriter, notify } from "../notifications/fanout";
+import { DynamoDownloadsStore } from "./downloads";
 import { DynamoStore } from "./store";
 
 let productionDeps: Deps | undefined;
@@ -173,6 +205,7 @@ export const handler = (event: APIGatewayProxyEventV2WithJWTAuthorizer) => {
     };
     productionDeps = {
       store: new DynamoStore(ddb, process.env.LIBRARY_TABLE ?? ""),
+      downloads: new DynamoDownloadsStore(ddb, process.env.DOWNLOADS_TABLE ?? ""),
       now: () => new Date(),
       newId: () => randomUUID(),
       notify: (type, payload, recipients, opts) => notify(type, payload, recipients, notifyDeps, opts),

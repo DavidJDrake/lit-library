@@ -1,7 +1,13 @@
 import {
-  DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand,
+  DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { BookCategory, Category, Store, Suggestion } from "./index";
+import type { BookCategory, Category, ReadingStatus, ReadingStatusRow, Store, Suggestion } from "./index";
+
+// Per-reader rows share the library table with everything else, keyed by pk = USER#<email>
+// (lowercased, matching the Kindle settings row at the same pk) so one query returns both —
+// see queryPrefix below, which scopes to the STATUS# rows only rather than the whole partition.
+const pkOf = (email: string) => `USER#${email.toLowerCase()}`;
+const STATUS_PREFIX = "STATUS#";
 
 type Item = Record<string, unknown>;
 
@@ -53,6 +59,23 @@ export class DynamoStore implements Store {
     return items;
   }
 
+  // Scoped by begins_with(sk, ...) rather than a whole-partition queryAll: the same pk also
+  // holds the reader's Kindle SETTINGS row, and this must return only their status rows.
+  private async queryPrefix(pk: string, skPrefix: string): Promise<Item[]> {
+    const items: Item[] = [];
+    let ExclusiveStartKey: Item | undefined;
+    do {
+      const out = await this.ddb.send(new QueryCommand({
+        TableName: this.table, KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+        ExpressionAttributeValues: { ":pk": pk, ":prefix": skPrefix },
+        ...(ExclusiveStartKey ? { ExclusiveStartKey } : {}),
+      }));
+      items.push(...((out.Items ?? []) as Item[]));
+      ExclusiveStartKey = out.LastEvaluatedKey as Item | undefined;
+    } while (ExclusiveStartKey);
+    return items;
+  }
+
   async listCategories() { return (await this.queryAll("CATEGORY")).map(toCategory); }
   async listBookCategories() { return (await this.queryAll("BOOK")).map(toBook); }
   async listPendingSuggestions() {
@@ -83,6 +106,28 @@ export class DynamoStore implements Store {
 
   async putBookCategory(b: BookCategory) {
     await this.ddb.send(new PutCommand({ TableName: this.table, Item: this.bookItem(b) }));
+  }
+
+  // A reader's own reading-status rows only — never another reader's, since the pk is
+  // derived from their own (lowercased) email.
+  async listReadingStatuses(email: string): Promise<ReadingStatusRow[]> {
+    const items = await this.queryPrefix(pkOf(email), STATUS_PREFIX);
+    return items.map((i) => ({
+      bookId: String(i.sk).slice(STATUS_PREFIX.length),
+      status: i.status as ReadingStatus,
+      updatedAt: String(i.updatedAt),
+    }));
+  }
+
+  async putReadingStatus(email: string, bookId: string, status: ReadingStatus, updatedAt: string): Promise<void> {
+    await this.ddb.send(new PutCommand({
+      TableName: this.table, Item: { pk: pkOf(email), sk: `${STATUS_PREFIX}${bookId}`, status, updatedAt },
+    }));
+  }
+
+  // Clearing a status deletes the row rather than storing an empty value.
+  async deleteReadingStatus(email: string, bookId: string): Promise<void> {
+    await this.ddb.send(new DeleteCommand({ TableName: this.table, Key: { pk: pkOf(email), sk: `${STATUS_PREFIX}${bookId}` } }));
   }
 
   private nameReservationItem(nameLower: string): Item {
