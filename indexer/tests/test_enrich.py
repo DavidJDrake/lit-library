@@ -202,3 +202,42 @@ def test_retry_succeeds_after_rate_limit_and_honors_retry_after(tmp_path):
     cached = list(tmp_path.glob("*.json"))
     assert len(cached) == 1
     assert json.loads(cached[0].read_text())["found"] is True
+
+
+def test_search_result_missing_description_falls_back_to_volume_fetch(tmp_path):
+    gb_search_no_description = {
+        "items": [{
+            "id": "vol-abc123",
+            "volumeInfo": {
+                "title": "Mystery Novel",
+                "authors": ["A. Writer"],
+                "publishedDate": "2019-03-01",
+                "categories": ["Fiction"],
+                "publisher": "Tor",
+                # no "description" key here, mirroring the search endpoint's
+                # abbreviated volumeInfo
+            },
+        }]
+    }
+    gb_volume_get = {"volumeInfo": {"description": "The full synopsis, only on the volume resource."}}
+    fetcher = ScriptedFetcher({
+        "googleapis.com/books/v1/volumes?q=": [gb_search_no_description],
+        "googleapis.com/books/v1/volumes/vol-abc123": [gb_volume_get],
+    })
+    e = Enricher(tmp_path, fetch_json=fetcher, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    meta = ExtractedMeta(authors=["A. Writer"])
+    e.enrich(meta, fallback_title="Mystery Novel")
+
+    assert meta.description == "The full synopsis, only on the volume resource."
+    assert any(u.endswith("volumes/vol-abc123") for u in fetcher.calls)
+
+
+def test_search_result_with_description_does_not_fetch_volume(tmp_path):
+    # When the search response already has a description, no extra
+    # per-book request should be made.
+    fetcher = ScriptedFetcher({"googleapis.com/books": [GB_RESPONSE]})
+    e = Enricher(tmp_path, fetch_json=fetcher, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    meta = ExtractedMeta(authors=["A. Writer"])
+    e.enrich(meta, fallback_title="Mystery Novel")
+    assert meta.description == "A gripping tale."
+    assert len(fetcher.calls) == 1

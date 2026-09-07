@@ -191,15 +191,32 @@ class Enricher:
         items = resp.get("items") if isinstance(resp, dict) else None
         if not items:
             return {"found": False}
-        v = items[0].get("volumeInfo") or {}
+        item = items[0]
+        v = item.get("volumeInfo") or {}
+        description = v.get("description")
+        if not description:
+            # The search endpoint's volumeInfo frequently omits description
+            # even when the individual volume resource has one; fetch it
+            # only in this fallback case, not on every lookup.
+            volume_id = item.get("id")
+            if volume_id:
+                description = self._google_books_description(volume_id)
         thumb = (v.get("imageLinks") or {}).get("thumbnail")
         return {
             "found": True,
             "title": v.get("title"),
             "authors": v.get("authors") or [],
-            "description": v.get("description"),
+            "description": description,
             "subjects": v.get("categories") or [],
             "publisher": v.get("publisher"),
             "year": _year_from(v.get("publishedDate")),
             "cover_url": thumb.replace("http://", "https://") if thumb else None,
         }
+
+    def _google_books_description(self, volume_id: str) -> str | None:
+        url = "https://www.googleapis.com/books/v1/volumes/" + urllib.parse.quote(volume_id, safe="")
+        resp = self._fetch_json_retrying(url)
+        if not isinstance(resp, dict):
+            return None
+        v = resp.get("volumeInfo") or {}
+        return v.get("description")
