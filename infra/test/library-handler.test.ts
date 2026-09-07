@@ -61,6 +61,12 @@ describe("PUT /api/books/{id}/category", () => {
     expect(status).toBe(204);
     expect(s.putBookCategory).toHaveBeenCalledWith({ bookId: "b1", category: "Fiction", changedBy: "u@x", changedAt: NOW });
   });
+  it("matches an existing category case-insensitively and stores the canonical casing", async () => {
+    const s = store();
+    const { status } = parse(await handle(event("PUT", "/api/books/b1/category", { category: "fICTION" }), deps(s)));
+    expect(status).toBe(204);
+    expect(s.putBookCategory).toHaveBeenCalledWith({ bookId: "b1", category: "Fiction", changedBy: "u@x", changedAt: NOW });
+  });
   it("400s an unknown or malformed category", async () => {
     expect(parse(await handle(event("PUT", "/api/books/b1/category", { category: "Nope" }), deps())).status).toBe(400);
     expect(parse(await handle(event("PUT", "/api/books/b1/category", { category: "" }), deps())).status).toBe(400);

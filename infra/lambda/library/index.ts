@@ -76,7 +76,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const n = normalizeName(body?.category);
       if (!n) return json(400, { error: "Body must be JSON {category}" });
       const categories = await store.listCategories();
-      const match = categories.find((c) => c.name === n.name);
+      const match = categories.find((c) => c.nameLower === n.nameLower);
       if (!match) return json(400, { error: "Unknown category" });
       await store.putBookCategory({ bookId: route.bookId, category: match.name, changedBy: email, changedAt: at });
       return noContent();
