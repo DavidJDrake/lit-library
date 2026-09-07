@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 from ebook_indexer.enrich import Enricher, TransientFetchError
@@ -241,3 +242,17 @@ def test_search_result_with_description_does_not_fetch_volume(tmp_path):
     e.enrich(meta, fallback_title="Mystery Novel")
     assert meta.description == "A gripping tale."
     assert len(fetcher.calls) == 1
+
+
+def test_clear_failed_cache_removes_only_not_found_entries(tmp_path):
+    found_file = tmp_path / (hashlib.sha1(b"found-key").hexdigest() + ".json")
+    missing_file = tmp_path / (hashlib.sha1(b"missing-key").hexdigest() + ".json")
+    found_file.write_text(json.dumps({"found": True, "title": "Kept"}))
+    missing_file.write_text(json.dumps({"found": False}))
+
+    e = Enricher(tmp_path, fetch_json=lambda u: None, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    removed = e.clear_failed_cache()
+
+    assert removed == 1
+    assert found_file.exists()
+    assert not missing_file.exists()

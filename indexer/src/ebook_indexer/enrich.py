@@ -115,6 +115,20 @@ class Enricher:
         if meta.cover is None and data.get("cover_url"):
             meta.cover = self.fetch_bytes(data["cover_url"])
 
+    def clear_failed_cache(self) -> int:
+        """Delete cache entries recorded as a definitive miss, so the next
+        lookup retries them. Entries that found something are left alone,
+        and their covers/other data are not re-fetched. Returns the number
+        of cache files removed.
+        """
+        removed = 0
+        for cache_file in self.cache_dir.glob("*.json"):
+            data = read_json_or(cache_file, None)
+            if isinstance(data, dict) and data.get("found") is False:
+                cache_file.unlink()
+                removed += 1
+        return removed
+
     def _cached_lookup(self, key: str, meta: ExtractedMeta, fallback_title: str) -> dict:
         cache_file = self.cache_dir / (hashlib.sha1(key.encode()).hexdigest() + ".json")
         cached = read_json_or(cache_file, None)

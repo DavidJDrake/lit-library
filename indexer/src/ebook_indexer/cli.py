@@ -36,6 +36,12 @@ def main(argv: list[str] | None = None) -> int:
     p_index.add_argument("--config", required=True, type=Path)
     p_index.add_argument("--limit", type=int, default=None)
     p_index.add_argument("--skip-enrich", action="store_true")
+    p_index.add_argument(
+        "--retry-failed-enrichment",
+        action="store_true",
+        help="clear cached enrichment misses (not-found results) so this run "
+             "re-attempts them; successful lookups are left untouched",
+    )
 
     p_publish = sub.add_parser("publish", help="sync books and site assets to S3")
     p_publish.add_argument("--config", required=True, type=Path)
@@ -48,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
         enricher = None
         if not args.skip_enrich:
             enricher = Enricher(cfg.metadata_dir / "cache")
+            if args.retry_failed_enrichment:
+                n = enricher.clear_failed_cache()
+                print(f"Cleared {n} failed enrichment cache entries for retry")
         books, covers = build_books(
             root=cfg.library_root,
             overrides_path=cfg.metadata_dir / "overrides.yaml",
