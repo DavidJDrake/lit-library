@@ -33,4 +33,41 @@ describe("BookCard", () => {
     expect(container.querySelector(".authors")).not.toBeNull();
     expect(container.querySelector(".authors")).toHaveTextContent("");
   });
+
+  describe("reading status and downloaded indication", () => {
+    it("shows nothing when neither is set", () => {
+      const { container } = render(<BookCard book={book} onOpen={() => {}} />);
+      expect(container.querySelector(".status-chip")).toBeNull();
+      expect(container.querySelector(".downloaded-chip")).toBeNull();
+    });
+    it("shows a status chip with a readable label when a status is set", () => {
+      const { container } = render(<BookCard book={{ ...book, readingStatus: "want to read" }} onOpen={() => {}} />);
+      const chip = container.querySelector(".status-chip");
+      expect(chip).toHaveTextContent("Want to read");
+      expect(chip).toHaveAttribute("data-status", "want to read");
+    });
+    it("shows a downloaded chip, distinct from the status chip, marked as automatic", () => {
+      const { container } = render(<BookCard book={{ ...book, downloaded: true }} onOpen={() => {}} />);
+      const chip = container.querySelector(".downloaded-chip");
+      expect(chip).toHaveTextContent("Downloaded");
+      expect(chip).toHaveAttribute("title", expect.stringMatching(/automatically/i));
+    });
+    it("shows both at once for a book that is downloaded and also finished, since they are independent facts", () => {
+      const { container } = render(<BookCard book={{ ...book, readingStatus: "finished", downloaded: true }} onOpen={() => {}} />);
+      expect(container.querySelector(".status-chip")).toHaveTextContent("Finished");
+      expect(container.querySelector(".downloaded-chip")).toHaveTextContent("Downloaded");
+    });
+    it("keeps both chips inside the fixed-aspect-ratio cover, out of the card's normal document flow", () => {
+      // The chips must live inside .cover (sized purely by aspect-ratio, via CSS position:
+      // absolute) rather than as new flow siblings in .meta/.badges, which is what would
+      // change the card's height. This is a structural proxy for that CSS contract, since
+      // jsdom (vitest's `css: false` config) never computes real layout.
+      const { container } = render(<BookCard book={{ ...book, readingStatus: "reading", downloaded: true }} onOpen={() => {}} />);
+      const cover = container.querySelector(".cover")!;
+      expect(cover.querySelector(".status-chip")).not.toBeNull();
+      expect(cover.querySelector(".downloaded-chip")).not.toBeNull();
+      expect(container.querySelector(".meta .status-chip, .badges .status-chip")).toBeNull();
+      expect(container.querySelector(".meta .downloaded-chip, .badges .downloaded-chip")).toBeNull();
+    });
+  });
 });

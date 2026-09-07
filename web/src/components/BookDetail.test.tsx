@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { Book } from "../catalog/types";
@@ -20,7 +20,7 @@ beforeAll(() => {
 
 describe("BookDetail", () => {
   it("renders metadata and one download button per format with sizes", () => {
-    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     expect(screen.getByRole("heading", { name: "Attacking Network Protocols" })).toBeInTheDocument();
     expect(screen.getByText(/James Forshaw/)).toBeInTheDocument();
     expect(screen.getByText(/No Starch Press · 2018/)).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe("BookDetail", () => {
   it("calls onDownload and disables buttons while in flight", async () => {
     let resolve!: () => void;
     const onDownload = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
-    render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     await userEvent.click(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" }));
     expect(onDownload).toHaveBeenCalledWith(book, "epub");
     expect(screen.getByRole("button", { name: /Download PDF/ })).toBeDisabled();
@@ -40,7 +40,7 @@ describe("BookDetail", () => {
   });
   it("closes via the close button", async () => {
     const onClose = vi.fn();
-    render(<BookDetail book={book} onClose={onClose} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
+    render(<BookDetail book={book} onClose={onClose} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     await userEvent.click(screen.getByRole("button", { name: /close/i }));
     expect(onClose).toHaveBeenCalled();
   });
@@ -48,21 +48,21 @@ describe("BookDetail", () => {
     let resolve!: () => void;
     const onDownload = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
     const bookB: Book = { ...book, id: "2", title: "Another Book" };
-    const { rerender } = render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
+    const { rerender } = render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     await userEvent.click(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" }));
     expect(screen.getByRole("button", { name: /Download PDF/ })).toBeDisabled();
-    rerender(<BookDetail book={bookB} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
+    rerender(<BookDetail book={bookB} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     expect(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" })).toBeEnabled();
   });
   const cats = ["Fiction", "Security & Hacking", "TTRPG"];
   it("renders the category as text when no categories are available", () => {
-    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     expect(screen.queryByRole("combobox", { name: "Category" })).toBeNull();
     expect(screen.getByText(/Security & Hacking · Hacking by No Starch Press/)).toBeInTheDocument();
   });
   it("moves the book via the category select", async () => {
     const onChangeCategory = vi.fn().mockResolvedValue(undefined);
-    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={onChangeCategory} onSuggest={async () => {}} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={onChangeCategory} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     const select = screen.getByRole("combobox", { name: "Category" });
     expect(select).toHaveValue("Security & Hacking");
     await userEvent.selectOptions(select, "TTRPG");
@@ -70,7 +70,7 @@ describe("BookDetail", () => {
   });
   it("shows the suggest form from the last option and submits with the book id", async () => {
     const onSuggest = vi.fn().mockResolvedValue(undefined);
-    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={async () => {}} onSuggest={onSuggest} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={async () => {}} onSuggest={onSuggest} onChangeStatus={async () => {}} />);
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Category" }), "__suggest__");
     await userEvent.type(screen.getByRole("textbox", { name: "New category name" }), "Cookbooks");
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
@@ -80,7 +80,7 @@ describe("BookDetail", () => {
   });
   it("closes the suggest form when a real category is picked instead", async () => {
     const onChangeCategory = vi.fn().mockResolvedValue(undefined);
-    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={onChangeCategory} onSuggest={async () => {}} />);
+    render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={cats} onChangeCategory={onChangeCategory} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     const select = screen.getByRole("combobox", { name: "Category" });
     await userEvent.selectOptions(select, "__suggest__");
     expect(screen.getByRole("textbox", { name: "New category name" })).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe("BookDetail", () => {
     onSend: vi.fn().mockResolvedValue(undefined),
     onSaveDevice: vi.fn().mockResolvedValue(undefined),
   });
-  const base = { onClose: () => {}, onDownload: async () => {}, categories: [], onChangeCategory: async () => {}, onSuggest: async () => {} };
+  const base = { onClose: () => {}, onDownload: async () => {}, categories: [], onChangeCategory: async () => {}, onSuggest: async () => {}, onChangeStatus: async () => {} };
   it("renders no Kindle button without the kindle prop or without an eligible format", () => {
     const { rerender } = render(<BookDetail book={book} {...base} />);
     expect(screen.queryByRole("button", { name: "Send to Kindle" })).toBeNull();
@@ -187,5 +187,48 @@ describe("BookDetail", () => {
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getByRole("button", { name: "Send to Scribe" }));
     expect(await screen.findByRole("textbox", { name: "Name" })).toBeInTheDocument();
+  });
+
+  describe("reading status", () => {
+    it("defaults to No status and lists the three settable values, not downloaded", () => {
+      render(<BookDetail book={book} {...base} />);
+      const select = screen.getByRole("combobox", { name: "Reading status" });
+      expect(select).toHaveValue("");
+      expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["No status", "Want to read", "Reading", "Finished"]);
+    });
+    it("reflects the book's current status", () => {
+      render(<BookDetail book={{ ...book, readingStatus: "reading" }} {...base} />);
+      expect(screen.getByRole("combobox", { name: "Reading status" })).toHaveValue("reading");
+    });
+    it("sets a status via the select", async () => {
+      const onChangeStatus = vi.fn().mockResolvedValue(undefined);
+      render(<BookDetail book={book} {...base} onChangeStatus={onChangeStatus} />);
+      await userEvent.selectOptions(screen.getByRole("combobox", { name: "Reading status" }), "Finished");
+      expect(onChangeStatus).toHaveBeenCalledWith(book, "finished");
+    });
+    it("clears a status by selecting No status", async () => {
+      const onChangeStatus = vi.fn().mockResolvedValue(undefined);
+      const finished = { ...book, readingStatus: "finished" as const };
+      render(<BookDetail book={finished} {...base} onChangeStatus={onChangeStatus} />);
+      await userEvent.selectOptions(screen.getByRole("combobox", { name: "Reading status" }), "No status");
+      expect(onChangeStatus).toHaveBeenCalledWith(finished, null);
+    });
+    it("shows downloaded as a plain, non-selectable indicator alongside the status select, not an option within it", () => {
+      render(<BookDetail book={{ ...book, downloaded: true }} {...base} />);
+      const select = screen.getByRole("combobox", { name: "Reading status" });
+      expect(within(select).queryByText(/downloaded/i)).toBeNull();
+      expect(screen.getByText(/Downloaded/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Downloaded/ })).toBeNull();
+      expect(screen.queryByRole("checkbox", { name: /Downloaded/ })).toBeNull();
+    });
+    it("shows both facts together for a book that is downloaded and also has a chosen status", () => {
+      render(<BookDetail book={{ ...book, readingStatus: "finished", downloaded: true }} {...base} />);
+      expect(screen.getByRole("combobox", { name: "Reading status" })).toHaveValue("finished");
+      expect(screen.getByText(/Downloaded/)).toBeInTheDocument();
+    });
+    it("does not show the downloaded indicator when the book has not been downloaded", () => {
+      render(<BookDetail book={book} {...base} />);
+      expect(screen.queryByText(/Downloaded/)).toBeNull();
+    });
   });
 });

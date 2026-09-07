@@ -1,5 +1,10 @@
 export interface BookFormat { type: string; size: number; s3Key: string }
 
+// The three states a reader sets deliberately. "downloaded" (see Book.downloaded below) is
+// a fourth, derived state shown alongside these but never settable through this type.
+export type ReadingStatus = "want to read" | "reading" | "finished";
+export const READING_STATUSES: readonly ReadingStatus[] = ["want to read", "reading", "finished"];
+
 export interface Book {
   id: string;
   title: string;
@@ -13,6 +18,12 @@ export interface Book {
   formats: BookFormat[];
   coverUrl: string | null;
   addedAt: string;
+  // Overlay-only, like `category`: absent (undefined) until the overlay has loaded, then
+  // merged in by applyOverlay. readingStatus is null when the reader has no status set;
+  // downloaded is independent of it — a book can be downloaded and also want-to-read,
+  // reading, finished, or none of those.
+  readingStatus?: ReadingStatus | null;
+  downloaded?: boolean;
 }
 
 export interface Catalog { generatedAt: string; books: Book[] }
