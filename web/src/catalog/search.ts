@@ -87,13 +87,57 @@ export function facetCounts(books: Book[], key: FacetKey): Array<{ value: string
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
-// Seeds the category facet from a shared/bookmarked link's query string
-// (e.g. ?category=Fiction). Other keys are ignored — this isn't a general
-// filter-serialization scheme, just enough to land on a category.
+// Seeds every facet from a shared/bookmarked link's query string (e.g.
+// ?category=Fiction&format=epub). A facet key may repeat for multiple values.
+// Unknown keys are ignored — a reader may hand-edit one of these — and so is an
+// empty value, so a stray `?category=` doesn't add a blank filter chip.
 export function filtersFromSearch(search: string): Filters {
   const f = emptyFilters();
-  for (const c of new URLSearchParams(search).getAll("category")) if (c) f.category.add(c);
+  const params = new URLSearchParams(search);
+  for (const key of FACET_KEYS) for (const v of params.getAll(key)) if (v) f[key].add(v);
   return f;
+}
+
+// Seeds the search box from the same query string, under the `q` key.
+export function queryFromSearch(search: string): string {
+  return new URLSearchParams(search).get("q") ?? "";
+}
+
+const SORT_KEYS: readonly SortKey[] = ["title", "author", "year", "added"];
+const DEFAULT_SORT: SortKey = "added";
+
+// Seeds the sort order from the same query string, under the `sort` key. An
+// unrecognised value (or a missing one) falls back to the default rather than
+// throwing, since this is the one place a hand-edited link gets read.
+export function sortFromSearch(search: string): SortKey {
+  const s = new URLSearchParams(search).get("sort");
+  return (SORT_KEYS as readonly string[]).includes(s ?? "") ? (s as SortKey) : DEFAULT_SORT;
+}
+
+export interface ViewState { query: string; filters: Filters; sort: SortKey }
+
+// The three parse functions above, combined — for call sites that want the whole
+// view in one read rather than three passes over the same query string.
+export function viewFromSearch(search: string): ViewState {
+  return { query: queryFromSearch(search), filters: filtersFromSearch(search), sort: sortFromSearch(search) };
+}
+
+// The inverse of viewFromSearch: serialises view state back into a query string.
+// Anything at its default is omitted, so an unfiltered, unsorted, unsearched library
+// gets a clean URL rather than a string of empty parameters. A facet with several
+// selected values repeats its key (?category=A&category=B), matching the read side;
+// values within a facet are sorted so the URL doesn't depend on click order. Search
+// text is trimmed — interior whitespace round-trips, incidental leading/trailing
+// whitespace doesn't. Returns "" (not "?") when the view is entirely default, so
+// callers can build a bare path from it.
+export function searchFromView({ query, filters, sort }: ViewState): string {
+  const params = new URLSearchParams();
+  const q = query.trim();
+  if (q) params.set("q", q);
+  if (sort !== DEFAULT_SORT) params.set("sort", sort);
+  for (const key of FACET_KEYS) for (const v of [...filters[key]].sort()) params.append(key, v);
+  const s = params.toString();
+  return s ? `?${s}` : "";
 }
 
 export function formatSize(bytes: number): string {
