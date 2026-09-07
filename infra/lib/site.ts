@@ -14,6 +14,8 @@ export interface SiteProps {
   siteBucket: s3.IBucket;
   keyGroup: cloudfront.IKeyGroup;
   apiDomainName: string;
+  /** Regional domain of the books bucket; downloads load its presigned URL in a hidden iframe. */
+  booksBucketDomainName: string;
 }
 
 export class Site extends Construct {
@@ -51,6 +53,10 @@ export class Site extends Construct {
       // The favicon in index.html is an inline data: SVG.
       "img-src 'self' data:",
       "font-src 'self'",
+      // A book download loads its presigned S3 URL into a hidden iframe (see
+      // web/src/catalog/download.ts), and that URL is on the bucket's own host, not this
+      // distribution. Without this the browser blocks every download silently.
+      `frame-src 'self' https://${props.booksBucketDomainName}`,
       `connect-src 'self' ${cognitoOrigin}`,
       "object-src 'none'",
       "base-uri 'self'",

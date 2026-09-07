@@ -15,6 +15,7 @@ function synth() {
   const site = new Site(stack, "Site", {
     config, siteBucket: bucket, keyGroup: signing.keyGroup,
     apiDomainName: "abc123.execute-api.us-east-1.amazonaws.com",
+    booksBucketDomainName: "books-bucket.s3.us-east-1.amazonaws.com",
   });
   return { t: Template.fromStack(stack), site };
 }
@@ -160,6 +161,9 @@ describe("Site", () => {
     expect(policy).toContain("form-action 'self'");
     // The favicon is an inline data: SVG in index.html.
     expect(policy).toContain("img-src 'self' data:");
+    // A download loads its presigned S3 URL in a hidden iframe; frame-src must allow the
+    // bucket host or every download is blocked with nothing but a console message.
+    expect(policy).toContain("frame-src 'self' https://books-bucket.s3.us-east-1.amazonaws.com");
   });
 
   it("applies the policy to the default, gated and api behaviours alike", () => {
