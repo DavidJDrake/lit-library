@@ -156,6 +156,10 @@ describe("Site", () => {
     expect(policy).not.toMatch(/davidjdrake/i);
     expect(policy).toContain("default-src 'self'");
     expect(policy).toContain("object-src 'none'");
+    // No 'unsafe-inline': the app's runtime styling is CSSOM assignment, which CSP ignores.
+    expect(policy).toContain("style-src 'self';");
+    expect(policy).not.toContain("unsafe-inline");
+    expect(policy).not.toContain("unsafe-eval");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain("base-uri 'self'");
     expect(policy).toContain("form-action 'self'");

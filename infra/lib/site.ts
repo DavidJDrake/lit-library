@@ -46,10 +46,11 @@ export class Site extends Construct {
     const csp = [
       "default-src 'self'",
       "script-src 'self'",
-      // Vite emits a stylesheet, but React and the app set inline style attributes at runtime,
-      // which 'unsafe-inline' covers; it does not permit inline <script>, which is the risk
-      // this policy exists to close.
-      "style-src 'self' 'unsafe-inline'",
+      // No 'unsafe-inline' here, deliberately. The app does set element styles at runtime
+      // (React's style prop, and iframe.style.display in web/src/catalog/download.ts), but
+      // those are CSSOM property assignments, which CSP does not gate; only the style HTML
+      // attribute and <style> elements are, and the build emits neither.
+      "style-src 'self'",
       // The favicon in index.html is an inline data: SVG.
       "img-src 'self' data:",
       "font-src 'self'",
