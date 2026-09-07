@@ -41,8 +41,14 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv[1:])
 
-    before = json.loads(Path(args.before).read_text()) if Path(args.before).exists() else {}
-    added = json.loads(Path(args.added).read_text())
+    try:
+        before = json.loads(Path(args.before).read_text()) if Path(args.before).exists() else {}
+    except (OSError, ValueError) as e:
+        return warn(f"could not read {args.before} ({e}); books-added notification skipped")
+    try:
+        added = json.loads(Path(args.added).read_text())
+    except (OSError, ValueError) as e:
+        return warn(f"could not read {args.added} ({e}); books-added notification skipped")
     ids = new_book_ids(before, added)
     if not ids:
         print("no new books; nothing to notify")

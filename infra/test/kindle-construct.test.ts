@@ -1,6 +1,7 @@
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import * as apigw from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpUserPoolAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -16,8 +17,15 @@ function synth() {
   const table = (id: string) => new dynamodb.Table(stack, id, {
     partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING }, sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
   });
+  const userPool = new cognito.UserPool(stack, "Pool");
+  const client = userPool.addClient("Client");
+  // Mirrors how the real stack wires the API: one HttpApi whose defaultAuthorizer is
+  // the pool's JWT authorizer, shared by every construct that calls addRoutes on it.
+  const httpApi = new apigw.HttpApi(stack, "HttpApi", {
+    defaultAuthorizer: new HttpUserPoolAuthorizer("Jwt", userPool, { userPoolClients: [client] }),
+  });
   new Kindle(stack, "Kindle", {
-    config, httpApi: new apigw.HttpApi(stack, "HttpApi"), userPool: new cognito.UserPool(stack, "Pool"),
+    config, httpApi, userPool,
     booksBucket: new s3.Bucket(stack, "Books"), siteBucket: new s3.Bucket(stack, "Site"),
     libraryTable: table("Lib"), downloadsTable: new dynamodb.Table(stack, "Dl", { partitionKey: { name: "email", type: dynamodb.AttributeType.STRING }, sortKey: { name: "sk", type: dynamodb.AttributeType.STRING } }),
     notificationsTable: table("Notif"), alertsTopic: new sns.Topic(stack, "Alerts"),
@@ -72,6 +80,18 @@ describe("Kindle", () => {
       t.hasResourceProperties("AWS::ApiGatewayV2::Route", { RouteKey: key });
     }
     t.resourceCountIs("AWS::ApiGatewayV2::Route", 3);
+  });
+  it("authenticates every kindle route with the pool's JWT authorizer", () => {
+    const t = synth();
+    const authorizerIds = Object.keys(t.findResources("AWS::ApiGatewayV2::Authorizer", { Properties: { AuthorizerType: "JWT" } }));
+    expect(authorizerIds).toHaveLength(1);
+    const jwtAuthorizerRef = { Ref: authorizerIds[0] };
+
+    const routes = Object.values(t.findResources("AWS::ApiGatewayV2::Route")).map((r) => (r as { Properties: { RouteKey: string; AuthorizerId?: unknown } }).Properties);
+    expect(routes).toHaveLength(3);
+    for (const r of routes) {
+      expect(r.AuthorizerId).toEqual(jwtAuthorizerRef);
+    }
   });
   it("gives the events Lambda notification write, Cognito list, and alerts publish", () => {
     const t = synth();

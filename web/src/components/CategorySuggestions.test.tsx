@@ -39,4 +39,21 @@ describe("CategorySuggestions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
     expect(onCreate).toHaveBeenCalledWith("Essays");
   });
+  it("disables only the resolving chip's buttons while onResolve is in flight, then re-enables them", async () => {
+    let resolveOnResolve!: () => void;
+    const onResolve = vi.fn().mockReturnValue(new Promise<void>((resolve) => { resolveOnResolve = resolve; }));
+    render(<CategorySuggestions suggestions={suggestions} isAdmin onSuggest={noop} onCreate={noop} onResolve={onResolve} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Accept Cookbooks" }));
+    expect(onResolve).toHaveBeenCalledWith("s1", "accept");
+    expect(screen.getByRole("button", { name: "Accept Cookbooks" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject Cookbooks" })).toBeDisabled();
+    // The other, unrelated chip stays interactive.
+    expect(screen.getByRole("button", { name: "Accept Poetry" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reject Poetry" })).toBeEnabled();
+
+    resolveOnResolve();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Accept Cookbooks" })).toBeEnabled());
+    expect(screen.getByRole("button", { name: "Reject Cookbooks" })).toBeEnabled();
+  });
 });
