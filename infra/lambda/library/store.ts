@@ -9,6 +9,17 @@ function isNamed(e: unknown, name: string): boolean {
   return typeof e === "object" && e !== null && (e as { name?: string }).name === name;
 }
 
+// TransactionCanceledException fires for a transaction conflict, throttling, or a
+// validation problem, not only a failed ConditionExpression: only its CancellationReasons
+// entries say which. Treat it as "a condition genuinely failed" only when one of them is
+// ConditionalCheckFailed; anything else (including no reasons at all) must propagate as a
+// real failure rather than being reported as an ordinary 409-shaped outcome.
+function isConditionFailure(e: unknown): boolean {
+  if (!isNamed(e, "TransactionCanceledException")) return false;
+  const reasons = (e as { CancellationReasons?: Array<{ Code?: string }> }).CancellationReasons ?? [];
+  return reasons.some((r) => r.Code === "ConditionalCheckFailed");
+}
+
 function toCategory(i: Item): Category {
   return { name: String(i.sk), nameLower: String(i.nameLower), createdBy: String(i.createdBy), createdAt: String(i.createdAt), source: i.source as Category["source"] };
 }
@@ -90,7 +101,7 @@ export class DynamoStore implements Store {
       await this.ddb.send(new TransactWriteCommand({ TransactItems }));
       return true;
     } catch (e) {
-      if (isNamed(e, "TransactionCanceledException")) return false;
+      if (isConditionFailure(e)) return false;
       throw e;
     }
   }
@@ -113,7 +124,7 @@ export class DynamoStore implements Store {
       await this.ddb.send(new TransactWriteCommand({ TransactItems }));
       return true;
     } catch (e) {
-      if (isNamed(e, "TransactionCanceledException")) return false;
+      if (isConditionFailure(e)) return false;
       throw e;
     }
   }
@@ -134,7 +145,7 @@ export class DynamoStore implements Store {
       await this.ddb.send(new TransactWriteCommand({ TransactItems }));
       return true;
     } catch (e) {
-      if (isNamed(e, "TransactionCanceledException")) return false;
+      if (isConditionFailure(e)) return false;
       throw e;
     }
   }

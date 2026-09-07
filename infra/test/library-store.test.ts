@@ -13,9 +13,13 @@ function conditionalFailure() {
   e.name = "ConditionalCheckFailedException";
   return e;
 }
-function transactionCancelled() {
-  const e = new Error("cancelled") as Error & { name: string };
+// Defaults to a genuine condition failure (one reason with Code: ConditionalCheckFailed),
+// matching what a lost race actually looks like on the wire. Pass other reason codes to
+// simulate a cancellation that was NOT a failed condition (conflict, throttling, etc).
+function transactionCancelled(reasons: Array<{ Code?: string }> = [{ Code: "ConditionalCheckFailed" }]) {
+  const e = new Error("cancelled") as Error & { name: string; CancellationReasons?: Array<{ Code?: string }> };
   e.name = "TransactionCanceledException";
+  e.CancellationReasons = reasons;
   return e;
 }
 
@@ -94,6 +98,12 @@ describe("DynamoStore writes", () => {
     const taken = client(() => { throw transactionCancelled(); });
     expect(await new DynamoStore(taken.ddb, "T").putSuggestion({ id: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" })).toBe(false);
   });
+  it("putSuggestion rethrows a cancellation that was not a failed condition (conflict, throttling, ...)", async () => {
+    const conflict = client(() => { throw transactionCancelled([{ Code: "None" }, { Code: "TransactionConflict" }]); });
+    await expect(new DynamoStore(conflict.ddb, "T").putSuggestion({ id: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" })).rejects.toThrow("cancelled");
+    const throttled = client(() => { throw transactionCancelled([{ Code: "ThrottlingError" }, { Code: "None" }]); });
+    await expect(new DynamoStore(throttled.ddb, "T").putSuggestion({ id: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" })).rejects.toThrow("cancelled");
+  });
   it("acceptSuggestion is one transaction: conditional category put, book put, guarded status update", async () => {
     const { ddb, send } = client(() => ({}));
     const ok = await new DynamoStore(ddb, "T").acceptSuggestion(
@@ -124,6 +134,10 @@ describe("DynamoStore writes", () => {
     const lost = client(() => { throw transactionCancelled(); });
     expect(await new DynamoStore(lost.ddb, "T").acceptSuggestion("s1", { name: "C", nameLower: "c", createdBy: "a@x", createdAt: NOW, source: "suggestion" }, undefined, "a@x", NOW)).toBe(false);
   });
+  it("acceptSuggestion rethrows a cancellation that was not a failed condition", async () => {
+    const conflict = client(() => { throw transactionCancelled([{ Code: "None" }, { Code: "TransactionConflict" }, { Code: "None" }]); });
+    await expect(new DynamoStore(conflict.ddb, "T").acceptSuggestion("s1", { name: "C", nameLower: "c", createdBy: "a@x", createdAt: NOW, source: "suggestion" }, undefined, "a@x", NOW)).rejects.toThrow("cancelled");
+  });
   it("rejectSuggestion is one transaction: guarded update plus name-reservation release; false when not pending", async () => {
     const { ddb, send } = client(() => ({}));
     expect(await new DynamoStore(ddb, "T").rejectSuggestion("s1", "c", "a@x", NOW)).toBe(true);
@@ -139,6 +153,10 @@ describe("DynamoStore writes", () => {
     ]);
     const done = client(() => { throw transactionCancelled(); });
     expect(await new DynamoStore(done.ddb, "T").rejectSuggestion("s1", "c", "a@x", NOW)).toBe(false);
+  });
+  it("rejectSuggestion rethrows a cancellation that was not a failed condition", async () => {
+    const throttled = client(() => { throw transactionCancelled([{ Code: "ThrottlingError" }, { Code: "None" }]); });
+    await expect(new DynamoStore(throttled.ddb, "T").rejectSuggestion("s1", "c", "a@x", NOW)).rejects.toThrow("cancelled");
   });
   it("rethrows unexpected errors", async () => {
     const { ddb } = client(() => { throw new Error("network"); });
