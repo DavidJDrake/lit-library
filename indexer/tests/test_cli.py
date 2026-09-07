@@ -68,3 +68,88 @@ def test_publish_requires_buckets(tmp_path, capsys):
     rc = main(["publish", "--config", str(cfg)])
     assert rc == 2
     assert "books_bucket and site_bucket" in capsys.readouterr().err
+
+
+def test_retry_failed_enrichment_clears_only_failed_cache_entries(tmp_path, make_epub, capsys):
+    # This test must stay offline. The book's own enrichment cache entry is
+    # pre-seeded as a hit (keyed by its ISBN, as Enricher._cached_lookup
+    # does) so indexing never needs to make a real network call; only the
+    # unrelated pre-seeded "failed" entry should be cleared by the flag.
+    import hashlib
+    import json
+
+    root = tmp_path / "lib"
+    make_epub(dest=root / "Hacking by No Starch Press" / "EPUB" / "book.epub", isbn="9781593277505")
+    cfg = write_config(tmp_path, root)
+
+    cache_dir = tmp_path / "metadata" / "cache"
+    cache_dir.mkdir(parents=True)
+    hit_file = cache_dir / (hashlib.sha1(b"9781593277505").hexdigest() + ".json")
+    hit_file.write_text(json.dumps({"found": True, "title": "Cached Title"}))
+    miss_file = cache_dir / (hashlib.sha1(b"some-other-unresolved-book").hexdigest() + ".json")
+    miss_file.write_text(json.dumps({"found": False}))
+
+    rc = main(["index", "--config", str(cfg), "--retry-failed-enrichment"])
+
+    assert rc == 0
+    assert "Cleared 1 failed enrichment cache entries for retry" in capsys.readouterr().out
+    assert hit_file.exists()  # successful lookups are left untouched
+    assert not miss_file.exists()  # failed lookup cleared for retry
+
+
+def test_google_books_api_key_env_var_is_forwarded_to_enricher(tmp_path, make_epub, monkeypatch):
+    # Stays offline: spies on the Enricher constructor instead of letting
+    # any real Enricher (and therefore any real network call) run.
+    import ebook_indexer.cli as cli_module
+
+    root = tmp_path / "lib"
+    make_epub(dest=root / "Hacking by No Starch Press" / "EPUB" / "book.epub")
+    cfg = write_config(tmp_path, root)
+
+    captured = {}
+
+    class SpyEnricher:
+        def __init__(self, cache_dir, **kwargs):
+            captured.update(kwargs)
+
+        def enrich(self, meta, fallback_title):
+            pass
+
+        def clear_failed_cache(self):
+            return 0
+
+    monkeypatch.setattr(cli_module, "Enricher", SpyEnricher)
+    monkeypatch.setenv("GOOGLE_BOOKS_API_KEY", "env-key-456")
+
+    rc = main(["index", "--config", str(cfg)])
+
+    assert rc == 0
+    assert captured.get("google_books_api_key") == "env-key-456"
+
+
+def test_missing_api_key_env_var_passes_none(tmp_path, make_epub, monkeypatch):
+    import ebook_indexer.cli as cli_module
+
+    root = tmp_path / "lib"
+    make_epub(dest=root / "Hacking by No Starch Press" / "EPUB" / "book.epub")
+    cfg = write_config(tmp_path, root)
+
+    captured = {}
+
+    class SpyEnricher:
+        def __init__(self, cache_dir, **kwargs):
+            captured.update(kwargs)
+
+        def enrich(self, meta, fallback_title):
+            pass
+
+        def clear_failed_cache(self):
+            return 0
+
+    monkeypatch.setattr(cli_module, "Enricher", SpyEnricher)
+    monkeypatch.delenv("GOOGLE_BOOKS_API_KEY", raising=False)
+
+    rc = main(["index", "--config", str(cfg)])
+
+    assert rc == 0
+    assert captured.get("google_books_api_key") is None

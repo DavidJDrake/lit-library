@@ -11,10 +11,50 @@ from .models import ExtractedMeta
 
 _USER_AGENT = "ebook-share-indexer/0.1 (personal library indexer)"
 
+# HTTP statuses worth retrying: rate limiting and server-side trouble.
+# Anything else (400, 404, ...) is a definitive answer from the service,
+# not a transient failure, so it is NOT in this set.
+_RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
+
+# A handful of retries, not a hammer: first attempt + this many more.
+_MAX_FETCH_ATTEMPTS = 4
+_BACKOFF_SECONDS = (1.0, 2.0, 4.0)  # used when no Retry-After header is given
+
+
+class TransientFetchError(Exception):
+    """The network or the remote service failed in a way a retry might fix.
+
+    This is distinct from the service answering and saying "not found":
+    that is a definitive result and must still be cached, or every run
+    would re-query the same permanent misses. A TransientFetchError means
+    we don't actually know the answer yet.
+    """
+
+    def __init__(self, message: str = "transient fetch failure", retry_after: float | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        return None  # HTTP-date form; not parsed, caller falls back to default backoff
+
 
 def _default_fetch_json(url: str) -> dict | None:
     try:
         r = requests.get(url, timeout=10, headers={"User-Agent": _USER_AGENT})
+    except requests.RequestException as exc:
+        raise TransientFetchError(f"network error: {exc}") from exc
+    if r.status_code in _RETRYABLE_STATUSES:
+        raise TransientFetchError(
+            f"HTTP {r.status_code}",
+            retry_after=_parse_retry_after(r.headers.get("Retry-After")),
+        )
+    try:
         r.raise_for_status()
         return r.json()
     except Exception:
@@ -40,16 +80,29 @@ def _year_from(text: str | None) -> int | None:
 class Enricher:
     """Fills gaps in ExtractedMeta from Open Library, then Google Books.
 
-    All lookups (hits AND misses) are cached as one JSON file per book in
-    cache_dir, so re-runs never re-query.
+    A lookup that gets a definitive answer (found, or genuinely not found)
+    is cached as one JSON file per book in cache_dir, so re-runs never
+    re-query it. A lookup that fails transiently (network error, rate
+    limit, server error) is retried a handful of times and, if it still
+    doesn't resolve, is left uncached entirely so the next run tries again
+    instead of the miss being baked in permanently.
+
+    google_books_api_key, if given, is sent with every Google Books
+    request. Google Books' own docs say public requests must carry an API
+    key or access token; without one, calls fall into a shared anonymous
+    quota that this library has observed fully exhausted. The key is
+    never required here (Open Library needs none, and Google Books calls
+    are still attempted without one), just passed through when supplied.
     """
 
-    def __init__(self, cache_dir: Path, fetch_json=None, fetch_bytes=None, sleep=None):
+    def __init__(self, cache_dir: Path, fetch_json=None, fetch_bytes=None, sleep=None,
+                 google_books_api_key: str | None = None):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.fetch_json = fetch_json or _default_fetch_json
         self.fetch_bytes = fetch_bytes or _default_fetch_bytes
         self.sleep = sleep if sleep is not None else time.sleep
+        self.google_books_api_key = google_books_api_key
 
     def enrich(self, meta: ExtractedMeta, fallback_title: str) -> None:
         key = meta.isbn or f"{fallback_title}|{meta.authors[0] if meta.authors else ''}"
@@ -71,14 +124,36 @@ class Enricher:
         if meta.cover is None and data.get("cover_url"):
             meta.cover = self.fetch_bytes(data["cover_url"])
 
+    def clear_failed_cache(self) -> int:
+        """Delete cache entries recorded as a definitive miss, so the next
+        lookup retries them. Entries that found something are left alone,
+        and their covers/other data are not re-fetched. Returns the number
+        of cache files removed.
+        """
+        removed = 0
+        for cache_file in self.cache_dir.glob("*.json"):
+            data = read_json_or(cache_file, None)
+            if isinstance(data, dict) and data.get("found") is False:
+                cache_file.unlink()
+                removed += 1
+        return removed
+
     def _cached_lookup(self, key: str, meta: ExtractedMeta, fallback_title: str) -> dict:
         cache_file = self.cache_dir / (hashlib.sha1(key.encode()).hexdigest() + ".json")
         cached = read_json_or(cache_file, None)
         if cached is not None:
             return cached
-        data = self._lookup(meta, fallback_title)
+        try:
+            data = self._lookup(meta, fallback_title)
+        except TransientFetchError:
+            # Inconclusive: don't write anything, so the next run retries
+            # this book instead of a transient failure being cached forever.
+            data = None
+        finally:
+            self.sleep(0.5)  # politeness delay, only on cache miss
+        if data is None:
+            return {"found": False}
         write_json_atomic(cache_file, data)
-        self.sleep(0.5)  # politeness delay, only on cache miss
         return data
 
     def _lookup(self, meta: ExtractedMeta, fallback_title: str) -> dict:
@@ -94,12 +169,28 @@ class Enricher:
                 if gb.get("found") and gb.get("description"):
                     data["description"] = gb["description"]
             return data
+        except TransientFetchError:
+            raise  # let the caller leave this book uncached
         except Exception:
             return {"found": False}
 
+    def _fetch_json_retrying(self, url: str) -> dict | None:
+        attempt = 0
+        while True:
+            try:
+                return self.fetch_json(url)
+            except TransientFetchError as exc:
+                attempt += 1
+                if attempt >= _MAX_FETCH_ATTEMPTS:
+                    raise
+                delay = exc.retry_after
+                if delay is None:
+                    delay = _BACKOFF_SECONDS[min(attempt - 1, len(_BACKOFF_SECONDS) - 1)]
+                self.sleep(delay)
+
     def _open_library_isbn(self, isbn: str) -> dict:
         url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
-        resp = self.fetch_json(url)
+        resp = self._fetch_json_retrying(url)
         entry = resp.get(f"ISBN:{isbn}") if isinstance(resp, dict) else None
         if not entry:
             return {"found": False}
@@ -119,7 +210,9 @@ class Enricher:
         if authors:
             q += f" inauthor:{authors[0]}"
         url = "https://www.googleapis.com/books/v1/volumes?q=" + urllib.parse.quote(q)
-        resp = self.fetch_json(url)
+        if self.google_books_api_key:
+            url += "&key=" + urllib.parse.quote(self.google_books_api_key, safe="")
+        resp = self._fetch_json_retrying(url)
         items = resp.get("items") if isinstance(resp, dict) else None
         if not items:
             return {"found": False}

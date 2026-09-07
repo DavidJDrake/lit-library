@@ -1,6 +1,18 @@
+import sys
+from pathlib import Path
+
+# The dev venv is an editable install (`pip install -e`), which records an
+# ABSOLUTE path to the main checkout's indexer/src in a .pth file. That means
+# pytest run from a worktree would otherwise import `ebook_indexer` from
+# main's src/, not this checkout's - tests would appear to pass while
+# silently exercising the wrong code. Put this checkout's own src/ first on
+# sys.path (resolved relative to this file, not the venv) so it always wins,
+# regardless of which checkout's venv happens to run the suite. Do this
+# before any other import, in case one of them pulls in ebook_indexer.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 import io
 import zipfile
-from pathlib import Path
 
 import pymupdf
 import pytest

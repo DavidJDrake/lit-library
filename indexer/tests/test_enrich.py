@@ -1,6 +1,7 @@
+import hashlib
 import json
 
-from ebook_indexer.enrich import Enricher
+from ebook_indexer.enrich import Enricher, TransientFetchError
 from ebook_indexer.models import ExtractedMeta
 
 OL_ISBN_RESPONSE = {
@@ -134,3 +135,102 @@ def test_total_miss_is_cached_and_harmless(tmp_path):
     cached = list(tmp_path.glob("*.json"))
     assert len(cached) == 1
     assert json.loads(cached[0].read_text())["found"] is False
+
+
+class ScriptedFetcher:
+    """A fetch_json double where each URL fragment has its own queue of
+    responses to return in order. A queued item that is an Exception
+    instance is raised instead of returned, so tests can script a
+    transient failure followed by a success.
+    """
+
+    def __init__(self, scripts: dict[str, list]):
+        self.scripts = {frag: list(steps) for frag, steps in scripts.items()}
+        self.calls: list[str] = []
+
+    def __call__(self, url: str):
+        self.calls.append(url)
+        for frag, steps in self.scripts.items():
+            if frag in url:
+                if not steps:
+                    return None
+                step = steps.pop(0)
+                if isinstance(step, Exception):
+                    raise step
+                return step
+        return None
+
+
+def test_transient_failure_leaves_no_cache_entry_but_genuine_miss_is_cached(tmp_path):
+    # A transient failure that never resolves (exhausts all retry attempts)
+    # must not poison the cache: no file should be written at all.
+    transient_dir = tmp_path / "transient"
+    fetcher = ScriptedFetcher({"googleapis.com/books": [TransientFetchError()] * 4})
+    e = Enricher(transient_dir, fetch_json=fetcher, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    meta = ExtractedMeta(title="Some Book")
+    e.enrich(meta, fallback_title="Some Book")
+    assert meta.description is None
+    assert list(transient_dir.glob("*.json")) == []
+
+    # A genuine "the service answered and found nothing" must still be
+    # cached as before, so re-runs don't re-query it forever.
+    genuine_dir = tmp_path / "genuine"
+    fetcher2 = ScriptedFetcher({})  # no fragments match -> every call returns None (a clean empty answer)
+    e2 = Enricher(genuine_dir, fetch_json=fetcher2, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    meta2 = ExtractedMeta(title="Some Other Book")
+    e2.enrich(meta2, fallback_title="Some Other Book")
+    cached = list(genuine_dir.glob("*.json"))
+    assert len(cached) == 1
+    assert json.loads(cached[0].read_text())["found"] is False
+
+
+def test_retry_succeeds_after_rate_limit_and_honors_retry_after(tmp_path):
+    fetcher = ScriptedFetcher({
+        "googleapis.com/books": [TransientFetchError(retry_after=7.5), GB_RESPONSE],
+    })
+    sleeps = []
+    e = Enricher(tmp_path, fetch_json=fetcher, fetch_bytes=lambda u: b"cover",
+                 sleep=lambda s: sleeps.append(s))
+    meta = ExtractedMeta(authors=["A. Writer"])
+    e.enrich(meta, fallback_title="Mystery Novel")
+
+    assert meta.description == "A gripping tale."
+    # The rate limit's Retry-After was honoured, not the default backoff.
+    assert 7.5 in sleeps
+    # Two lookups against the search endpoint: the failed one and the retry.
+    assert sum("googleapis.com/books" in u for u in fetcher.calls) == 2
+    # The eventual success is cached.
+    cached = list(tmp_path.glob("*.json"))
+    assert len(cached) == 1
+    assert json.loads(cached[0].read_text())["found"] is True
+
+
+def test_clear_failed_cache_removes_only_not_found_entries(tmp_path):
+    found_file = tmp_path / (hashlib.sha1(b"found-key").hexdigest() + ".json")
+    missing_file = tmp_path / (hashlib.sha1(b"missing-key").hexdigest() + ".json")
+    found_file.write_text(json.dumps({"found": True, "title": "Kept"}))
+    missing_file.write_text(json.dumps({"found": False}))
+
+    e = Enricher(tmp_path, fetch_json=lambda u: None, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    removed = e.clear_failed_cache()
+
+    assert removed == 1
+    assert found_file.exists()
+    assert not missing_file.exists()
+
+
+def test_google_books_api_key_is_sent_when_provided(tmp_path):
+    fetcher = ScriptedFetcher({"googleapis.com/books": [GB_RESPONSE]})
+    e = Enricher(tmp_path, fetch_json=fetcher, fetch_bytes=lambda u: None, sleep=lambda s: None,
+                 google_books_api_key="test-key-123")
+    meta = ExtractedMeta(authors=["A. Writer"])
+    e.enrich(meta, fallback_title="Mystery Novel")
+    assert any("key=test-key-123" in u for u in fetcher.calls)
+
+
+def test_no_api_key_omits_key_param(tmp_path):
+    fetcher = ScriptedFetcher({"googleapis.com/books": [GB_RESPONSE]})
+    e = Enricher(tmp_path, fetch_json=fetcher, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    meta = ExtractedMeta(authors=["A. Writer"])
+    e.enrich(meta, fallback_title="Mystery Novel")
+    assert not any("key=" in u for u in fetcher.calls)
