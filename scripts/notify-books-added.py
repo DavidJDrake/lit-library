@@ -45,10 +45,14 @@ def main(argv: list[str]) -> int:
         before = json.loads(Path(args.before).read_text()) if Path(args.before).exists() else {}
     except (OSError, ValueError) as e:
         return warn(f"could not read {args.before} ({e}); books-added notification skipped")
+    if not isinstance(before, dict):
+        return warn(f"{args.before} is not a JSON object (got {type(before).__name__}); books-added notification skipped")
     try:
         added = json.loads(Path(args.added).read_text())
     except (OSError, ValueError) as e:
         return warn(f"could not read {args.added} ({e}); books-added notification skipped")
+    if not isinstance(added, dict):
+        return warn(f"{args.added} is not a JSON object (got {type(added).__name__}); books-added notification skipped")
     ids = new_book_ids(before, added)
     if not ids:
         print("no new books; nothing to notify")
