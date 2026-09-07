@@ -32,9 +32,9 @@ describe("App", () => {
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
-      if (u.includes("/kindle/address")) {
-        if (init?.method === "PUT") return { ok: true, status: 204, headers: new Headers() };
-        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: null }) };
+      if (u.includes("/kindle/devices")) {
+        const list = { devices: [], defaultDeviceId: null };
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => list };
       }
       if (u.includes("/notifications")) {
         return {
@@ -64,9 +64,9 @@ describe("App", () => {
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
-      if (u.includes("/kindle/address")) {
-        if (init?.method === "PUT") return { ok: true, status: 204, headers: new Headers() };
-        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: null }) };
+      if (u.includes("/kindle/devices")) {
+        const list = { devices: [], defaultDeviceId: null };
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => list };
       }
       if (u.includes("/notifications")) {
         return {
@@ -102,9 +102,9 @@ describe("App", () => {
       if (init?.method === "POST" && u.endsWith("/notifications/read")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/session")) return { ok: true, status: 204, headers: new Headers() };
       if (u.endsWith("/library")) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ categories: [], bookCategories: {}, suggestions: [] }) };
-      if (u.includes("/kindle/address")) {
-        if (init?.method === "PUT") return { ok: true, status: 204, headers: new Headers() };
-        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: null }) };
+      if (u.includes("/kindle/devices")) {
+        const list = { devices: [{ id: "d1", label: "Scribe", address: "jay_abc@kindle.com" }], defaultDeviceId: "d1" };
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => list };
       }
       if (u.includes("/notifications")) {
         return {
@@ -119,5 +119,8 @@ describe("App", () => {
     await userEvent.click(screen.getByRole("link", { name: "Settings" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument());
     expect(window.location.pathname).toBe("/settings");
+    // Confirms the page actually loaded the saved device from GET /kindle/devices, not just
+    // that the route rendered with an empty (vacuously passing) list.
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name for jay_abc@kindle.com" })).toHaveValue("Scribe"));
   });
 });
