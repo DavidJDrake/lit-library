@@ -53,7 +53,7 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     catalog = await deps.loadCatalog();
   } catch (e) {
     console.error("kindle catalog load failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, code: "failed", stage: "catalog", reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, deviceId: device.id, code: "failed", stage: "catalog", reason: (e as Error).message }, deps.now);
     return json(502, { error: "failed", message: "Could not read the book from storage" });
   }
   const book = catalog.books.find((b) => b.id === bookId);
@@ -70,7 +70,7 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     bytes = await deps.loadObject(format.s3Key);
   } catch (e) {
     console.error("kindle object load failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, code: "failed", stage: "object", reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, deviceId: device.id, code: "failed", stage: "object", reason: (e as Error).message }, deps.now);
     return json(502, { error: "failed", message: "Could not read the book from storage" });
   }
   if (bytes.byteLength > KINDLE_MAX_BYTES) {
@@ -96,7 +96,7 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     await deps.logSend({ email, sk: `${timestamp}#${bookId}`, bookId, format: `kindle:${type}`, title: book.title, timestamp });
   } catch (e) {
     console.error("kindle log row failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, format: type, code: "log", reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, format: type, deviceId: device.id, code: "log", reason: (e as Error).message }, deps.now);
   }
   logEvent("kindle.sent", { email, bookId, format: type, deviceId: device.id, bytes: bytes.byteLength, sesMessageId: messageId }, deps.now);
   return json(202, { sentTo: device.address, format: type, deviceId: device.id, deviceLabel: device.label });

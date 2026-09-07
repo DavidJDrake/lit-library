@@ -155,7 +155,7 @@ describe("send", () => {
     expect(r.status).toBe(502);
     expect(r.json).toEqual({ error: "failed", message: "Could not read the book from storage" });
     expect(d.logSend).not.toHaveBeenCalled();
-    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", stage: "catalog" }));
+    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", stage: "catalog", deviceId: "abcd1234" }));
     log.mockRestore(); spy.mockRestore();
   });
   it("502s when the object can't be read from storage", async () => {
