@@ -19,6 +19,7 @@ _(none queued)_
 
 | # | Item | Notes |
 |---|---|---|
+| 27 | Normalise the caller's email consistently across handlers. | The Kindle handler lowercases the email claim; the download and library handlers use it raw. The library store lowercases at its own layer so its rows are safe, but the **downloads table** is keyed directly by the handler's value, so a reader whose Cognito address contains uppercase would get two partitions: direct downloads under one, Send-to-Kindle records under another. Consequences are a split download log and a missed "downloaded" mark on the new reading-status facet. **All five allowlisted addresses are lowercase today, so nothing is affected and no migration is needed — the fix is free now and stops being free the moment a mixed-case reader is added.** Effort **S**. |
 | 26 | Don't notify the publisher about their own upload. | Split out of #18 after survey: `books_added` fires from a direct Lambda invoke by `scripts/notify-books-added.py`, which has no Cognito session and no notion of who ran it. Fixing it means inventing a publisher identity and threading it through the script, the invoke payload and the event validation. Effort **M**, and worth deciding whether it earns that. |
 
 ## Security and operations
