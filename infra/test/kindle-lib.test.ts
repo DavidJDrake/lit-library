@@ -1,20 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogBook } from "../lambda/download/download";
-import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES, parseKindleAddress } from "../lambda/kindle/lib";
+import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES } from "../lambda/kindle/lib";
 
 const book: CatalogBook = { id: "b1", title: "Attacking Network Protocols", formats: [
   { type: "pdf", size: 10, s3Key: "books/x.pdf" }, { type: "epub", size: 20, s3Key: "books/x.epub" }, { type: "cbz", size: 5, s3Key: "books/x.cbz" },
 ] };
-
-describe("parseKindleAddress", () => {
-  it("accepts and lowercases kindle.com addresses; empty clears; others are invalid", () => {
-    expect(parseKindleAddress("Jay_ABC@Kindle.com")).toBe("jay_abc@kindle.com");
-    expect(parseKindleAddress("")).toBeNull();
-    expect(parseKindleAddress("jay@gmail.com")).toBeUndefined();
-    expect(parseKindleAddress("jay@kindle.com.evil")).toBeUndefined();
-    expect(parseKindleAddress(42)).toBeUndefined();
-  });
-});
 
 describe("chooseFormat", () => {
   it("prefers epub, then pdf, honours an explicit request, and ignores unsupported types", () => {

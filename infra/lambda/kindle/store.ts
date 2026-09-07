@@ -1,6 +1,5 @@
 import { DeleteCommand, GetCommand, PutCommand, type DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { readDevices } from "./devices";
-import type { DeviceList } from "./devices";
+import { readDevices, type DeviceList } from "./devices";
 import type { KindleStore, SetDevicesResult, StoredDevices } from "./index";
 
 const SK = "SETTINGS";

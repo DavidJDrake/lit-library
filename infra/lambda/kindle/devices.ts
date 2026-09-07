@@ -49,6 +49,10 @@ export function readDevices(item: Record<string, unknown> | undefined): DeviceLi
   const legacy = item?.kindleAddress;
   if (typeof legacy === "string" && legacy.trim()) {
     const address = legacy.trim().toLowerCase();
+    // Defence in depth: this is the one path where a stored string becomes a MIME To:
+    // header without passing through validation on the way in. A row that does not match
+    // reads as no devices rather than being trusted.
+    if (!KINDLE_ADDRESS_RE.test(address)) return { devices: [], defaultDeviceId: null };
     const id = derivedDeviceId(address);
     const addedAt = typeof item?.updatedAt === "string" ? item.updatedAt : "";
     return { devices: [{ id, label: "", address, addedAt }], defaultDeviceId: id };
@@ -91,7 +95,13 @@ export function validateDevices(input: unknown, requestedDefault: unknown, exist
       ids.add(known.id);
       devices.push({ id: known.id, label, address, addedAt: known.addedAt });
     } else {
-      devices.push({ id: newDeviceId(), label, address, addedAt: now });
+      // The generated id shares its 32-bit space with the ids derived from a migrated
+      // address, and two ids in one list would key the default, the SES tag and every
+      // by-id lookup to the same device. Claim a free one.
+      let id = newDeviceId();
+      while (ids.has(id)) id = newDeviceId();
+      ids.add(id);
+      devices.push({ id, label, address, addedAt: now });
     }
   }
 

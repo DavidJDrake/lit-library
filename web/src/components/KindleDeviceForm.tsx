@@ -55,7 +55,7 @@ export default function KindleDeviceForm({ sender, submitLabel, onSubmit, onCanc
       {error && <div className="notif-error" role="alert">{error}</div>}
       <div className="suggest-form">
         <button type="submit" className="btn" disabled={locked}>{submitLabel}</button>
-        {onCancel && <button type="button" className="btn secondary" disabled={busy} onClick={onCancel}>Cancel</button>}
+        {onCancel && <button type="button" className="btn secondary" disabled={locked} onClick={onCancel}>Cancel</button>}
       </div>
     </form>
   );

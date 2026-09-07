@@ -5,14 +5,6 @@ export const KINDLE_ADDRESS_RE = /^[A-Za-z0-9._+-]+@kindle\.com$/i;
 export const CONTENT_TYPES: Record<"epub" | "pdf", string> = { epub: "application/epub+zip", pdf: "application/pdf" };
 const ORDER: Array<"epub" | "pdf"> = ["epub", "pdf"];
 
-/** "" → null (clear the setting); a valid address → lowercased; anything else → undefined. */
-export function parseKindleAddress(raw: unknown): string | null | undefined {
-  if (typeof raw !== "string") return undefined;
-  const s = raw.trim();
-  if (s === "") return null;
-  return KINDLE_ADDRESS_RE.test(s) ? s.toLowerCase() : undefined;
-}
-
 export function chooseFormat(book: CatalogBook, requested?: string): CatalogFormat | undefined {
   if (requested !== undefined) {
     return ORDER.includes(requested as "epub" | "pdf") ? book.formats.find((f) => f.type === requested) : undefined;

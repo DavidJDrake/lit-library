@@ -246,7 +246,7 @@ describe("send", () => {
     expect(r.status).toBe(502);
     expect(r.json).toEqual({ error: "failed", message: "Could not read the book from storage" });
     expect(d.logSend).not.toHaveBeenCalled();
-    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", stage: "object" }));
+    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", stage: "object", deviceId: "abcd1234" }));
     log.mockRestore(); spy.mockRestore();
   });
   it("maps the sandbox rejection to 502 not_enabled and other failures to 502 failed, logging send_failed and no log row", async () => {
@@ -272,7 +272,7 @@ describe("send", () => {
     expect(r.status).toBe(202);
     expect(r.json).toEqual({ sentTo: "jay_abc@kindle.com", format: "epub", deviceId: "abcd1234", deviceLabel: "Kindle" });
     const events = log.mock.calls.map((c) => JSON.parse(String(c[0])));
-    expect(events).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", code: "log", reason: "ddb throttled" }));
+    expect(events).toContainEqual(expect.objectContaining({ event: "kindle.send_failed", bookId: "b1", code: "log", reason: "ddb throttled", deviceId: "abcd1234" }));
     expect(events).toContainEqual(expect.objectContaining({ event: "kindle.sent", bookId: "b1", format: "epub", deviceId: "abcd1234" }));
     log.mockRestore(); spy.mockRestore();
   });

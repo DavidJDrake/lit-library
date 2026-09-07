@@ -102,8 +102,8 @@ and navigates a hidden iframe to the returned presigned URL.
 | Path | What |
 |---|---|
 | `indexer/` | Python CLI (`ebook_indexer`): scan → extract → group → enrich → categorize → catalog → publish. 81 tests, all offline. |
-| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, six Lambdas. 227 tests (CDK assertions + Lambda units), all offline. |
-| `web/` | React + Vite + TypeScript SPA. 211 tests (vitest + Testing Library), all offline. |
+| `infra/` | AWS CDK (TypeScript): storage, CloudFront + signing key group, Cognito, HTTP API, six Lambdas. 240 tests (CDK assertions + Lambda units), all offline. |
+| `web/` | React + Vite + TypeScript SPA. 222 tests (vitest + Testing Library), all offline. |
 | `scripts/` | Glue: copy CDK outputs into config, write web env files, generate the signing key, deploy the web app, refresh the catalog (`publish-new.sh`), back up state (`backup.sh`), make an admin (`make-admin.sh`), pull category edits (`pull-edits.py`), notify readers of new books (`notify-books-added.py`, run by `publish-new.sh`). |
 | `docs/superpowers/` | The design specs and the implementation plans that were actually executed (see below). |
 

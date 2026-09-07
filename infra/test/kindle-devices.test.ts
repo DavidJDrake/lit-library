@@ -44,6 +44,11 @@ describe("readDevices", () => {
     expect(readDevices({})).toEqual(empty);
     expect(readDevices({ devices: [{ id: 1, label: "x" }] })).toEqual(empty);
   });
+  it("reads a legacy address that fails the address rule as an empty list", () => {
+    // The value would otherwise reach a MIME To: header unvalidated.
+    expect(readDevices({ kindleAddress: "me@example.com", updatedAt: NOW })).toEqual(empty);
+    expect(readDevices({ kindleAddress: "me@kindle.com.evil", updatedAt: NOW })).toEqual(empty);
+  });
 });
 
 describe("publicList", () => {
