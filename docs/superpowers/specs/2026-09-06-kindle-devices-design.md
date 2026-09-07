@@ -78,7 +78,11 @@ so the route count is unchanged apart from `send`.
 
 ### `GET /api/kindle/devices`
 
-`200 { devices: [{ id, label, address }], defaultDeviceId }`. `addedAt` is not
+`200 { devices: [{ id, label, address }], defaultDeviceId, version }`, where
+`version` is the stored row's `updatedAt`, opaque to the client and `null` when no
+row exists. A client sends it back on the next `PUT` so a second tab cannot silently
+drop a device it never saw; a `PUT` without one writes unconditionally, which keeps
+an older client working during a deploy. `addedAt` is not
 returned; the client has no use for it. An empty list returns
 `{ devices: [], defaultDeviceId: null }`.
 
@@ -100,6 +104,7 @@ Errors are JSON `{ error, message? }`:
 | 400 | `bad_default` | `defaultDeviceId` names no device in the list |
 | 400 | `unknown_device` | An entry carries an `id` that is not in the stored row |
 | 400 | `bad_request` | The same `id` appears twice in one submission (`Send each device once`) |
+| 409 | `stale` | The row changed since the client's `version` (`Your devices changed in another tab — reload and try again`) |
 
 Sending an empty list is valid and clears the setting, matching today's behavior
 when the address is cleared.
