@@ -23,14 +23,6 @@ updates:
       # Majors that need a deliberate migration (BACKLOG.md #24); minors/patches still flow.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
-      - dependency-name: react
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react-dom
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/react"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/react-dom"
-        update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: /indexer
     schedule: { interval: weekly, day: monday }

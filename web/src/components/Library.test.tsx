@@ -279,7 +279,9 @@ describe("Library", () => {
     });
     renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
     await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
-    expect(screen.getByRole("status")).toHaveTextContent("Category editing is unavailable right now (boom)");
+    // React 19 no longer lands the catalog render and the overlay-failure toast in the same
+    // commit, so wait for the toast rather than assuming the book list implies it.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Category editing is unavailable right now (boom)"));
     expect(screen.queryByRole("button", { name: "Suggest a category" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
     expect(within(screen.getByRole("dialog", { hidden: true })).queryByRole("combobox", { name: "Category" })).toBeNull();
