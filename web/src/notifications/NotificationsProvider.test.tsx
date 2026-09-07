@@ -35,6 +35,7 @@ function Probe() {
       <span data-testid="unread">{s.unread}</span>
       <span data-testid="seen">{String(s.seen)}</span>
       <span data-testid="more">{String(s.hasMore)}</span>
+      <span data-testid="loadMoreError">{s.loadMoreError ?? ""}</span>
       <button onClick={() => void s.markRead([s.items[0]?.id])}>read-first</button>
       <button onClick={() => void s.markAllRead()}>read-all</button>
       <button onClick={() => void s.loadMore()}>more</button>
@@ -170,7 +171,7 @@ describe("NotificationsProvider", () => {
     await waitFor(() => expect(posted).toEqual([JSON.stringify({ ids: [n(1).id] })]));
     expect(screen.getByTestId("unread")).toHaveTextContent("0");
   });
-  it("loadMore reports an error and keeps existing items when the second page fails", async () => {
+  it("loadMore reports its own loadMoreError, leaving status/error (the initial-load fields) untouched, and keeps existing items", async () => {
     let gets = 0;
     const fetchFn = vi.fn(async () => {
       gets += 1;
@@ -182,9 +183,26 @@ describe("NotificationsProvider", () => {
     mount(fetchFn);
     await waitFor(() => expect(screen.getByTestId("more")).toHaveTextContent("true"));
     await userEvent.click(screen.getByRole("button", { name: "more" }));
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("error"));
+    await waitFor(() => expect(screen.getByTestId("loadMoreError")).toHaveTextContent("boom"));
+    expect(screen.getByTestId("status")).toHaveTextContent("ready");
     expect(screen.getByTestId("count")).toHaveTextContent("1");
     expect(screen.getByTestId("more")).toHaveTextContent("true");
+  });
+  it("a retried loadMore clears a previous loadMoreError once it succeeds", async () => {
+    let gets = 0;
+    const fetchFn = vi.fn(async () => {
+      gets += 1;
+      if (gets === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1, next: "2026-09-05T10:00:01.000Z#1" }) };
+      if (gets === 2) return { ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(2)], unread: 1 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("more")).toHaveTextContent("true"));
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("loadMoreError")).toHaveTextContent("boom"));
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("2"));
+    expect(screen.getByTestId("loadMoreError")).toHaveTextContent("");
   });
   it("polls every NOTIFICATIONS_POLL_MS and on visibility, and reports errors without throwing", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });

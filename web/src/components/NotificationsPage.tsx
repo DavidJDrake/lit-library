@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function NotificationsPage({ isAdmin, titleOf, sender, deviceLabelOf, onResolve }: Props) {
-  const { items, unread, status, error, hasMore, refresh, loadMore, markAllRead } = useNotifications();
+  const { items, unread, status, error, hasMore, loadMoreError, refresh, loadMore, markAllRead } = useNotifications();
   return (
     <main className="page notifications-page">
       <div className="page-head">
@@ -28,6 +28,11 @@ export default function NotificationsPage({ isAdmin, titleOf, sender, deviceLabe
         <ul className="notif-list panel">
           {items.map((n) => <NotificationItem key={n.id} n={n} isAdmin={isAdmin} titleOf={titleOf} sender={sender} deviceLabelOf={deviceLabelOf} onResolve={onResolve} />)}
         </ul>
+      )}
+      {loadMoreError && (
+        <div className="notif-error" role="alert">
+          Couldn't load more ({loadMoreError}). <button type="button" className="more" onClick={() => void loadMore()}>Retry</button>
+        </div>
       )}
       {hasMore && <button type="button" className="btn secondary" onClick={() => void loadMore()}>Load more</button>}
     </main>

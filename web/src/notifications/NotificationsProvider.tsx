@@ -7,6 +7,9 @@ export const POPOVER_COUNT = 5;
 
 export interface NotificationsState {
   items: Notification[]; unread: number; status: "loading" | "ready" | "error"; error?: string; hasMore: boolean; seen: boolean;
+  // Separate from `status`/`error`, which describe the initial load only: a failed loadMore
+  // (fetching the next page) must not read as a full-page failure — see loadMore below.
+  loadMoreError?: string;
   refresh(): Promise<void>; loadMore(): Promise<void>; markRead(ids: string[]): Promise<void>; markAllRead(): Promise<void>;
 }
 
@@ -19,6 +22,7 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   const [next, setNext] = useState<string>();
   const [status, setStatus] = useState<NotificationsState["status"]>("loading");
   const [error, setError] = useState<string>();
+  const [loadMoreError, setLoadMoreError] = useState<string>();
   const [seen, setSeen] = useState(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -53,12 +57,15 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   const loadMore = useCallback(async () => {
     if (!next || loadingMore.current) return;
     loadingMore.current = true;
+    setLoadMoreError(undefined);
     try {
       const page = await fetchNotifications(apiUrl, await getIdToken(), { limit: PAGE_SIZE, before: next }, fetchFn);
       if (!mounted.current) return;
       setItems((cur) => [...cur, ...page.items]); setNext(page.next); setUnread(page.unread);
     } catch (e) {
-      if (mounted.current) { setStatus("error"); setError((e as Error).message); }
+      // Own field, not `status`/`error`: a second-page failure must not read as an
+      // initial-load failure and blow away the page-wide view of items already shown.
+      if (mounted.current) setLoadMoreError((e as Error).message);
     } finally {
       loadingMore.current = false;
     }
@@ -108,8 +115,8 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   }, [refresh]);
 
   const value = useMemo<NotificationsState>(() => ({
-    items, unread, status, error, hasMore: Boolean(next), seen, refresh, loadMore, markRead, markAllRead,
-  }), [items, unread, status, error, next, seen, refresh, loadMore, markRead, markAllRead]);
+    items, unread, status, error, hasMore: Boolean(next), seen, loadMoreError, refresh, loadMore, markRead, markAllRead,
+  }), [items, unread, status, error, next, seen, loadMoreError, refresh, loadMore, markRead, markAllRead]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

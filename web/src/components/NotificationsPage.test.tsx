@@ -36,6 +36,26 @@ describe("NotificationsPage", () => {
     await waitFor(() => expect(posted).toContain(JSON.stringify({ all: true })));
     expect(screen.queryByRole("button", { name: "Mark all as read" })).toBeNull();
   });
+  it("shows an inline retry (not the page-wide banner) when only the next page fails, and retry loads it", async () => {
+    let gets = 0;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return { ok: true, status: 204, headers: new Headers() };
+      gets += 1;
+      if (gets === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(0)], unread: 0, next: "2026-09-05T10:00:01.000Z#1" }) };
+      if (gets === 2) return { ok: false, status: 502, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "down" }) };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 0 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(1));
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(screen.getByText(/Couldn't load more/)).toBeInTheDocument());
+    // Existing items stay, and this is the small inline message, not the page-wide banner.
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.queryByText(/Couldn't load notifications/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
+    expect(screen.queryByText(/Couldn't load more/)).toBeNull();
+  });
   it("shows an empty state and an error state with retry", async () => {
     mount(server([{ items: [], unread: 0 }]).fetchFn);
     await waitFor(() => expect(screen.getByText("No notifications yet")).toBeInTheDocument());
