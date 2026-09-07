@@ -128,6 +128,38 @@ describe("NotificationsProvider", () => {
     expect(screen.getByTestId("unread")).toHaveTextContent("1");
     expect(screen.getByTestId("read-ids")).toHaveTextContent(n(2).id);
   });
+  it("a failed markRead does not double-count on top of a refresh that already landed the server's not-yet-written count", async () => {
+    const deferredPost = deferred<{ ok: boolean; status: number; headers: Headers; json: () => Promise<unknown> }>();
+    let gets = 0;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return deferredPost.promise;
+      gets += 1;
+      // Every GET (initial load and the later manual refresh) reflects the server not
+      // having seen the write yet: n(1) still unread, unread count still 5.
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 5 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("5"));
+
+    // markRead optimistically drops the count, and its write is left in flight.
+    await userEvent.click(screen.getByRole("button", { name: "read-first" }));
+    expect(screen.getByTestId("unread")).toHaveTextContent("4");
+
+    // A background refresh (poll/visibility/manual) lands while the write is still
+    // pending. The server hasn't processed the write, so it legitimately reports the
+    // notification as still unread and resets the count to 5 -- this is correct, not a bug.
+    await userEvent.click(screen.getByRole("button", { name: "refresh" }));
+    await waitFor(() => expect(gets).toBe(2));
+    expect(screen.getByTestId("unread")).toHaveTextContent("5");
+
+    // The write then fails. Its revert must not add flippedIds.length back on top of the
+    // refresh's already-current count, which would drift to 6 against a truth of 5.
+    await act(async () => {
+      deferredPost.resolve({ ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "x" }) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(screen.getByTestId("unread")).toHaveTextContent("5");
+  });
   it("a stale in-flight refresh cannot clobber a markRead that already succeeded", async () => {
     const posted: string[] = [];
     let getCount = 0;
