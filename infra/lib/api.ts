@@ -85,10 +85,29 @@ export class Api extends Construct {
     // All calls arrive same-origin through CloudFront's /api/* behavior — no CORS needed.
     this.httpApi = new apigw.HttpApi(this, "HttpApi", { defaultAuthorizer: authorizer });
 
+    const downloadIntegration = new HttpLambdaIntegration("DownloadIntegration", downloadFn);
     this.httpApi.addRoutes({
       path: "/api/download",
       methods: [apigw.HttpMethod.POST],
-      integration: new HttpLambdaIntegration("DownloadIntegration", downloadFn),
+      integration: downloadIntegration,
+    });
+    // Deliberately unauthenticated, like DELETE /api/session below: an e-reader app has
+    // no way to obtain a Cognito token, so these two routes authenticate themselves
+    // inside the handler with a per-reader, hashed, revocable OPDS token carried as a
+    // query parameter instead (see infra/lambda/download/opds-store.ts). The token grants
+    // read-only catalogue access and nothing else — no writes, no other endpoint accepts
+    // it. See the explicit, justified exemption in infra/test/stack.test.ts.
+    this.httpApi.addRoutes({
+      path: "/api/opds",
+      methods: [apigw.HttpMethod.GET],
+      integration: downloadIntegration,
+      authorizer: new apigw.HttpNoneAuthorizer(),
+    });
+    this.httpApi.addRoutes({
+      path: "/api/opds/download/{bookId}/{format}",
+      methods: [apigw.HttpMethod.GET],
+      integration: downloadIntegration,
+      authorizer: new apigw.HttpNoneAuthorizer(),
     });
     const sessionIntegration = new HttpLambdaIntegration("SessionIntegration", sessionFn);
     this.httpApi.addRoutes({

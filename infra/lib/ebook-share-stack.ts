@@ -37,6 +37,11 @@ export class EbookShareStack extends Stack {
     });
     library.table.grantReadData(notifications.fn);
     notifications.fn.addEnvironment("LIBRARY_TABLE", library.table.tableName);
+    // Read-only: the OPDS feed and acquisition routes only ever resolve a token to a
+    // reader (a GetItem by its hash). Generating, regenerating, and revoking a token is
+    // the library Lambda's job, which already has read/write access to this table.
+    library.table.grantReadData(api.downloadFn);
+    api.downloadFn.addEnvironment("LIBRARY_TABLE", library.table.tableName);
     const alerts = new Alerts(this, "Alerts", {
       config,
       functions: [auth.preSignUp, api.downloadFn, api.sessionFn, library.fn, notifications.fn],
