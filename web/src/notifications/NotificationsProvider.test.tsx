@@ -240,6 +240,25 @@ describe("NotificationsProvider", () => {
     await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("2"));
     expect(screen.getByTestId("loadMoreError")).toHaveTextContent("");
   });
+  it("a successful refresh clears a stale loadMoreError left by a prior failed loadMore", async () => {
+    let gets = 0;
+    const fetchFn = vi.fn(async () => {
+      gets += 1;
+      if (gets === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1, next: "2026-09-05T10:00:01.000Z#1" }) };
+      if (gets === 2) return { ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("more")).toHaveTextContent("true"));
+    // Fail a load-more: the inline error appears.
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("loadMoreError")).toHaveTextContent("boom"));
+    // A background refresh (poll/visibility/manual) then succeeds and replaces the list.
+    await userEvent.click(screen.getByRole("button", { name: "refresh" }));
+    await waitFor(() => expect(gets).toBe(3));
+    // The stale inline message, which no longer describes anything visible, is gone.
+    expect(screen.getByTestId("loadMoreError")).toHaveTextContent("");
+  });
   it("polls every NOTIFICATIONS_POLL_MS and on visibility, and reports errors without throwing", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const { fetchFn, gets } = server([{ items: [], unread: 0 }]);

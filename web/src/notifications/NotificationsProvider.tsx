@@ -42,6 +42,11 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
 
   const refresh = useCallback(async () => {
     const mine = ++seqRef.current;
+    // A background refresh (poll/visibility/manual) that succeeds means the list it
+    // brings back is current truth, so a stale "couldn't load more" from a prior
+    // loadMore failure — which described a page that no longer applies to anything
+    // visible — must not linger on screen describing nothing.
+    setLoadMoreError(undefined);
     try {
       const page = await fetchNotifications(apiUrl, await getIdToken(), { limit: PAGE_SIZE }, fetchFn);
       if (!mounted.current || mine !== seqRef.current) return;
