@@ -97,6 +97,25 @@ describe("KindleProvider", () => {
     expect(screen.getByTestId("state")).toHaveTextContent("1:srv1");
   });
 
+  it("sends the version it last saw and adopts the one each save returns", async () => {
+    const bodies: unknown[] = [];
+    let put = 0;
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => {
+      if (init?.method !== "PUT") return json(200, { devices: [], defaultDeviceId: null, version: "v1" });
+      bodies.push(JSON.parse(String(init.body)));
+      return json(200, { devices: [{ id: "srv1", label: "Phone", address: "b@kindle.com" }], defaultDeviceId: "srv1", version: `v${++put + 1}` });
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("0:-"));
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("1:srv1"));
+    // A second save in a row must carry the version the first one returned, not the stale one.
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect((bodies[0] as { version: string }).version).toBe("v1");
+    expect((bodies[1] as { version: string }).version).toBe("v2");
+  });
+
   it("propagates a save failure to the caller", async () => {
     const errors: string[] = [];
     function Failing() {

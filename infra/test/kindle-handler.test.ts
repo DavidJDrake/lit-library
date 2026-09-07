@@ -23,13 +23,33 @@ const TWO: DeviceList = {
   ],
   defaultDeviceId: "bbbbbbbb",
 };
-function storeStub(list: DeviceList = { devices: [], defaultDeviceId: null }) {
-  const saved: Array<{ list: DeviceList; updatedAt: string }> = [];
+function storeStub(list: DeviceList = { devices: [], defaultDeviceId: null }, version: string | null = null) {
+  const saved: Array<{ list: DeviceList; updatedAt: string; expected: string | null | undefined }> = [];
   return {
     saved,
     store: {
-      getDevices: async () => list,
-      setDevices: async (_e: string, l: DeviceList, updatedAt: string) => { saved.push({ list: l, updatedAt }); },
+      getDevices: async () => ({ ...list, version }),
+      setDevices: async (_e: string, l: DeviceList, updatedAt: string, expected?: string | null) => {
+        saved.push({ list: l, updatedAt, expected });
+        return { ok: true as const, version: l.devices.length === 0 ? null : updatedAt };
+      },
+    } satisfies KindleStore,
+  };
+}
+/** A store that accepts a write only while the caller's version matches, as DynamoDB's condition does. */
+function versionedStore(list: DeviceList, version: string | null) {
+  let current = version;
+  let held = list;
+  return {
+    get version() { return current; },
+    store: {
+      getDevices: async () => ({ ...held, version: current }),
+      setDevices: async (_e: string, l: DeviceList, updatedAt: string, expected?: string | null) => {
+        if (expected !== undefined && expected !== current) return { ok: false as const, reason: "stale" as const };
+        held = l;
+        current = l.devices.length === 0 ? null : updatedAt;
+        return { ok: true as const, version: current };
+      },
     } satisfies KindleStore,
   };
 }
@@ -62,6 +82,7 @@ describe("device routes", () => {
     expect(res.json).toEqual({
       devices: [{ id: "aaaaaaaa", label: "Scribe", address: "a@kindle.com" }, { id: "bbbbbbbb", label: "Phone", address: "b@kindle.com" }],
       defaultDeviceId: "bbbbbbbb",
+      version: null,
     });
   });
 
@@ -98,8 +119,67 @@ describe("device routes", () => {
   it("PUT with an empty list clears the setting", async () => {
     const { store, saved } = storeStub(TWO);
     const res = parse(await handle(ev("PUT", "/api/kindle/devices", { devices: [] }), deps({ store })));
-    expect(res.json).toEqual({ devices: [], defaultDeviceId: null });
+    expect(res.json).toEqual({ devices: [], defaultDeviceId: null, version: null });
     expect(saved[0].list.devices).toEqual([]);
+  });
+
+  it("GET returns the stored row's version, and PUT sends it back and reports the new one", async () => {
+    const seen = "2026-09-04T08:00:00.000Z";
+    const { store, saved } = storeStub(TWO, seen);
+    expect(parse(await handle(ev("GET", "/api/kindle/devices"), deps({ store }))).json.version).toBe(seen);
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", {
+      devices: [{ id: "aaaaaaaa", label: "Scribe", address: "a@kindle.com" }], version: seen,
+    }), deps({ store })));
+    expect(saved[0].expected).toBe(seen);
+    expect(res.json.version).toBe(NOW);
+  });
+
+  it("PUT without a version writes unconditionally, so an older client keeps working", async () => {
+    const { store, saved } = storeStub(TWO, "2026-09-04T08:00:00.000Z");
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", {
+      devices: [{ id: "aaaaaaaa", label: "Scribe", address: "a@kindle.com" }],
+    }), deps({ store })));
+    expect(res.status).toBe(200);
+    expect(saved[0].expected).toBeUndefined();
+  });
+
+  it("PUT with an explicit null version expects no stored row", async () => {
+    const { store, saved } = storeStub({ devices: [], defaultDeviceId: null }, null);
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", {
+      devices: [{ label: "Scribe", address: "a@kindle.com" }], version: null,
+    }), deps({ store })));
+    expect(res.status).toBe(200);
+    expect(saved[0].expected).toBeNull();
+  });
+
+  it("PUT answers 409 stale when the row moved on, and saves nothing", async () => {
+    const store: KindleStore = {
+      getDevices: async () => ({ ...TWO, version: "newer" }),
+      setDevices: async () => ({ ok: false, reason: "stale" }),
+    };
+    const res = parse(await handle(ev("PUT", "/api/kindle/devices", {
+      devices: [{ id: "aaaaaaaa", label: "Scribe", address: "a@kindle.com" }], version: "older",
+    }), deps({ store })));
+    expect(res.status).toBe(409);
+    expect(res.json).toEqual({ error: "stale", message: "Your devices changed in another tab — reload and try again" });
+  });
+
+  it("two tabs saving from the same version: the first wins, the second is told to reload", async () => {
+    const seen = "2026-09-04T08:00:00.000Z";
+    const { store } = versionedStore(TWO, seen);
+    const d = deps({ store });
+    const body = (label: string) => ({
+      devices: [{ id: "aaaaaaaa", label, address: "a@kindle.com" }, { id: "bbbbbbbb", label: "Phone", address: "b@kindle.com" }],
+      defaultDeviceId: "bbbbbbbb", version: seen,
+    });
+    const first = parse(await handle(ev("PUT", "/api/kindle/devices", body("Study Scribe")), d));
+    const second = parse(await handle(ev("PUT", "/api/kindle/devices", body("Desk Scribe")), d));
+    expect(first.status).toBe(200);
+    expect(first.json.version).toBe(NOW);
+    expect(second.status).toBe(409);
+    expect(second.json.error).toBe("stale");
+    // The loser's rename never reached the row.
+    expect(parse(await handle(ev("GET", "/api/kindle/devices"), d)).json.devices[0].label).toBe("Study Scribe");
   });
 
   it("still 404s an unknown path and 401s a token with no email", async () => {
@@ -200,7 +280,8 @@ describe("send", () => {
     expect(parse(await handle(ev("GET", "/api/kindle/devices", undefined, undefined), deps())).status).toBe(401);
     expect(parse(await handle(ev("DELETE", "/api/kindle/devices"), deps())).status).toBe(404);
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(parse(await handle(ev("GET", "/api/kindle/devices"), deps({ store: { getDevices: vi.fn().mockRejectedValue(new Error("boom")), setDevices: vi.fn() } }))).status).toBe(500);
+    const broken: KindleStore = { getDevices: vi.fn().mockRejectedValue(new Error("boom")), setDevices: vi.fn() };
+    expect(parse(await handle(ev("GET", "/api/kindle/devices"), deps({ store: broken }))).status).toBe(500);
     spy.mockRestore();
   });
 });

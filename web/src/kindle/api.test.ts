@@ -10,11 +10,15 @@ const json = (status: number, body: unknown) => ({
 describe("getKindleDevices", () => {
   it("returns the list and the default", async () => {
     const fetchFn = vi.fn(async () => json(200, { devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" })) as unknown as typeof fetch;
-    expect(await getKindleDevices("/api", "tok", fetchFn)).toEqual({ devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" });
+    expect(await getKindleDevices("/api", "tok", fetchFn)).toEqual({ devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1", version: null });
   });
   it("tolerates a malformed body", async () => {
     const fetchFn = vi.fn(async () => json(200, { devices: [{ id: 1 }, { id: "a1", label: "S", address: "a@kindle.com" }] })) as unknown as typeof fetch;
-    expect(await getKindleDevices("/api", "tok", fetchFn)).toEqual({ devices: [{ id: "a1", label: "S", address: "a@kindle.com" }], defaultDeviceId: null });
+    expect(await getKindleDevices("/api", "tok", fetchFn)).toEqual({ devices: [{ id: "a1", label: "S", address: "a@kindle.com" }], defaultDeviceId: null, version: null });
+  });
+  it("carries the server's version back to the caller", async () => {
+    const fetchFn = vi.fn(async () => json(200, { devices: [], defaultDeviceId: null, version: "2026-09-06T12:00:00.000Z" })) as unknown as typeof fetch;
+    expect((await getKindleDevices("/api", "tok", fetchFn)).version).toBe("2026-09-06T12:00:00.000Z");
   });
 });
 
@@ -22,7 +26,7 @@ describe("saveKindleDevices", () => {
   it("PUTs the list and returns the canonical response", async () => {
     const calls: RequestInit[] = [];
     const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => { calls.push(init!); return json(200, { devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" }); }) as unknown as typeof fetch;
-    const out = await saveKindleDevices("/api", "tok", [{ label: "Scribe", address: "a@kindle.com" }], "a1", fetchFn);
+    const out = await saveKindleDevices("/api", "tok", [{ label: "Scribe", address: "a@kindle.com" }], "a1", undefined, fetchFn);
     expect(calls[0].method).toBe("PUT");
     expect(JSON.parse(String(calls[0].body))).toEqual({ devices: [{ label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" });
     expect(out.devices[0].id).toBe("a1");
@@ -30,12 +34,26 @@ describe("saveKindleDevices", () => {
   it("omits the default when none is given", async () => {
     const calls: RequestInit[] = [];
     const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => { calls.push(init!); return json(200, { devices: [], defaultDeviceId: null }); }) as unknown as typeof fetch;
-    await saveKindleDevices("/api", "tok", [], undefined, fetchFn);
+    await saveKindleDevices("/api", "tok", [], undefined, undefined, fetchFn);
     expect(JSON.parse(String(calls[0].body))).toEqual({ devices: [] });
+  });
+  it("sends the version it was given, including an explicit null", async () => {
+    const calls: RequestInit[] = [];
+    const fetchFn = vi.fn(async (_u: string, init?: RequestInit) => { calls.push(init!); return json(200, { devices: [], defaultDeviceId: null, version: null }); }) as unknown as typeof fetch;
+    await saveKindleDevices("/api", "tok", [], undefined, "v1", fetchFn);
+    expect(JSON.parse(String(calls[0].body))).toEqual({ devices: [], version: "v1" });
+    await saveKindleDevices("/api", "tok", [], undefined, null, fetchFn);
+    expect(JSON.parse(String(calls[1].body))).toEqual({ devices: [], version: null });
+  });
+  it("throws a typed stale error when another tab has written", async () => {
+    const fetchFn = vi.fn(async () => json(409, { error: "stale", message: "Your devices changed in another tab — reload and try again" })) as unknown as typeof fetch;
+    await expect(saveKindleDevices("/api", "tok", [], undefined, "v1", fetchFn)).rejects.toMatchObject({
+      name: "KindleError", code: "stale", message: "Your devices changed in another tab — reload and try again",
+    });
   });
   it("throws a typed error carrying the server message", async () => {
     const fetchFn = vi.fn(async () => json(400, { error: "bad_label", message: "You already have a device with that name" })) as unknown as typeof fetch;
-    await expect(saveKindleDevices("/api", "tok", [], undefined, fetchFn)).rejects.toMatchObject({
+    await expect(saveKindleDevices("/api", "tok", [], undefined, undefined, fetchFn)).rejects.toMatchObject({
       name: "KindleError", code: "bad_label", message: "You already have a device with that name",
     });
   });

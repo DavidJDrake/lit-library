@@ -31,6 +31,10 @@ export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, ch
   // Read synchronously by save(), which must refuse before a caller can compose a
   // whole-list replacement out of a list the server never gave us.
   const failed = useRef(false);
+  // The opaque version last seen from the server, sent back on every save so a write from
+  // a list another tab has since changed is refused instead of dropping its devices.
+  // `undefined` means we have never had an answer, which the server writes unconditionally.
+  const version = useRef<string | null | undefined>(undefined);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const reload = useCallback(async (): Promise<KindleDevice[]> => {
@@ -39,6 +43,7 @@ export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, ch
       const list = await getKindleDevices(apiUrl, await getIdToken(), fetchFn);
       if (mounted.current && gen === generation.current) {
         failed.current = false;
+        version.current = list.version;
         setDevices(list.devices);
         setDefaultDeviceId(list.defaultDeviceId);
         setLoadFailed(false);
@@ -63,8 +68,12 @@ export function KindleProvider({ apiUrl, getIdToken, fetchFn = fetch, sender, ch
   const save = useCallback(async (next: DeviceInput[], nextDefault?: string) => {
     if (failed.current) throw new Error(LOAD_FAILED_MESSAGE);
     const gen = ++generation.current;
-    const list = await saveKindleDevices(apiUrl, await getIdToken(), next, nextDefault, fetchFn);
-    if (mounted.current && gen === generation.current) { setDevices(list.devices); setDefaultDeviceId(list.defaultDeviceId); }
+    const list = await saveKindleDevices(apiUrl, await getIdToken(), next, nextDefault, version.current, fetchFn);
+    if (mounted.current && gen === generation.current) {
+      version.current = list.version;
+      setDevices(list.devices);
+      setDefaultDeviceId(list.defaultDeviceId);
+    }
   }, [apiUrl, getIdToken, fetchFn]);
 
   const send = useCallback(

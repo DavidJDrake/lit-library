@@ -2,15 +2,16 @@ import { apiCall } from "../catalog/apiCall";
 
 export interface KindleDevice { id: string; label: string; address: string }
 export interface DeviceInput { id?: string; label: string; address: string }
-export interface DeviceListDto { devices: KindleDevice[]; defaultDeviceId: string | null }
+/** `version` is the server's opaque row stamp; null when there is no stored row. */
+export interface DeviceListDto { devices: KindleDevice[]; defaultDeviceId: string | null; version: string | null }
 
 export type KindleErrorCode =
   | "no_address" | "too_large" | "unsupported" | "not_enabled" | "failed"
-  | "unknown_device" | "bad_request" | "bad_label" | "bad_address" | "too_many" | "bad_default";
+  | "unknown_device" | "bad_request" | "bad_label" | "bad_address" | "too_many" | "bad_default" | "stale";
 
 const CODES = new Set<string>([
   "no_address", "too_large", "unsupported", "not_enabled", "failed",
-  "unknown_device", "bad_request", "bad_label", "bad_address", "too_many", "bad_default",
+  "unknown_device", "bad_request", "bad_label", "bad_address", "too_many", "bad_default", "stale",
 ]);
 
 export class KindleError extends Error {
@@ -39,7 +40,7 @@ function toList(body: Record<string, unknown>): DeviceListDto {
   const devices = Array.isArray(body.devices) ? body.devices.map(toDevice).filter((d): d is KindleDevice => !!d) : [];
   const def = typeof body.defaultDeviceId === "string" && devices.some((d) => d.id === body.defaultDeviceId)
     ? body.defaultDeviceId : null;
-  return { devices, defaultDeviceId: def };
+  return { devices, defaultDeviceId: def, version: typeof body.version === "string" ? body.version : null };
 }
 
 export async function getKindleDevices(apiUrl: string, idToken: string, fetchFn: typeof fetch = fetch): Promise<DeviceListDto> {
@@ -47,13 +48,23 @@ export async function getKindleDevices(apiUrl: string, idToken: string, fetchFn:
   return toList(await readJson(res));
 }
 
+/**
+ * `version` is the one the caller last read. Sending it makes the write conditional, so a
+ * second tab is told its list is `stale` rather than silently dropping a device it never
+ * saw. Passing `undefined` omits the field, and the server writes unconditionally.
+ */
 export async function saveKindleDevices(
-  apiUrl: string, idToken: string, devices: DeviceInput[], defaultDeviceId?: string, fetchFn: typeof fetch = fetch,
+  apiUrl: string, idToken: string, devices: DeviceInput[], defaultDeviceId?: string,
+  version?: string | null, fetchFn: typeof fetch = fetch,
 ): Promise<DeviceListDto> {
   const res = await fetchFn(`${apiUrl}/kindle/devices`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify(defaultDeviceId ? { devices, defaultDeviceId } : { devices }),
+    body: JSON.stringify({
+      devices,
+      ...(defaultDeviceId ? { defaultDeviceId } : {}),
+      ...(version === undefined ? {} : { version }),
+    }),
   });
   const body = await readJson(res);
   if (res.status === 200) return toList(body);

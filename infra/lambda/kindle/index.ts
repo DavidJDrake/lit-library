@@ -5,10 +5,18 @@ import { logEvent } from "../shared/log";
 import { publicList, validateDevices, type DeviceList } from "./devices";
 import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES } from "./lib";
 
+/** A read of the settings row, plus the opaque version a client sends back on a write. */
+export interface StoredDevices extends DeviceList { version: string | null }
+export type SetDevicesResult = { ok: true; version: string | null } | { ok: false; reason: "stale" };
+
 export interface KindleStore {
-  getDevices(email: string): Promise<DeviceList>;
-  /** An empty list deletes the settings row. */
-  setDevices(email: string, list: DeviceList, updatedAt: string): Promise<void>;
+  getDevices(email: string): Promise<StoredDevices>;
+  /**
+   * An empty list deletes the settings row. `expectedVersion` is the version the caller
+   * last read: `undefined` writes unconditionally (an older client), `null` requires that
+   * no row exists, and a string requires the row to still carry that `updatedAt`.
+   */
+  setDevices(email: string, list: DeviceList, updatedAt: string, expectedVersion?: string | null): Promise<SetDevicesResult>;
 }
 export interface Sender { send(raw: string, tags: Record<string, string>): Promise<{ messageId: string }> }
 export interface Deps {
@@ -22,6 +30,7 @@ export interface Deps {
 }
 
 export const NOT_ENABLED_MESSAGE = "Kindle delivery isn't enabled for everyone yet";
+export const STALE_MESSAGE = "Your devices changed in another tab — reload and try again";
 export const TOO_LARGE_MESSAGE = "Too large for Kindle delivery — download instead";
 
 // SES email-tag values allow only [A-Za-z0-9_-]; an email address does not fit, so hex-encode it.
@@ -29,6 +38,15 @@ export const tagValue = (email: string): string => Buffer.from(email, "utf8").to
 
 function json(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+}
+/**
+ * A `version` the client read back from us, or no expectation at all. Anything that is
+ * neither a non-empty string nor an explicit null — including the absent field an older
+ * client sends through the deploy window — writes unconditionally, as it does today.
+ */
+function expectedVersion(body: Record<string, unknown>): string | null | undefined {
+  if (typeof body.version === "string" && body.version) return body.version;
+  return body.version === null ? null : undefined;
 }
 function parseBody(body: string | undefined): Record<string, unknown> {
   if (!body) return {};
@@ -110,7 +128,8 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
   if (!email) return json(401, { error: "unauthorized", message: "Token has no email claim (send the ID token)" });
   try {
     if (method === "GET" && path === "/api/kindle/devices") {
-      return json(200, publicList(await deps.store.getDevices(email)));
+      const stored = await deps.store.getDevices(email);
+      return json(200, { ...publicList(stored), version: stored.version });
     }
     if (method === "PUT" && path === "/api/kindle/devices") {
       const body = parseBody(event.body);
@@ -120,8 +139,11 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
       const existing = await deps.store.getDevices(email);
       const result = validateDevices(body.devices, body.defaultDeviceId, existing, deps.now().toISOString());
       if (!result.ok) return json(400, { error: result.error, message: result.message });
-      await deps.store.setDevices(email, result.list, deps.now().toISOString());
-      return json(200, publicList(result.list));
+      const written = await deps.store.setDevices(email, result.list, deps.now().toISOString(), expectedVersion(body));
+      // Another tab wrote between this client's read and its save. Dropping a device is
+      // how a legitimate removal is expressed, so the write has to be refused outright.
+      if (!written.ok) return json(409, { error: "stale", message: STALE_MESSAGE });
+      return json(200, { ...publicList(result.list), version: written.version });
     }
     if (method === "POST" && path === "/api/kindle/send") {
       return await sendBook(email, parseBody(event.body), deps);
