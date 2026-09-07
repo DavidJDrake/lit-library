@@ -12,7 +12,6 @@ _(none queued)_
 
 | # | Item | Notes |
 |---|---|---|
-| 16 | OPDS feed. | Another view of `catalog.json` behind the same session cookie; e-reader apps (KOReader, Moon+) can browse it directly. |
 
 ## Deferred from reviews
 
@@ -56,6 +55,7 @@ _(none queued)_
 | 6 | **Description enrichment repaired.** Not the second pass the item asked for, which already existed: enrichment had never contributed a single description, because transient failures were cached permanently as misses. Failures are now retried and left uncached, an optional API key is supported, and a flag re-attempts only past misses. | PR #43 |
 | 5 | **Shareable library URLs.** All six facets, the search text and the sort round-trip through the query string; defaults omitted, values ordered so the URL does not depend on click order. A replacing history update keeps the back button useful and closes the loop between state and URL, which also fixed the category link that used to do nothing when already applied. | PR #44 |
 | 4 | **Reading status per reader.** Want to read, reading and finished, stored per reader in the existing library table, set from the book dialog and shown as a chip on the card. Downloaded appears alongside them as a derived, non-settable marker from the download log, so a book can show both at once. Filterable as a facet like any other. | PR #45 |
+| 16 | **OPDS 2.0 feed.** JSON acquisition feed of the whole catalogue for e-reader apps, authenticated by a per-reader token that is 256 bits of entropy, stored only as a hash, revocable from Settings, and read-only. Minting and revoking still require Google sign-in; only the feed and acquisition routes are open, and they check the token in the handler. Acquisition redirects to a freshly signed URL and logs the download. | PR #47 |
 | 25 | **Multiple Kindle devices per user.** Named device list (up to 5) with a default, split-button send with a device menu, bounce rows naming the device, lazy migration of the single saved address. | `infra/lambda/kindle/devices.ts`, `web/src/components/DeviceList.tsx`, `web/src/components/SendToKindleButton.tsx`; spec and plan `2026-09-06-kindle-devices`. |
 | 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | plan `2026-09-04-backlog-1-3` |
