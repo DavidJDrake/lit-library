@@ -1,9 +1,10 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryDataProvider } from "../catalog/LibraryDataProvider";
 import type { KindleState } from "../kindle/KindleProvider";
 import type { Book, Catalog } from "../catalog/types";
+import { navigate } from "../route";
 import Library, { SESSION_RENEW_MS } from "./Library";
 
 interface LibraryProps {
@@ -57,6 +58,12 @@ function fetchFor(catalogBody: object, downloadBody: object = { url: "https://s3
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) { this.setAttribute("open", ""); });
   HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) { this.removeAttribute("open"); });
+});
+
+beforeEach(() => {
+  // Library now writes the view back to the address bar (replaceState), so a test that
+  // filters or searches leaves the URL dirty for whatever mounts next unless reset first.
+  window.history.replaceState({}, "", "/");
 });
 
 afterEach(() => {
@@ -335,6 +342,48 @@ describe("Library", () => {
     expect(screen.queryByRole("button", { name: /Attacking Network Protocols/ })).toBeNull();
     expect(screen.getByRole("checkbox", { name: /Fiction/ })).toBeChecked();
     window.history.replaceState({}, "", "/");
+  });
+
+  it("loads a shared URL with a search term and a facet, showing only the matching book", async () => {
+    window.history.replaceState({}, "", "/?q=network&category=Security+%26+Hacking");
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /The Black Company/ })).toBeNull();
+    expect(screen.getByRole("searchbox")).toHaveValue("network");
+    expect(screen.getByRole("checkbox", { name: /Security & Hacking/ })).toBeChecked();
+  });
+
+  it("toggling a facet updates the address bar with a replacing (not pushed) update", async () => {
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(window.location.search).toBe("");
+    await userEvent.click(screen.getByRole("checkbox", { name: /Fiction/ }));
+    await waitFor(() => expect(window.location.search).toBe("?category=Fiction"));
+    expect(pushSpy).not.toHaveBeenCalled();
+    pushSpy.mockRestore();
+  });
+
+  it("re-applies a category link even when the reader is already filtered by that category", async () => {
+    window.history.replaceState({}, "", "/?category=Fiction");
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    // Search within the Fiction filter until nothing matches — Attacking Network Protocols
+    // isn't Fiction, and The Black Company doesn't match "network", so this proves the
+    // category link below actually re-applies rather than the state having never moved.
+    await userEvent.type(screen.getByRole("searchbox"), "network");
+    await waitFor(() => expect(screen.getByText("No books match.")).toBeInTheDocument());
+    // The address bar (?q=network&category=Fiction) no longer matches the bare category
+    // link, but the app's own router only learns of a URL change via `popstate` — and
+    // typing here never dispatched one (it went straight through replaceState). So, as far
+    // as the router is concerned, the current URL is still the one this component mounted
+    // with: exactly "/?category=Fiction" — the same string the link below now navigates to.
+    // That's the literal "already on that URL" bug: following it must re-apply the filter
+    // (clearing the stray search) rather than doing nothing because the string is unchanged.
+    navigate("/?category=Fiction");
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+    expect(screen.getByRole("checkbox", { name: /Fiction/ })).toBeChecked();
   });
 
   it("calls onChanged after a successful mutation, not after a failed one", async () => {

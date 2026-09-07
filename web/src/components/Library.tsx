@@ -4,7 +4,10 @@ import {
 } from "../catalog/library";
 import { requestDownload, startDownload } from "../catalog/download";
 import { useLibraryData } from "../catalog/LibraryDataProvider";
-import { applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, searchBooks, sortBooks } from "../catalog/search";
+import {
+  applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, queryFromSearch,
+  searchBooks, searchFromView, sortBooks, sortFromSearch,
+} from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type SortKey } from "../catalog/types";
 import type { KindleError } from "../kindle/api";
 import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
@@ -33,9 +36,9 @@ const FACET_TITLES: Record<FacetKey, string> = {
 
 export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false, onChanged, kindle }: Props) {
   const { books, overlay, loadError, overlayError, refreshOverlay } = useLibraryData();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => queryFromSearch(window.location.search));
   const [filters, setFilters] = useState<Filters>(() => filtersFromSearch(window.location.search));
-  const [sort, setSort] = useState<SortKey>("added");
+  const [sort, setSort] = useState<SortKey>(() => sortFromSearch(window.location.search));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; variant: "error" | "ok" }>();
   const fail = useCallback((message: string) => setToast({ message, variant: "error" }), []);
@@ -80,6 +83,35 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [deferredQuery, sort, filters]);
+
+  // View → URL, one direction only: replace (never push) the current entry so the address
+  // bar always describes what's on screen without flooding history — a facet toggle or a
+  // character typed into search is view state, not navigation. Keyed off the deferred query
+  // so a fast typist doesn't rewrite the address bar on every keystroke, only once things
+  // settle. replaceState never fires `popstate`, so this can't loop into the effect below;
+  // the guard below is what makes it a no-op (not just harmless) when nothing changed.
+  useEffect(() => {
+    const next = searchFromView({ query: deferredQuery, filters, sort });
+    if (next === window.location.search) return;
+    window.history.replaceState({}, "", `${window.location.pathname}${next}${window.location.hash}`);
+  }, [deferredQuery, filters, sort]);
+
+  // URL → state, the other direction: re-read and re-apply on every `popstate`, whether it
+  // came from the browser's back/forward buttons or a same-page Link (which pushes a history
+  // entry and dispatches `popstate` itself, even to a URL identical to the current one). That
+  // unconditional re-apply is what fixes the re-seed bug — following a category link while
+  // already on that URL still re-applies the filter, because this runs regardless of whether
+  // the address bar's text actually changed.
+  useEffect(() => {
+    const onPopState = () => {
+      const search = window.location.search;
+      setQuery(queryFromSearch(search));
+      setFilters(filtersFromSearch(search));
+      setSort(sortFromSearch(search));
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const { wrapperRef, gridRef, range } = useGridWindow(visible.length);
   const windowed = range ? visible.slice(range.startIndex, range.endIndex) : visible;

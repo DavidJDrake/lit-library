@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, formatSize, searchBooks, sortBooks } from "./search";
-import { emptyFilters, type Book } from "./types";
+import {
+  applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, formatSize, queryFromSearch,
+  searchBooks, searchFromView, sortBooks, sortFromSearch, viewFromSearch, type ViewState,
+} from "./search";
+import { emptyFilters, FACET_KEYS, type Book, type SortKey } from "./types";
 
 function book(over: Partial<Book> & { id: string; title: string }): Book {
   return {
@@ -103,5 +106,109 @@ describe("filtersFromSearch", () => {
     expect([...f.category]).toEqual(["Fiction", "Comics"]);
     expect(f.author.size).toBe(0);
     expect(filtersFromSearch("").category.size).toBe(0);
+  });
+
+  it("seeds every facet, each repeatable for multiple values", () => {
+    const f = filtersFromSearch(
+      "?category=Fiction&format=epub&format=pdf&publisher=Tor&bundle=B1&author=Glen+Cook&year=1984",
+    );
+    expect([...f.category]).toEqual(["Fiction"]);
+    expect([...f.format]).toEqual(["epub", "pdf"]);
+    expect([...f.publisher]).toEqual(["Tor"]);
+    expect([...f.bundle]).toEqual(["B1"]);
+    expect([...f.author]).toEqual(["Glen Cook"]);
+    expect([...f.year]).toEqual(["1984"]);
+  });
+
+  it("ignores unknown keys and unrecognised query strings without throwing", () => {
+    const f = filtersFromSearch("?nonsense=1&category=&q=hi&sort=bogus");
+    for (const key of FACET_KEYS) expect(f[key].size).toBe(0);
+  });
+});
+
+describe("queryFromSearch", () => {
+  it("reads the q parameter, defaulting to empty", () => {
+    expect(queryFromSearch("?q=rust+backend")).toBe("rust backend");
+    expect(queryFromSearch("")).toBe("");
+    expect(queryFromSearch("?category=Fiction")).toBe("");
+  });
+});
+
+describe("sortFromSearch", () => {
+  it.each(["title", "author", "year", "added"] as const)("reads a known sort value %s", (key) => {
+    expect(sortFromSearch(`?sort=${key}`)).toBe(key);
+  });
+  it("falls back to added for a missing or unrecognised sort", () => {
+    expect(sortFromSearch("")).toBe("added");
+    expect(sortFromSearch("?sort=relevance")).toBe("added");
+    expect(sortFromSearch("?sort=bogus")).toBe("added");
+  });
+});
+
+describe("searchFromView", () => {
+  const view = (over: Partial<ViewState> = {}): ViewState => ({ query: "", filters: emptyFilters(), sort: "added", ...over });
+
+  it("omits everything at its default for an unfiltered, unsorted, unsearched view", () => {
+    expect(searchFromView(view())).toBe("");
+  });
+
+  it("includes q only for non-blank search text, trimmed", () => {
+    expect(searchFromView(view({ query: "  " }))).toBe("");
+    expect(searchFromView(view({ query: "  rust backend  " }))).toBe("?q=rust+backend");
+  });
+
+  it("escapes search text that needs it", () => {
+    const s = searchFromView(view({ query: "C++ & friends?" }));
+    expect(s).toBe("?q=C%2B%2B+%26+friends%3F");
+    expect(queryFromSearch(s)).toBe("C++ & friends?");
+  });
+
+  it.each(["title", "author", "year"] as const)("includes a non-default sort (%s)", (sort: SortKey) => {
+    expect(searchFromView(view({ sort }))).toBe(`?sort=${sort}`);
+  });
+
+  it("omits the default sort (added)", () => {
+    expect(searchFromView(view({ sort: "added" }))).toBe("");
+  });
+
+  it("repeats a facet key for multiple values, sorted for a stable URL", () => {
+    const filters = emptyFilters();
+    filters.format.add("pdf");
+    filters.format.add("epub");
+    expect(searchFromView(view({ filters }))).toBe("?format=epub&format=pdf");
+  });
+
+  it("combines search text, sort and several facets in one query string", () => {
+    const filters = emptyFilters();
+    filters.category.add("Fiction");
+    filters.author.add("Glen Cook");
+    const s = searchFromView(view({ query: "cook", sort: "title", filters }));
+    expect(s).toBe("?q=cook&sort=title&category=Fiction&author=Glen+Cook");
+  });
+});
+
+describe("view round trip", () => {
+  it("comes back unchanged after state → string → state, for every facet, search text and sort", () => {
+    const filters = emptyFilters();
+    filters.category.add("Fiction");
+    filters.category.add("Comics");
+    filters.format.add("epub");
+    filters.publisher.add("Tor");
+    filters.bundle.add("B1");
+    filters.author.add("Glen Cook");
+    filters.year.add("1984");
+    const original: ViewState = { query: "netwrok protocol", sort: "year", filters };
+
+    const roundTripped = viewFromSearch(searchFromView(original));
+
+    expect(roundTripped.query).toBe(original.query);
+    expect(roundTripped.sort).toBe(original.sort);
+    for (const key of FACET_KEYS) expect([...roundTripped.filters[key]]).toEqual([...original.filters[key]].sort());
+  });
+
+  it("round-trips the all-default view to and from a bare path", () => {
+    const original: ViewState = { query: "", sort: "added", filters: emptyFilters() };
+    expect(searchFromView(original)).toBe("");
+    expect(viewFromSearch(searchFromView(original))).toEqual(original);
   });
 });
