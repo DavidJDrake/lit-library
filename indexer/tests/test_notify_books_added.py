@@ -85,3 +85,45 @@ def test_corrupt_before_is_a_warning_not_a_failure(tmp_path):
     )
     assert r.returncode == 0
     assert "warning" in r.stderr
+
+
+# Valid JSON of the wrong shape used to crash new_book_ids() (set(added) - set(before)
+# runs outside the read try/except blocks), because the reads never checked they got a
+# JSON object back. These shapes are chosen to genuinely reproduce that: a list of dicts
+# (dicts are unhashable, so set() on it raises TypeError), a bare number (not iterable),
+# and null (also not iterable). A list of plain integers would NOT reproduce it -- ints
+# are hashable, so set() on it silently succeeds -- which is why the earlier round's tests
+# (a list of integers) missed this.
+def test_added_as_a_list_of_objects_is_a_warning_not_a_failure(tmp_path):
+    r = run(tmp_path, {}, [{"id": "b1"}])
+    assert r.returncode == 0
+    assert "warning" in r.stderr
+
+
+def test_added_as_a_bare_number_is_a_warning_not_a_failure(tmp_path):
+    r = run(tmp_path, {}, 5)
+    assert r.returncode == 0
+    assert "warning" in r.stderr
+
+
+def test_before_as_a_list_is_a_warning_not_a_failure(tmp_path):
+    r = run(tmp_path, [{"x": 1}], {"a": "x"})
+    assert r.returncode == 0
+    assert "warning" in r.stderr
+
+
+def test_added_as_null_is_a_warning_not_a_failure(tmp_path):
+    r = run(tmp_path, {}, None)
+    assert r.returncode == 0
+    assert "warning" in r.stderr
+
+
+# Same flaw, pre-existing: the outputs file's .values() call assumed a JSON object without
+# checking, so a valid JSON list raised AttributeError, which main()'s except tuple didn't
+# catch.
+def test_outputs_as_a_list_is_a_warning_not_a_failure(tmp_path):
+    o = tmp_path / "outputs.json"
+    o.write_text(json.dumps([]))
+    r = run(tmp_path, {"a": "x"}, {"a": "x", "b": "y"}, "--outputs", str(o))
+    assert r.returncode == 0
+    assert "warning" in r.stderr

@@ -128,6 +128,80 @@ describe("NotificationsProvider", () => {
     expect(screen.getByTestId("unread")).toHaveTextContent("1");
     expect(screen.getByTestId("read-ids")).toHaveTextContent(n(2).id);
   });
+  it("a failed markRead does not double-count on top of a refresh that already landed the server's not-yet-written count", async () => {
+    const deferredPost = deferred<{ ok: boolean; status: number; headers: Headers; json: () => Promise<unknown> }>();
+    let gets = 0;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return deferredPost.promise;
+      gets += 1;
+      // Every GET (initial load and the later manual refresh) reflects the server not
+      // having seen the write yet: n(1) still unread, unread count still 5.
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 5 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("5"));
+
+    // markRead optimistically drops the count, and its write is left in flight.
+    await userEvent.click(screen.getByRole("button", { name: "read-first" }));
+    expect(screen.getByTestId("unread")).toHaveTextContent("4");
+
+    // A background refresh (poll/visibility/manual) lands while the write is still
+    // pending. The server hasn't processed the write, so it legitimately reports the
+    // notification as still unread and resets the count to 5 -- this is correct, not a bug.
+    await userEvent.click(screen.getByRole("button", { name: "refresh" }));
+    await waitFor(() => expect(gets).toBe(2));
+    expect(screen.getByTestId("unread")).toHaveTextContent("5");
+
+    // The write then fails. Its revert must not add flippedIds.length back on top of the
+    // refresh's already-current count, which would drift to 6 against a truth of 5.
+    await act(async () => {
+      deferredPost.resolve({ ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "x" }) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(screen.getByTestId("unread")).toHaveTextContent("5");
+  });
+  it("a failed markAllRead reverts only the notifications it flipped, leaving a concurrent successful single mark (and the notification it targets) alone", async () => {
+    const deferredAll = deferred<{ ok: boolean; status: number; headers: Headers; json: () => Promise<unknown> }>();
+    let gets = 0;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        const body = String(init.body);
+        if (body === JSON.stringify({ all: true })) return deferredAll.promise;
+        // The single markRead for n(3) below: succeed immediately.
+        return { ok: true, status: 204, headers: new Headers({ "content-type": "application/json" }), json: async () => ({}) };
+      }
+      gets += 1;
+      if (gets === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1, next: "cursor" }) };
+      // loadMore's page: a notification (n(3)) that didn't exist yet when markAllRead started.
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(3)], unread: 1 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("1"));
+
+    // markAllRead flips n(1) (the only notification that exists yet) and is left in flight.
+    await userEvent.click(screen.getByRole("button", { name: "read-all" }));
+    expect(screen.getByTestId("unread")).toHaveTextContent("0");
+
+    // A second page loads in, bringing in n(3) -- a notification markAllRead never knew about.
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("2"));
+
+    // n(3) is marked read individually, and that write succeeds.
+    await userEvent.click(screen.getByRole("button", { name: "read-second" }));
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("0"));
+
+    // markAllRead's own write then fails. A whole-list snapshot captured back when
+    // markAllRead started (before n(3) even existed) would restore over it and lose n(3)
+    // entirely; the per-item revert must only touch n(1), the one notification this call
+    // itself flipped, leaving n(3) present and read.
+    await act(async () => {
+      deferredAll.resolve({ ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "x" }) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(screen.getByTestId("count")).toHaveTextContent("2");
+    expect(screen.getByTestId("read-ids")).toHaveTextContent(n(3).id);
+    expect(screen.getByTestId("unread")).toHaveTextContent("1");
+  });
   it("a stale in-flight refresh cannot clobber a markRead that already succeeded", async () => {
     const posted: string[] = [];
     let getCount = 0;
@@ -238,6 +312,25 @@ describe("NotificationsProvider", () => {
     await waitFor(() => expect(screen.getByTestId("loadMoreError")).toHaveTextContent("boom"));
     await userEvent.click(screen.getByRole("button", { name: "more" }));
     await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("2"));
+    expect(screen.getByTestId("loadMoreError")).toHaveTextContent("");
+  });
+  it("a successful refresh clears a stale loadMoreError left by a prior failed loadMore", async () => {
+    let gets = 0;
+    const fetchFn = vi.fn(async () => {
+      gets += 1;
+      if (gets === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1, next: "2026-09-05T10:00:01.000Z#1" }) };
+      if (gets === 2) return { ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("more")).toHaveTextContent("true"));
+    // Fail a load-more: the inline error appears.
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("loadMoreError")).toHaveTextContent("boom"));
+    // A background refresh (poll/visibility/manual) then succeeds and replaces the list.
+    await userEvent.click(screen.getByRole("button", { name: "refresh" }));
+    await waitFor(() => expect(gets).toBe(3));
+    // The stale inline message, which no longer describes anything visible, is gone.
     expect(screen.getByTestId("loadMoreError")).toHaveTextContent("");
   });
   it("polls every NOTIFICATIONS_POLL_MS and on visibility, and reports errors without throwing", async () => {
