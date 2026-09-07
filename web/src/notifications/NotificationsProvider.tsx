@@ -71,25 +71,30 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
     }
   }, [apiUrl, getIdToken, fetchFn, next]);
 
-  // Optimistic: flip locally first so the badge reacts instantly. A failed write reverts to
-  // the pre-flip snapshot rather than calling refresh() (which would drop pagination loaded
-  // via loadMore). A successful write bumps seqRef so a refresh already in flight when the
-  // write started can't later overwrite it with stale (pre-write) data.
+  // Optimistic: flip locally first so the badge reacts instantly. A failed write reverts
+  // only the ids *this call* flipped (not a whole pre-flip snapshot — two markRead calls can
+  // be in flight at once for different notifications, and one failing must not undo the
+  // other's already-applied or still-pending flip). A successful write bumps seqRef so a
+  // refresh already in flight when the write started can't later overwrite it with stale
+  // (pre-write) data.
   const markRead = useCallback(async (ids: string[]) => {
     const targets = new Set(ids.filter(Boolean));
     if (targets.size === 0) return;
     seqRef.current += 1;
-    const prevItems = itemsRef.current;
-    const prevUnread = unreadRef.current;
-    const flipped = prevItems.filter((n) => targets.has(n.id) && !n.read).length;
-    if (flipped > 0) {
-      setItems((cur) => cur.map((n) => (targets.has(n.id) && !n.read ? { ...n, read: true } : n)));
-      setUnread((u) => Math.max(0, u - flipped));
+    const flippedIds = itemsRef.current.filter((n) => targets.has(n.id) && !n.read).map((n) => n.id);
+    if (flippedIds.length > 0) {
+      const flippedSet = new Set(flippedIds);
+      setItems((cur) => cur.map((n) => (flippedSet.has(n.id) ? { ...n, read: true } : n)));
+      setUnread((u) => Math.max(0, u - flippedIds.length));
     }
     try {
       await markNotificationsRead(apiUrl, await getIdToken(), [...targets], fetchFn);
     } catch {
-      if (mounted.current) { setItems(prevItems); setUnread(prevUnread); }
+      if (mounted.current && flippedIds.length > 0) {
+        const revertSet = new Set(flippedIds);
+        setItems((cur) => cur.map((n) => (revertSet.has(n.id) ? { ...n, read: false } : n)));
+        setUnread((u) => u + flippedIds.length);
+      }
     }
   }, [apiUrl, getIdToken, fetchFn]);
 
