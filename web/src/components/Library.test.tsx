@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LibraryDataProvider } from "../catalog/LibraryDataProvider";
 import type { KindleState } from "../kindle/KindleProvider";
-import type { Catalog } from "../catalog/types";
+import type { Book, Catalog } from "../catalog/types";
 import Library, { SESSION_RENEW_MS } from "./Library";
 
 interface LibraryProps {
@@ -431,5 +431,21 @@ describe("Library", () => {
     await userEvent.click(within(screen.getByRole("dialog", { hidden: true })).getByRole("button", { name: "Send to Scribe" }));
     await waitFor(() => expect(within(screen.getByRole("dialog", { hidden: true })).getByRole("textbox", { name: "Your Kindle email" })).toBeInTheDocument());
     expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("renders every book, unwindowed, when the grid cannot be measured (the jsdom/no-ResizeObserver degrade path)", async () => {
+    const manyBooks: Book[] = Array.from({ length: 60 }, (_, i) => ({
+      id: `b${i}`, title: `Book Number ${i}`, authors: ["Author"], description: null, category: "Fiction",
+      subjects: [], publisher: "Pub", bundle: "Bundle", year: 2000 + i,
+      formats: [{ type: "epub", size: 1, s3Key: `k${i}` }], coverUrl: null,
+      addedAt: `2026-01-${String((i % 28) + 1).padStart(2, "0")}`,
+    }));
+    const bigCatalog: Catalog = { generatedAt: "t", books: manyBooks };
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(bigCatalog) });
+    await waitFor(() => expect(screen.getByText(/60 books/)).toBeInTheDocument());
+    // jsdom has no ResizeObserver and gives every element zero-sized layout, so the
+    // grid can never measure a column count or row height. The degrade path must
+    // still put all 60 books on screen rather than only an overscanned window of them.
+    expect(screen.getAllByRole("button", { name: /Book Number \d+/ })).toHaveLength(60);
   });
 });

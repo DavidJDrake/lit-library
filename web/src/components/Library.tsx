@@ -13,6 +13,7 @@ import BookDetail from "./BookDetail";
 import CategorySuggestions from "./CategorySuggestions";
 import FacetGroup from "./FacetGroup";
 import Toast from "./Toast";
+import { useGridWindow } from "./useGridWindow";
 
 export { SESSION_RENEW_MS } from "../catalog/LibraryDataProvider";
 
@@ -70,6 +71,18 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     () => (deferredQuery.trim() ? searched : sortBooks(searched, sort)),
     [searched, deferredQuery, sort],
   );
+
+  // A new search, facet filter or sort is a new list, not a continuation of the old
+  // one — scroll back to the top rather than leaving the reader stranded in reserved
+  // space below a now-shorter list. A background data refresh (e.g. after moving a
+  // book) is deliberately not in this list: it can reorder `visible` without the
+  // reader having asked for a different view, and should not move them.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [deferredQuery, sort, filters]);
+
+  const { wrapperRef, gridRef, range } = useGridWindow(visible.length);
+  const windowed = range ? visible.slice(range.startIndex, range.endIndex) : visible;
 
   const toggle = useCallback((key: FacetKey, value: string) => {
     setFilters((f) => {
@@ -172,8 +185,12 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
           <span className="count">{visible.length} {visible.length === 1 ? "book" : "books"}</span>
         </div>
         {visible.length === 0 ? <p className="empty">No books match.</p> : (
-          <div className="grid">
-            {visible.map((b) => <BookCard key={b.id} book={b} onOpen={(b) => setSelectedId(b.id)} />)}
+          <div ref={wrapperRef}>
+            {range && range.topSpacer > 0 && <div style={{ height: range.topSpacer }} />}
+            <div className="grid" ref={gridRef}>
+              {windowed.map((b) => <BookCard key={b.id} book={b} onOpen={(b) => setSelectedId(b.id)} />)}
+            </div>
+            {range && range.bottomSpacer > 0 && <div style={{ height: range.bottomSpacer }} />}
           </div>
         )}
       </section>

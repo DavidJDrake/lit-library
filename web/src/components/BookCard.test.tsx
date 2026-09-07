@@ -28,4 +28,9 @@ describe("BookCard", () => {
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getAllByText("Attacking Network Protocols")).toHaveLength(2); // placeholder + title
   });
+  it("still renders the (empty) authors line when a book has no authors, to keep card height uniform", () => {
+    const { container } = render(<BookCard book={{ ...book, authors: [] }} onOpen={() => {}} />);
+    expect(container.querySelector(".authors")).not.toBeNull();
+    expect(container.querySelector(".authors")).toHaveTextContent("");
+  });
 });
