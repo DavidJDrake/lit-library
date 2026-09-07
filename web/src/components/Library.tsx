@@ -32,6 +32,7 @@ interface Props {
 
 const FACET_TITLES: Record<FacetKey, string> = {
   category: "Category", format: "Format", publisher: "Publisher", bundle: "Bundle", author: "Author", year: "Year",
+  status: "Reading status",
 };
 
 export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate, isAdmin = false, onChanged, kindle }: Props) {

@@ -28,11 +28,14 @@ export interface Book {
 
 export interface Catalog { generatedAt: string; books: Book[] }
 
-export const FACET_KEYS = ["category", "format", "publisher", "bundle", "author", "year"] as const;
+export const FACET_KEYS = ["category", "format", "publisher", "bundle", "author", "year", "status"] as const;
 export type FacetKey = (typeof FACET_KEYS)[number];
 export type Filters = Record<FacetKey, Set<string>>;
 export type SortKey = "title" | "author" | "year" | "added";
 
 export function emptyFilters(): Filters {
-  return { category: new Set(), format: new Set(), publisher: new Set(), bundle: new Set(), author: new Set(), year: new Set() };
+  return {
+    category: new Set(), format: new Set(), publisher: new Set(), bundle: new Set(), author: new Set(), year: new Set(),
+    status: new Set(),
+  };
 }

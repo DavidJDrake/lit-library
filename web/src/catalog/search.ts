@@ -9,6 +9,10 @@ export function facetValues(book: Book, key: FacetKey): string[] {
     case "bundle": return [book.bundle];
     case "author": return book.authors;
     case "year": return book.year ? [String(book.year)] : [];
+    // Two independent facts as one multi-value facet, exactly like an author or format
+    // list: a book can match "reading" and "downloaded" at once, and checking both here
+    // ORs them (as every other facet does), not ANDs.
+    case "status": return [...(book.readingStatus ? [book.readingStatus] : []), ...(book.downloaded ? ["downloaded"] : [])];
   }
 }
 

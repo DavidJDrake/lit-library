@@ -100,6 +100,24 @@ describe("Library", () => {
     expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument();
   });
 
+  it("filters by the reading-status facet, across a chosen status and the derived downloaded value", async () => {
+    const fetchFn = fetchFor(catalog, undefined, { "GET /library$": () => ({
+      ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ ...overlay, readingStatuses: { "1": "reading" }, downloaded: ["2"] }),
+    }) });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
+    await waitFor(() => expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /^reading/ }));
+    expect(screen.getByRole("button", { name: /Attacking Network Protocols/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /The Black Company/ })).toBeNull();
+    await userEvent.click(screen.getByRole("checkbox", { name: /^reading/ }));
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /^downloaded/ }));
+    expect(screen.queryByRole("button", { name: /Attacking Network Protocols/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /The Black Company/ })).toBeInTheDocument();
+  });
+
   it("sets a reading status from the dialog without an overlay refetch, and shows it on the card immediately", async () => {
     let libraryCalls = 0;
     const fetchFn = fetchFor(catalog, undefined, {

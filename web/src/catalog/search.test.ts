@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyFilters, buildSearchIndex, facetCounts, filtersFromSearch, formatSize, queryFromSearch,
+  applyFilters, buildSearchIndex, facetCounts, facetValues, filtersFromSearch, formatSize, queryFromSearch,
   searchBooks, searchFromView, sortBooks, sortFromSearch, viewFromSearch, type ViewState,
 } from "./search";
 import { emptyFilters, FACET_KEYS, type Book, type SortKey } from "./types";
@@ -23,6 +23,29 @@ describe("applyFilters", () => {
   it("returns everything with empty filters", () => {
     expect(applyFilters(books, emptyFilters())).toHaveLength(3);
   });
+  it("filters on the reading-status facet across all four values, ORing within it", () => {
+    const withStatus = [
+      { ...books[0], readingStatus: "reading" as const, downloaded: false },
+      { ...books[1], readingStatus: null, downloaded: true },
+      { ...books[2], readingStatus: "finished" as const, downloaded: true },
+    ];
+    const wantReading = emptyFilters();
+    wantReading.status.add("reading");
+    expect(applyFilters(withStatus, wantReading).map((b) => b.id)).toEqual(["1"]);
+
+    const wantDownloaded = emptyFilters();
+    wantDownloaded.status.add("downloaded");
+    expect(applyFilters(withStatus, wantDownloaded).map((b) => b.id)).toEqual(["2", "3"]);
+
+    // Checking two status values ORs them (matches either), like any other facet.
+    const wantEither = emptyFilters();
+    wantEither.status.add("reading"); wantEither.status.add("finished");
+    expect(applyFilters(withStatus, wantEither).map((b) => b.id)).toEqual(["1", "3"]);
+
+    const wantWantToRead = emptyFilters();
+    wantWantToRead.status.add("want to read");
+    expect(applyFilters(withStatus, wantWantToRead)).toHaveLength(0);
+  });
   it("ORs within a facet and ANDs across facets", () => {
     const f = emptyFilters();
     f.publisher.add("No Starch Press");
@@ -39,6 +62,17 @@ describe("applyFilters", () => {
     const g = emptyFilters();
     g.author.add("Luca Palmieri");
     expect(applyFilters(books, g).map((b) => b.id)).toEqual(["3"]);
+  });
+});
+
+describe("facetValues for status", () => {
+  it("is empty when neither a status nor downloaded is set", () => {
+    expect(facetValues(book({ id: "1", title: "x" }), "status")).toEqual([]);
+  });
+  it("carries just the status, just downloaded, or both, as independent facts", () => {
+    expect(facetValues(book({ id: "1", title: "x", readingStatus: "reading" }), "status")).toEqual(["reading"]);
+    expect(facetValues(book({ id: "1", title: "x", downloaded: true }), "status")).toEqual(["downloaded"]);
+    expect(facetValues(book({ id: "1", title: "x", readingStatus: "finished", downloaded: true }), "status")).toEqual(["finished", "downloaded"]);
   });
 });
 
