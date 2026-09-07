@@ -52,6 +52,30 @@ describe("NotificationBell", () => {
     await userEvent.click(screen.getByTestId("outside"));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+  it("moves focus into the popover on open, returns it to the bell on close, and scopes Escape to the popover", async () => {
+    const items = Array.from({ length: 2 }, (_, i) => n(i));
+    const { fetchFn } = server(items, 2);
+    mount(fetchFn);
+    const bellButton = await screen.findByRole("button", { name: "Notifications" });
+    bellButton.focus();
+    await userEvent.click(bellButton);
+    const dialog = screen.getByRole("dialog", { name: "Notifications" });
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement));
+
+    // Escape while focus is outside the popover (e.g. a search box elsewhere on the page)
+    // must not close it.
+    const outside = screen.getByTestId("outside");
+    outside.tabIndex = -1;
+    outside.focus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Notifications" })).toBeInTheDocument();
+
+    // Escape with focus inside the popover closes it and returns focus to the bell.
+    within(dialog).getAllByRole("link")[0].focus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(bellButton));
+  });
   it("Mark all as read posts all and clears the badge", async () => {
     const items = Array.from({ length: 7 }, (_, i) => n(i));
     const { fetchFn, posted } = server(items, 7);
