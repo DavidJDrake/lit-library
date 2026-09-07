@@ -1,4 +1,4 @@
-import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { describe, expect, it, vi } from "vitest";
 import { DynamoStore } from "../lambda/library/store";
 
@@ -73,13 +73,26 @@ describe("DynamoStore writes", () => {
     const dup = client(() => { throw conditionalFailure(); });
     expect(await new DynamoStore(dup.ddb, "T").putCategory({ name: "X", nameLower: "x", createdBy: "a@x", createdAt: NOW, source: "admin" })).toBe(false);
   });
-  it("putBookCategory and putSuggestion write the expected items", async () => {
+  it("putBookCategory writes the expected item", async () => {
     const { ddb, send } = client(() => ({}));
     const store = new DynamoStore(ddb, "T");
     await store.putBookCategory({ bookId: "b1", category: "Fiction", changedBy: "u@x", changedAt: NOW });
-    await store.putSuggestion({ id: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" });
     expect((send.mock.calls[0][0] as PutCommand).input.Item).toEqual({ pk: "BOOK", sk: "b1", category: "Fiction", changedBy: "u@x", changedAt: NOW });
-    expect((send.mock.calls[1][0] as PutCommand).input.Item).toEqual({ pk: "SUGGESTION", sk: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" });
+  });
+  it("putSuggestion is one transaction: suggestion put and a conditional name reservation", async () => {
+    const { ddb, send } = client(() => ({}));
+    const ok = await new DynamoStore(ddb, "T").putSuggestion({ id: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" });
+    expect(ok).toBe(true);
+    const cmd = send.mock.calls[0][0] as TransactWriteCommand;
+    expect(cmd).toBeInstanceOf(TransactWriteCommand);
+    expect(cmd.input.TransactItems).toEqual([
+      { Put: { TableName: "T", Item: { pk: "SUGGESTION", sk: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" } } },
+      { Put: { TableName: "T", Item: { pk: "SUGGESTION_NAME", sk: "c" }, ConditionExpression: "attribute_not_exists(pk)" } },
+    ]);
+  });
+  it("putSuggestion returns false, not a throw, when the name is already reserved", async () => {
+    const taken = client(() => { throw transactionCancelled(); });
+    expect(await new DynamoStore(taken.ddb, "T").putSuggestion({ id: "s1", name: "C", nameLower: "c", suggestedBy: "u@x", createdAt: NOW, status: "pending" })).toBe(false);
   });
   it("acceptSuggestion is one transaction: conditional category put, book put, guarded status update", async () => {
     const { ddb, send } = client(() => ({}));
@@ -101,33 +114,35 @@ describe("DynamoStore writes", () => {
         ConditionExpression: "#status = :pending",
         ExpressionAttributeNames: { "#status": "status" },
         ExpressionAttributeValues: { ":accepted": "accepted", ":pending": "pending", ":by": "a@x", ":at": NOW } } },
+      { Delete: { TableName: "T", Key: { pk: "SUGGESTION_NAME", sk: "c" } } },
     ]);
   });
-  it("acceptSuggestion without a book has two items, and a cancelled transaction returns false", async () => {
+  it("acceptSuggestion without a book has three items (no book put), and a cancelled transaction returns false", async () => {
     const { ddb, send } = client(() => ({}));
     await new DynamoStore(ddb, "T").acceptSuggestion("s1", { name: "C", nameLower: "c", createdBy: "a@x", createdAt: NOW, source: "suggestion" }, undefined, "a@x", NOW);
-    expect((send.mock.calls[0][0] as TransactWriteCommand).input.TransactItems).toHaveLength(2);
+    expect((send.mock.calls[0][0] as TransactWriteCommand).input.TransactItems).toHaveLength(3);
     const lost = client(() => { throw transactionCancelled(); });
     expect(await new DynamoStore(lost.ddb, "T").acceptSuggestion("s1", { name: "C", nameLower: "c", createdBy: "a@x", createdAt: NOW, source: "suggestion" }, undefined, "a@x", NOW)).toBe(false);
   });
-  it("rejectSuggestion is a guarded update; false when not pending", async () => {
+  it("rejectSuggestion is one transaction: guarded update plus name-reservation release; false when not pending", async () => {
     const { ddb, send } = client(() => ({}));
-    expect(await new DynamoStore(ddb, "T").rejectSuggestion("s1", "a@x", NOW)).toBe(true);
-    const cmd = send.mock.calls[0][0] as UpdateCommand;
-    expect(cmd).toBeInstanceOf(UpdateCommand);
-    expect(cmd.input).toEqual({
-      TableName: "T", Key: { pk: "SUGGESTION", sk: "s1" },
-      UpdateExpression: "SET #status = :rejected, resolvedBy = :by, resolvedAt = :at",
-      ConditionExpression: "#status = :pending",
-      ExpressionAttributeNames: { "#status": "status" },
-      ExpressionAttributeValues: { ":rejected": "rejected", ":pending": "pending", ":by": "a@x", ":at": NOW },
-    });
-    const done = client(() => { throw conditionalFailure(); });
-    expect(await new DynamoStore(done.ddb, "T").rejectSuggestion("s1", "a@x", NOW)).toBe(false);
+    expect(await new DynamoStore(ddb, "T").rejectSuggestion("s1", "c", "a@x", NOW)).toBe(true);
+    const cmd = send.mock.calls[0][0] as TransactWriteCommand;
+    expect(cmd).toBeInstanceOf(TransactWriteCommand);
+    expect(cmd.input.TransactItems).toEqual([
+      { Update: { TableName: "T", Key: { pk: "SUGGESTION", sk: "s1" },
+        UpdateExpression: "SET #status = :rejected, resolvedBy = :by, resolvedAt = :at",
+        ConditionExpression: "#status = :pending",
+        ExpressionAttributeNames: { "#status": "status" },
+        ExpressionAttributeValues: { ":rejected": "rejected", ":pending": "pending", ":by": "a@x", ":at": NOW } } },
+      { Delete: { TableName: "T", Key: { pk: "SUGGESTION_NAME", sk: "c" } } },
+    ]);
+    const done = client(() => { throw transactionCancelled(); });
+    expect(await new DynamoStore(done.ddb, "T").rejectSuggestion("s1", "c", "a@x", NOW)).toBe(false);
   });
   it("rethrows unexpected errors", async () => {
     const { ddb } = client(() => { throw new Error("network"); });
     await expect(new DynamoStore(ddb, "T").listCategories()).rejects.toThrow("network");
-    await expect(new DynamoStore(ddb, "T").rejectSuggestion("s1", "a@x", NOW)).rejects.toThrow("network");
+    await expect(new DynamoStore(ddb, "T").rejectSuggestion("s1", "c", "a@x", NOW)).rejects.toThrow("network");
   });
 });

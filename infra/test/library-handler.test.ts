@@ -15,7 +15,7 @@ function store(over: Partial<Store> = {}): Store {
     getSuggestion: vi.fn().mockResolvedValue(pending),
     putCategory: vi.fn().mockResolvedValue(true),
     putBookCategory: vi.fn().mockResolvedValue(undefined),
-    putSuggestion: vi.fn().mockResolvedValue(undefined),
+    putSuggestion: vi.fn().mockResolvedValue(true),
     acceptSuggestion: vi.fn().mockResolvedValue(true),
     rejectSuggestion: vi.fn().mockResolvedValue(true),
     ...over,
@@ -102,6 +102,19 @@ describe("POST /api/suggestions", () => {
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "fiction" }), deps())).status).toBe(409);
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "COOKBOOKS" }), deps())).status).toBe(409);
   });
+  it("409s, not 500s, when the name reservation loses a race underneath the check", async () => {
+    const s = store({ putSuggestion: vi.fn().mockResolvedValue(false) });
+    const { status, json } = parse(await handle(event("POST", "/api/suggestions", { name: "Fresh" }), deps(s)));
+    expect(status).toBe(409);
+    expect(json).toEqual({ error: "That category already exists or has been suggested" });
+  });
+  it("two concurrent identical suggestions produce one success and one 409 (atomic name reservation)", async () => {
+    const s = store({ putSuggestion: vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false) });
+    const first = parse(await handle(event("POST", "/api/suggestions", { name: "Fresh" }), deps(s)));
+    const second = parse(await handle(event("POST", "/api/suggestions", { name: "fresh" }), deps(s)));
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(409);
+  });
 });
 
 describe("admin routes", () => {
@@ -162,7 +175,7 @@ describe("admin routes", () => {
     const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const s = store();
     expect(parse(await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin), deps(s))).status).toBe(204);
-    expect(s.rejectSuggestion).toHaveBeenCalledWith("s1", "a@x", NOW);
+    expect(s.rejectSuggestion).toHaveBeenCalledWith("s1", "cookbooks", "a@x", NOW);
     expect(events()).toContainEqual(expect.objectContaining({ event: "suggestion.rejected", suggestionId: "s1" }));
     expect(parse(await handle(event("POST", "/api/suggestions/zz/reject", undefined, admin),
       deps(store({ getSuggestion: vi.fn().mockResolvedValue(undefined) })))).status).toBe(404);
