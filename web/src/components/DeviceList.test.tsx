@@ -132,6 +132,46 @@ describe("DeviceList", () => {
     expect(within(row("Phone")).getByText("b@kindle.com")).toBeInTheDocument();
   });
 
+  it("refuses an add while a migrated device is unnamed, and says so on that row", async () => {
+    const migrated: KindleDevice[] = [
+      { id: "a1", label: "", address: "me_x@kindle.com" },
+    ];
+    const onSave = mount(migrated, "a1");
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Phone");
+    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "p@kindle.com");
+    await userEvent.click(screen.getByRole("button", { name: "Add device" }));
+    // The whole-list PUT would have been rejected for the *other* device's empty label.
+    expect(onSave).not.toHaveBeenCalled();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Name this device before adding another");
+    expect(within(row("me_x@kindle.com")).getByRole("alert")).toBe(alert);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    // The reader's own entry survives, ready to submit once the other device is named.
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Phone");
+    expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toHaveValue("p@kindle.com");
+    expect(screen.getByPlaceholderText("Name this device")).toBeInTheDocument();
+  });
+
+  it("lets the add through once every device has a name", async () => {
+    const onSave = vi.fn(async () => {});
+    const { rerender } = render(
+      <DeviceList devices={[{ id: "a1", label: "", address: "me_x@kindle.com" }]} defaultDeviceId="a1" sender="library@lit.example.com" onSave={onSave} />,
+    );
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Phone");
+    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "p@kindle.com");
+    await userEvent.click(screen.getByRole("button", { name: "Add device" }));
+    expect(onSave).not.toHaveBeenCalled();
+    rerender(
+      <DeviceList devices={[{ id: "a1", label: "Scribe", address: "me_x@kindle.com" }]} defaultDeviceId="a1" sender="library@lit.example.com" onSave={onSave} />,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Add device" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(
+      [{ id: "a1", label: "Scribe", address: "me_x@kindle.com" }, { label: "Phone", address: "p@kindle.com" }],
+      "a1",
+    ));
+  });
+
   it("hides the add form at the cap", () => {
     const five = Array.from({ length: 5 }, (_v, i) => ({ id: `i${i}`, label: `D${i}`, address: `d${i}@kindle.com` }));
     mount(five, "i0");

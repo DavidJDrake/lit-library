@@ -112,6 +112,16 @@ describe("validateDevices", () => {
       undefined, one, NOW,
     )).toMatchObject({ ok: false, error: "bad_request", message: "Send each device once" });
   });
+  // The client is expected to catch this first (a migrated row's device must be named
+  // before another can be added), but the server is the authority and must still refuse.
+  it("rejects a submission whose existing entry still has the migrated empty label", () => {
+    const legacy = readDevices({ kindleAddress: "me_x@kindle.com", updatedAt: NOW });
+    const r = validateDevices(
+      [{ id: legacy.devices[0].id, label: "", address: "me_x@kindle.com" }, { label: "Phone", address: "p@kindle.com" }],
+      undefined, legacy, NOW,
+    );
+    expect(r).toMatchObject({ ok: false, error: "bad_label", message: "Give the device a name of 30 characters or fewer" });
+  });
   it("rejects a non-array input", () => {
     expect(validateDevices("nope", undefined, empty, NOW)).toMatchObject({ ok: false, error: "bad_label" });
   });
