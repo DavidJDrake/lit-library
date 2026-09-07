@@ -8,10 +8,9 @@ Items move to "Done" with the commit or plan that closed them.
 
 _(none queued)_
 
-## Product polish (independent, each S)
+## Product polish
 
-| # | Item | Notes |
-|---|---|---|
+_(none queued)_
 
 ## Deferred from reviews
 
