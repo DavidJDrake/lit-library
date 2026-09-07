@@ -15,6 +15,7 @@ function synth() {
   const site = new Site(stack, "Site", {
     config, siteBucket: bucket, keyGroup: signing.keyGroup,
     apiDomainName: "abc123.execute-api.us-east-1.amazonaws.com",
+    booksBucketDomainName: "books-bucket.s3.us-east-1.amazonaws.com",
   });
   return { t: Template.fromStack(stack), site };
 }
@@ -128,5 +129,50 @@ describe("Site", () => {
         expect(behavior.FunctionAssociations).toBeUndefined();
       }
     }
+  });
+
+  it("attaches a response-headers policy with a strict content security policy", () => {
+    const { t } = synth();
+    const cognito = `https://${config.cognitoDomainPrefix}.auth.${config.region}.amazoncognito.com`;
+    t.hasResourceProperties("AWS::CloudFront::ResponseHeadersPolicy", {
+      ResponseHeadersPolicyConfig: Match.objectLike({
+        SecurityHeadersConfig: Match.objectLike({
+          ContentSecurityPolicy: Match.objectLike({
+            Override: true,
+            ContentSecurityPolicy: Match.stringLikeRegexp(`connect-src 'self' ${cognito.replace(/[.]/g, "\\.")}`),
+          }),
+          StrictTransportSecurity: Match.objectLike({ Override: true, AccessControlMaxAgeSec: 63072000, IncludeSubdomains: true }),
+          ContentTypeOptions: { Override: true },
+          FrameOptions: Match.objectLike({ Override: true, FrameOption: "DENY" }),
+          ReferrerPolicy: Match.objectLike({ Override: true, ReferrerPolicy: "strict-origin-when-cross-origin" }),
+        }),
+      }),
+    });
+  });
+
+  it("names no real identifier in the policy beyond the configured origins", () => {
+    const { t } = synth();
+    const policy = JSON.stringify(t.findResources("AWS::CloudFront::ResponseHeadersPolicy"));
+    expect(policy).not.toMatch(/davidjdrake/i);
+    expect(policy).toContain("default-src 'self'");
+    expect(policy).toContain("object-src 'none'");
+    expect(policy).toContain("frame-ancestors 'none'");
+    expect(policy).toContain("base-uri 'self'");
+    expect(policy).toContain("form-action 'self'");
+    // The favicon is an inline data: SVG in index.html.
+    expect(policy).toContain("img-src 'self' data:");
+    // A download loads its presigned S3 URL in a hidden iframe; frame-src must allow the
+    // bucket host or every download is blocked with nothing but a console message.
+    expect(policy).toContain("frame-src 'self' https://books-bucket.s3.us-east-1.amazonaws.com");
+  });
+
+  it("applies the policy to the default, gated and api behaviours alike", () => {
+    const { t } = synth();
+    const dist = Object.values(t.findResources("AWS::CloudFront::Distribution"))[0] as {
+      Properties: { DistributionConfig: { DefaultCacheBehavior: Record<string, unknown>; CacheBehaviors: Array<Record<string, unknown>> } };
+    };
+    const cfg = dist.Properties.DistributionConfig;
+    expect(cfg.DefaultCacheBehavior.ResponseHeadersPolicyId).toBeDefined();
+    for (const b of cfg.CacheBehaviors) expect(b.ResponseHeadersPolicyId).toBeDefined();
   });
 });

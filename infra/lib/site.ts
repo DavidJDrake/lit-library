@@ -14,6 +14,8 @@ export interface SiteProps {
   siteBucket: s3.IBucket;
   keyGroup: cloudfront.IKeyGroup;
   apiDomainName: string;
+  /** Regional domain of the books bucket; downloads load its presigned URL in a hidden iframe. */
+  booksBucketDomainName: string;
 }
 
 export class Site extends Construct {
@@ -36,12 +38,59 @@ export class Site extends Construct {
 
     const siteOrigin = origins.S3BucketOrigin.withOriginAccessControl(props.siteBucket);
 
+    // Everything the SPA needs is same-origin: the API is proxied at /api/*, covers and the
+    // catalog come from this distribution. The one exception is the Cognito hosted UI, which
+    // the token exchange calls directly, so it is the only entry in connect-src. Built from
+    // config rather than hardcoded, so no real host lands in the repository.
+    const cognitoOrigin = `https://${config.cognitoDomainPrefix}.auth.${config.region}.amazoncognito.com`;
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self'",
+      // Vite emits a stylesheet, but React and the app set inline style attributes at runtime,
+      // which 'unsafe-inline' covers; it does not permit inline <script>, which is the risk
+      // this policy exists to close.
+      "style-src 'self' 'unsafe-inline'",
+      // The favicon in index.html is an inline data: SVG.
+      "img-src 'self' data:",
+      "font-src 'self'",
+      // A book download loads its presigned S3 URL into a hidden iframe (see
+      // web/src/catalog/download.ts), and that URL is on the bucket's own host, not this
+      // distribution. Without this the browser blocks every download silently.
+      `frame-src 'self' https://${props.booksBucketDomainName}`,
+      `connect-src 'self' ${cognitoOrigin}`,
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    const responseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, "SecurityHeaders", {
+      comment: "Security headers for the library site",
+      securityHeadersBehavior: {
+        contentSecurityPolicy: { contentSecurityPolicy: csp, override: true },
+        // Two years, matching the preload-list requirement, though the site is not submitted.
+        strictTransportSecurity: {
+          accessControlMaxAge: Duration.days(730),
+          includeSubdomains: true,
+          override: true,
+        },
+        contentTypeOptions: { override: true },
+        frameOptions: { frameOption: cloudfront.HeadersFrameOption.DENY, override: true },
+        referrerPolicy: {
+          referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+          override: true,
+        },
+      },
+    });
+
     // Signed-cookie gate for the catalog and covers. Everything else stays public.
     const gated: cloudfront.BehaviorOptions = {
       origin: siteOrigin,
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       trustedKeyGroups: [props.keyGroup],
+      responseHeadersPolicy,
     };
 
     // Same-origin API: nothing is cached, Authorization is forwarded.
@@ -59,6 +108,7 @@ export class Site extends Construct {
       allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
       cachePolicy: apiCachePolicy,
       originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+      responseHeadersPolicy,
     };
 
     // CloudFront matches path patterns against the raw URI while S3 decodes
@@ -82,6 +132,7 @@ export class Site extends Construct {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         functionAssociations: [{ function: gateGuard, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
+        responseHeadersPolicy,
       },
       additionalBehaviors: {
         "/catalog.json": gated,

@@ -52,6 +52,7 @@ export class EbookShareStack extends Stack {
     const apiDomainName = Fn.select(2, Fn.split("/", api.httpApi.apiEndpoint));
     const site = new Site(this, "Site", {
       config, siteBucket: storage.siteBucket, keyGroup: signing.keyGroup, apiDomainName,
+      booksBucketDomainName: storage.booksBucket.bucketRegionalDomainName,
     });
 
     new CfnOutput(this, "SiteUrl", { value: site.url });
