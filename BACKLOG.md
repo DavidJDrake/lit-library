@@ -32,8 +32,6 @@ _(none queued)_
 
 ## Security and operations
 
-| # | Item | Effort | Notes |
-|---|---|---|---|
 _(none queued)_
 
 ## Repo as portfolio
