@@ -94,7 +94,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
         id, name: n.name, nameLower: n.nameLower, ...(bookId ? { bookId } : {}), suggestedBy: email, createdAt: at, status: "pending",
       });
       logEvent("suggestion.created", { suggestionId: id, by: email, name: n.name }, deps.now);
-      await safeNotify(deps, "suggestion_pending", { suggestionId: id, name: n.name, ...(bookId ? { bookId } : {}), suggestedBy: email }, "admins");
+      await safeNotify(deps, "suggestion_pending", { suggestionId: id, name: n.name, ...(bookId ? { bookId } : {}), suggestedBy: email }, "admins", { excludeEmail: email });
       return json(201, { id });
     }
     case "createCategory": {
@@ -105,7 +105,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const created = await store.putCategory({ name: n.name, nameLower: n.nameLower, createdBy: email, createdAt: at, source: "admin" });
       if (!created) return json(409, { error: "That category already exists" });
       logEvent("category.created", { name: n.name, source: "admin", by: email }, deps.now);
-      await safeNotify(deps, "category_created", { name: n.name, createdBy: email, source: "admin" }, "everyone");
+      await safeNotify(deps, "category_created", { name: n.name, createdBy: email, source: "admin" }, "everyone", { excludeEmail: email });
       return json(201, { name: n.name });
     }
     case "accept": {
@@ -121,7 +121,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       logEvent("suggestion.accepted", { suggestionId: s.id, by: email }, deps.now);
       logEvent("category.created", { name: s.name, source: "suggestion", by: email }, deps.now);
       await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "accepted", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
-      await safeNotify(deps, "category_created", { name: s.name, createdBy: email, source: "suggestion" }, "everyone");
+      await safeNotify(deps, "category_created", { name: s.name, createdBy: email, source: "suggestion" }, "everyone", { excludeEmail: email });
       return noContent();
     }
     case "reject": {

@@ -15,7 +15,8 @@ export interface UserDirectory { listEveryone(): Promise<string[]>; listAdmins()
 export interface NotificationWriter { putAll(rows: NotificationRow[]): Promise<void> }
 export interface NotifyDeps { directory: UserDirectory; writer: NotificationWriter; now: () => Date; newId: () => string }
 export type NotifyFn = (
-  type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, opts?: { id?: string; now?: () => Date },
+  type: NotificationType, payload: Record<string, unknown>, recipients: Recipients,
+  opts?: { id?: string; now?: () => Date; excludeEmail?: string },
 ) => Promise<number>;
 
 export const TTL_DAYS = 90;
@@ -42,14 +43,16 @@ export function buildRows(
 
 export async function notify(
   type: NotificationType, payload: Record<string, unknown>, recipients: Recipients, deps: NotifyDeps,
-  opts: { id?: string; now?: () => Date } = {},
+  opts: { id?: string; now?: () => Date; excludeEmail?: string } = {},
 ): Promise<number> {
   // opts.now lets a caller pin the clock to something stable across redeliveries (e.g. an SES
   // event timestamp) instead of the processing-time deps.now(), so the sk stays idempotent.
   const clock = opts.now ?? deps.now;
-  const emails = recipients === "everyone" ? await deps.directory.listEveryone()
+  const resolved = recipients === "everyone" ? await deps.directory.listEveryone()
     : recipients === "admins" ? await deps.directory.listAdmins()
     : recipients;
+  const excludeLower = opts.excludeEmail?.toLowerCase();
+  const emails = excludeLower === undefined ? resolved : resolved.filter((e) => e.toLowerCase() !== excludeLower);
   const rows = buildRows(type, payload, emails, clock(), deps.newId, opts.id);
   if (rows.length === 0) return 0;
   await deps.writer.putAll(rows);

@@ -61,6 +61,16 @@ describe("notify", () => {
     expect(await notify("kindle_bounce", { bookId: "b" }, ["a@example.com"], d, { id: "ses-1" })).toBe(1);
     expect(d.written.at(-1)!.sk.endsWith("#ses-1")).toBe(true);
   });
+  it("excludes the given email from the resolved recipients, case-insensitively", async () => {
+    const d = deps();
+    expect(await notify("category_created", { name: "X" }, "everyone", d, { excludeEmail: "A@Example.com" })).toBe(1);
+    expect(d.written.map((r) => r.pk)).toEqual(["USER#b@example.com"]);
+  });
+  it("excluding the only recipient produces no rows and does not error", async () => {
+    const d = deps();
+    expect(await notify("suggestion_pending", { suggestionId: "s", name: "N", suggestedBy: "a@example.com" }, "admins", d, { excludeEmail: "a@example.com" })).toBe(0);
+    expect(d.writer.putAll).not.toHaveBeenCalled();
+  });
 });
 
 describe("CognitoDirectory", () => {

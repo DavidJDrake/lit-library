@@ -177,7 +177,9 @@ describe("notifications", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const d = deps();
     await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: "b1" }), d);
-    expect(d.notify).toHaveBeenCalledWith("suggestion_pending", { suggestionId: "id-1", name: "Cookery", bookId: "b1", suggestedBy: "u@x" }, "admins");
+    expect(d.notify).toHaveBeenCalledWith(
+      "suggestion_pending", { suggestionId: "id-1", name: "Cookery", bookId: "b1", suggestedBy: "u@x" }, "admins", { excludeEmail: "u@x" },
+    );
     log.mockRestore();
   });
   it("accept notifies the suggester and everyone; reject notifies the suggester", async () => {
@@ -185,7 +187,9 @@ describe("notifications", () => {
     const d = deps();
     await handle(event("POST", "/api/suggestions/s1/accept", undefined, admin), d);
     expect(d.notify).toHaveBeenNthCalledWith(1, "suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "accepted", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
-    expect(d.notify).toHaveBeenNthCalledWith(2, "category_created", { name: "Cookbooks", createdBy: "a@x", source: "suggestion" }, "everyone");
+    expect(d.notify).toHaveBeenNthCalledWith(
+      2, "category_created", { name: "Cookbooks", createdBy: "a@x", source: "suggestion" }, "everyone", { excludeEmail: "a@x" },
+    );
     const r = deps();
     await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin), r);
     expect(r.notify).toHaveBeenCalledWith("suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "rejected", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
@@ -196,7 +200,9 @@ describe("notifications", () => {
     const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const d = deps();
     await handle(event("POST", "/api/categories", { name: "Essays" }, admin), d);
-    expect(d.notify).toHaveBeenCalledWith("category_created", { name: "Essays", createdBy: "a@x", source: "admin" }, "everyone");
+    expect(d.notify).toHaveBeenCalledWith(
+      "category_created", { name: "Essays", createdBy: "a@x", source: "admin" }, "everyone", { excludeEmail: "a@x" },
+    );
     expect(events()).toContainEqual(expect.objectContaining({ event: "category.created", name: "Essays", source: "admin" }));
     log.mockRestore();
   });
