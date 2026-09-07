@@ -10,8 +10,6 @@ updates:
       # Majors that need a deliberate migration (BACKLOG.md #24); minors/patches still flow.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
-      - dependency-name: vitest
-        update-types: ["version-update:semver-major"]
       # Type definitions must track the Lambda runtime (Node 22), not the newest Node.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
@@ -25,8 +23,6 @@ updates:
       # Majors that need a deliberate migration (BACKLOG.md #24); minors/patches still flow.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
-      - dependency-name: vitest
-        update-types: ["version-update:semver-major"]
       - dependency-name: react
         update-types: ["version-update:semver-major"]
       - dependency-name: react-dom
@@ -34,8 +30,6 @@ updates:
       - dependency-name: "@types/react"
         update-types: ["version-update:semver-major"]
       - dependency-name: "@types/react-dom"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: /indexer
