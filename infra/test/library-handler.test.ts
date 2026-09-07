@@ -22,6 +22,9 @@ function store(over: Partial<Store> = {}): Store {
     listReadingStatuses: vi.fn().mockResolvedValue([{ bookId: "b1", status: "reading", updatedAt: NOW }]),
     putReadingStatus: vi.fn().mockResolvedValue(undefined),
     deleteReadingStatus: vi.fn().mockResolvedValue(undefined),
+    getOpdsTokenStatus: vi.fn().mockResolvedValue(undefined),
+    setOpdsTokenHash: vi.fn().mockResolvedValue(undefined),
+    clearOpdsToken: vi.fn().mockResolvedValue(undefined),
     ...over,
   };
 }
@@ -29,7 +32,10 @@ function downloads(over: Partial<DownloadsStore> = {}): DownloadsStore {
   return { listDownloadedBookIds: vi.fn().mockResolvedValue(["b1", "b7"]), ...over };
 }
 function deps(s: Store = store(), over: Partial<Deps> = {}): Deps {
-  return { store: s, downloads: downloads(), now: () => new Date(NOW), newId: () => "id-1", notify: vi.fn().mockResolvedValue(1), ...over };
+  return {
+    store: s, downloads: downloads(), now: () => new Date(NOW), newId: () => "id-1",
+    newOpdsToken: () => "generated-token", notify: vi.fn().mockResolvedValue(1), ...over,
+  };
 }
 function event(method: string, path: string, body?: unknown, claims: Record<string, unknown> = { email: "u@x" }) {
   return {
@@ -307,5 +313,64 @@ describe("failures", () => {
     expect(json).toEqual({ error: "Internal error" });
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe("GET /api/opds/token", () => {
+  it("reports no token when none has been generated", async () => {
+    const { status, json } = parse(await handle(event("GET", "/api/opds/token"), deps()));
+    expect(status).toBe(200);
+    expect(json).toEqual({ exists: false, createdAt: null });
+  });
+  it("reports existence and creation time, never the token or its hash", async () => {
+    const s = store({ getOpdsTokenStatus: vi.fn().mockResolvedValue({ createdAt: NOW }) });
+    const { status, json } = parse(await handle(event("GET", "/api/opds/token"), deps(s)));
+    expect(status).toBe(200);
+    expect(json).toEqual({ exists: true, createdAt: NOW });
+    expect(json).not.toHaveProperty("token");
+    expect(json).not.toHaveProperty("tokenHash");
+  });
+  it("uses the caller's own email", async () => {
+    const s = store();
+    await handle(event("GET", "/api/opds/token"), deps(s));
+    expect(s.getOpdsTokenStatus).toHaveBeenCalledWith("u@x");
+  });
+});
+
+describe("POST /api/opds/token", () => {
+  it("generates a token, stores only its hash, and returns the plaintext token once", async () => {
+    const s = store();
+    const { status, json } = parse(await handle(event("POST", "/api/opds/token"), deps(s, { newOpdsToken: () => "plain-token-value" })));
+    expect(status).toBe(201);
+    expect(json).toEqual({ token: "plain-token-value", createdAt: NOW });
+    expect(s.setOpdsTokenHash).toHaveBeenCalledTimes(1);
+    const [calledEmail, calledHash, calledAt] = (s.setOpdsTokenHash as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(calledEmail).toBe("u@x");
+    expect(calledAt).toBe(NOW);
+    expect(calledHash).not.toBe("plain-token-value"); // only the hash reaches storage
+  });
+  it("never logs the plaintext token", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await handle(event("POST", "/api/opds/token"), deps(store(), { newOpdsToken: () => "super-secret-token" }));
+    for (const call of log.mock.calls) expect(String(call[0])).not.toContain("super-secret-token");
+    log.mockRestore();
+  });
+  it("regenerating replaces rather than accumulates: one call to setOpdsTokenHash per request", async () => {
+    const s = store();
+    await handle(event("POST", "/api/opds/token"), deps(s));
+    await handle(event("POST", "/api/opds/token"), deps(s));
+    expect(s.setOpdsTokenHash).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("DELETE /api/opds/token", () => {
+  it("revokes the caller's own token and returns 204", async () => {
+    const s = store();
+    const { status } = parse(await handle(event("DELETE", "/api/opds/token"), deps(s)));
+    expect(status).toBe(204);
+    expect(s.clearOpdsToken).toHaveBeenCalledWith("u@x");
+  });
+  it("401s a token with no email claim, same as any other route", async () => {
+    expect(parse(await handle(event("DELETE", "/api/opds/token", undefined, {}), deps())).status).toBe(401);
   });
 });
