@@ -86,14 +86,23 @@ class Enricher:
     limit, server error) is retried a handful of times and, if it still
     doesn't resolve, is left uncached entirely so the next run tries again
     instead of the miss being baked in permanently.
+
+    google_books_api_key, if given, is sent with every Google Books
+    request. Google Books' own docs say public requests must carry an API
+    key or access token; without one, calls fall into a shared anonymous
+    quota that this library has observed fully exhausted. The key is
+    never required here (Open Library needs none, and Google Books calls
+    are still attempted without one), just passed through when supplied.
     """
 
-    def __init__(self, cache_dir: Path, fetch_json=None, fetch_bytes=None, sleep=None):
+    def __init__(self, cache_dir: Path, fetch_json=None, fetch_bytes=None, sleep=None,
+                 google_books_api_key: str | None = None):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.fetch_json = fetch_json or _default_fetch_json
         self.fetch_bytes = fetch_bytes or _default_fetch_bytes
         self.sleep = sleep if sleep is not None else time.sleep
+        self.google_books_api_key = google_books_api_key
 
     def enrich(self, meta: ExtractedMeta, fallback_title: str) -> None:
         key = meta.isbn or f"{fallback_title}|{meta.authors[0] if meta.authors else ''}"
@@ -201,6 +210,8 @@ class Enricher:
         if authors:
             q += f" inauthor:{authors[0]}"
         url = "https://www.googleapis.com/books/v1/volumes?q=" + urllib.parse.quote(q)
+        if self.google_books_api_key:
+            url += "&key=" + urllib.parse.quote(self.google_books_api_key, safe="")
         resp = self._fetch_json_retrying(url)
         items = resp.get("items") if isinstance(resp, dict) else None
         if not items:

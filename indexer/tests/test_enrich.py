@@ -217,3 +217,20 @@ def test_clear_failed_cache_removes_only_not_found_entries(tmp_path):
     assert removed == 1
     assert found_file.exists()
     assert not missing_file.exists()
+
+
+def test_google_books_api_key_is_sent_when_provided(tmp_path):
+    fetcher = ScriptedFetcher({"googleapis.com/books": [GB_RESPONSE]})
+    e = Enricher(tmp_path, fetch_json=fetcher, fetch_bytes=lambda u: None, sleep=lambda s: None,
+                 google_books_api_key="test-key-123")
+    meta = ExtractedMeta(authors=["A. Writer"])
+    e.enrich(meta, fallback_title="Mystery Novel")
+    assert any("key=test-key-123" in u for u in fetcher.calls)
+
+
+def test_no_api_key_omits_key_param(tmp_path):
+    fetcher = ScriptedFetcher({"googleapis.com/books": [GB_RESPONSE]})
+    e = Enricher(tmp_path, fetch_json=fetcher, fetch_bytes=lambda u: None, sleep=lambda s: None)
+    meta = ExtractedMeta(authors=["A. Writer"])
+    e.enrich(meta, fallback_title="Mystery Novel")
+    assert not any("key=" in u for u in fetcher.calls)

@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -53,7 +54,10 @@ def main(argv: list[str] | None = None) -> int:
         _seed_overrides_stub(cfg.metadata_dir / "overrides.yaml")
         enricher = None
         if not args.skip_enrich:
-            enricher = Enricher(cfg.metadata_dir / "cache")
+            enricher = Enricher(
+                cfg.metadata_dir / "cache",
+                google_books_api_key=os.environ.get("GOOGLE_BOOKS_API_KEY") or None,
+            )
             if args.retry_failed_enrichment:
                 n = enricher.clear_failed_cache()
                 print(f"Cleared {n} failed enrichment cache entries for retry")
