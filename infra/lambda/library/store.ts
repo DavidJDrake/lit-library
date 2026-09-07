@@ -1,5 +1,5 @@
 import {
-  DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand, UpdateCommand,
+  DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { BookCategory, Category, Store, Suggestion } from "./index";
 
@@ -7,6 +7,17 @@ type Item = Record<string, unknown>;
 
 function isNamed(e: unknown, name: string): boolean {
   return typeof e === "object" && e !== null && (e as { name?: string }).name === name;
+}
+
+// TransactionCanceledException fires for a transaction conflict, throttling, or a
+// validation problem, not only a failed ConditionExpression: only its CancellationReasons
+// entries say which. Treat it as "a condition genuinely failed" only when one of them is
+// ConditionalCheckFailed; anything else (including no reasons at all) must propagate as a
+// real failure rather than being reported as an ordinary 409-shaped outcome.
+function isConditionFailure(e: unknown): boolean {
+  if (!isNamed(e, "TransactionCanceledException")) return false;
+  const reasons = (e as { CancellationReasons?: Array<{ Code?: string }> }).CancellationReasons ?? [];
+  return reasons.some((r) => r.Code === "ConditionalCheckFailed");
 }
 
 function toCategory(i: Item): Category {
@@ -74,9 +85,25 @@ export class DynamoStore implements Store {
     await this.ddb.send(new PutCommand({ TableName: this.table, Item: this.bookItem(b) }));
   }
 
+  private nameReservationItem(nameLower: string): Item {
+    return { pk: "SUGGESTION_NAME", sk: nameLower };
+  }
+
+  // Reserves the lowercased name alongside the suggestion put so two identical
+  // suggestions submitted together cannot both persist as pending.
   async putSuggestion(s: Suggestion) {
     const { id, ...rest } = s;
-    await this.ddb.send(new PutCommand({ TableName: this.table, Item: { pk: "SUGGESTION", sk: id, ...rest } }));
+    const TransactItems = [
+      { Put: { TableName: this.table, Item: { pk: "SUGGESTION", sk: id, ...rest } } },
+      { Put: { TableName: this.table, Item: this.nameReservationItem(s.nameLower), ConditionExpression: "attribute_not_exists(pk)" } },
+    ];
+    try {
+      await this.ddb.send(new TransactWriteCommand({ TransactItems }));
+      return true;
+    } catch (e) {
+      if (isConditionFailure(e)) return false;
+      throw e;
+    }
   }
 
   async acceptSuggestion(id: string, category: Category, book: BookCategory | undefined, resolvedBy: string, resolvedAt: string) {
@@ -90,28 +117,35 @@ export class DynamoStore implements Store {
         ExpressionAttributeNames: { "#status": "status" },
         ExpressionAttributeValues: { ":accepted": "accepted", ":pending": "pending", ":by": resolvedBy, ":at": resolvedAt },
       } },
+      // The category item now owns this name; release the reservation.
+      { Delete: { TableName: this.table, Key: { pk: "SUGGESTION_NAME", sk: category.nameLower } } },
     ];
     try {
       await this.ddb.send(new TransactWriteCommand({ TransactItems }));
       return true;
     } catch (e) {
-      if (isNamed(e, "TransactionCanceledException")) return false;
+      if (isConditionFailure(e)) return false;
       throw e;
     }
   }
 
-  async rejectSuggestion(id: string, resolvedBy: string, resolvedAt: string) {
-    try {
-      await this.ddb.send(new UpdateCommand({
+  async rejectSuggestion(id: string, nameLower: string, resolvedBy: string, resolvedAt: string) {
+    const TransactItems = [
+      { Update: {
         TableName: this.table, Key: { pk: "SUGGESTION", sk: id },
         UpdateExpression: "SET #status = :rejected, resolvedBy = :by, resolvedAt = :at",
         ConditionExpression: "#status = :pending",
         ExpressionAttributeNames: { "#status": "status" },
         ExpressionAttributeValues: { ":rejected": "rejected", ":pending": "pending", ":by": resolvedBy, ":at": resolvedAt },
-      }));
+      } },
+      // A rejected name is free to be suggested again; release the reservation.
+      { Delete: { TableName: this.table, Key: { pk: "SUGGESTION_NAME", sk: nameLower } } },
+    ];
+    try {
+      await this.ddb.send(new TransactWriteCommand({ TransactItems }));
       return true;
     } catch (e) {
-      if (isNamed(e, "ConditionalCheckFailedException")) return false;
+      if (isConditionFailure(e)) return false;
       throw e;
     }
   }

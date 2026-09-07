@@ -15,7 +15,7 @@ function store(over: Partial<Store> = {}): Store {
     getSuggestion: vi.fn().mockResolvedValue(pending),
     putCategory: vi.fn().mockResolvedValue(true),
     putBookCategory: vi.fn().mockResolvedValue(undefined),
-    putSuggestion: vi.fn().mockResolvedValue(undefined),
+    putSuggestion: vi.fn().mockResolvedValue(true),
     acceptSuggestion: vi.fn().mockResolvedValue(true),
     rejectSuggestion: vi.fn().mockResolvedValue(true),
     ...over,
@@ -61,6 +61,12 @@ describe("PUT /api/books/{id}/category", () => {
     expect(status).toBe(204);
     expect(s.putBookCategory).toHaveBeenCalledWith({ bookId: "b1", category: "Fiction", changedBy: "u@x", changedAt: NOW });
   });
+  it("matches an existing category case-insensitively and stores the canonical casing", async () => {
+    const s = store();
+    const { status } = parse(await handle(event("PUT", "/api/books/b1/category", { category: "fICTION" }), deps(s)));
+    expect(status).toBe(204);
+    expect(s.putBookCategory).toHaveBeenCalledWith({ bookId: "b1", category: "Fiction", changedBy: "u@x", changedAt: NOW });
+  });
   it("400s an unknown or malformed category", async () => {
     expect(parse(await handle(event("PUT", "/api/books/b1/category", { category: "Nope" }), deps())).status).toBe(400);
     expect(parse(await handle(event("PUT", "/api/books/b1/category", { category: "" }), deps())).status).toBe(400);
@@ -101,6 +107,19 @@ describe("POST /api/suggestions", () => {
   it("409s a name that matches a category or a pending suggestion, case-insensitively", async () => {
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "fiction" }), deps())).status).toBe(409);
     expect(parse(await handle(event("POST", "/api/suggestions", { name: "COOKBOOKS" }), deps())).status).toBe(409);
+  });
+  it("409s, not 500s, when the name reservation loses a race underneath the check", async () => {
+    const s = store({ putSuggestion: vi.fn().mockResolvedValue(false) });
+    const { status, json } = parse(await handle(event("POST", "/api/suggestions", { name: "Fresh" }), deps(s)));
+    expect(status).toBe(409);
+    expect(json).toEqual({ error: "That category already exists or has been suggested" });
+  });
+  it("two concurrent identical suggestions produce one success and one 409 (atomic name reservation)", async () => {
+    const s = store({ putSuggestion: vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false) });
+    const first = parse(await handle(event("POST", "/api/suggestions", { name: "Fresh" }), deps(s)));
+    const second = parse(await handle(event("POST", "/api/suggestions", { name: "fresh" }), deps(s)));
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(409);
   });
 });
 
@@ -162,7 +181,7 @@ describe("admin routes", () => {
     const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const s = store();
     expect(parse(await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin), deps(s))).status).toBe(204);
-    expect(s.rejectSuggestion).toHaveBeenCalledWith("s1", "a@x", NOW);
+    expect(s.rejectSuggestion).toHaveBeenCalledWith("s1", "cookbooks", "a@x", NOW);
     expect(events()).toContainEqual(expect.objectContaining({ event: "suggestion.rejected", suggestionId: "s1" }));
     expect(parse(await handle(event("POST", "/api/suggestions/zz/reject", undefined, admin),
       deps(store({ getSuggestion: vi.fn().mockResolvedValue(undefined) })))).status).toBe(404);
@@ -177,7 +196,9 @@ describe("notifications", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const d = deps();
     await handle(event("POST", "/api/suggestions", { name: "Cookery", bookId: "b1" }), d);
-    expect(d.notify).toHaveBeenCalledWith("suggestion_pending", { suggestionId: "id-1", name: "Cookery", bookId: "b1", suggestedBy: "u@x" }, "admins");
+    expect(d.notify).toHaveBeenCalledWith(
+      "suggestion_pending", { suggestionId: "id-1", name: "Cookery", bookId: "b1", suggestedBy: "u@x" }, "admins", { excludeEmail: "u@x" },
+    );
     log.mockRestore();
   });
   it("accept notifies the suggester and everyone; reject notifies the suggester", async () => {
@@ -185,7 +206,9 @@ describe("notifications", () => {
     const d = deps();
     await handle(event("POST", "/api/suggestions/s1/accept", undefined, admin), d);
     expect(d.notify).toHaveBeenNthCalledWith(1, "suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "accepted", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
-    expect(d.notify).toHaveBeenNthCalledWith(2, "category_created", { name: "Cookbooks", createdBy: "a@x", source: "suggestion" }, "everyone");
+    expect(d.notify).toHaveBeenNthCalledWith(
+      2, "category_created", { name: "Cookbooks", createdBy: "a@x", source: "suggestion" }, "everyone", { excludeEmail: "a@x" },
+    );
     const r = deps();
     await handle(event("POST", "/api/suggestions/s1/reject", undefined, admin), r);
     expect(r.notify).toHaveBeenCalledWith("suggestion_resolved", { suggestionId: "s1", name: "Cookbooks", status: "rejected", resolvedBy: "a@x", bookId: "b1" }, ["z@x"]);
@@ -196,7 +219,9 @@ describe("notifications", () => {
     const events = () => log.mock.calls.map((c) => JSON.parse(String(c[0])));
     const d = deps();
     await handle(event("POST", "/api/categories", { name: "Essays" }, admin), d);
-    expect(d.notify).toHaveBeenCalledWith("category_created", { name: "Essays", createdBy: "a@x", source: "admin" }, "everyone");
+    expect(d.notify).toHaveBeenCalledWith(
+      "category_created", { name: "Essays", createdBy: "a@x", source: "admin" }, "everyone", { excludeEmail: "a@x" },
+    );
     expect(events()).toContainEqual(expect.objectContaining({ event: "category.created", name: "Essays", source: "admin" }));
     log.mockRestore();
   });

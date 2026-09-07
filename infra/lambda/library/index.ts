@@ -18,11 +18,12 @@ export interface Store {
   /** false when a category with this name already exists (conditional put). */
   putCategory(c: Category): Promise<boolean>;
   putBookCategory(b: BookCategory): Promise<void>;
-  putSuggestion(s: Suggestion): Promise<void>;
-  /** One transaction: create category, move book (if any), mark accepted. false when a condition fails. */
+  /** One transaction: create the suggestion and reserve its lowercased name. false when the name is already reserved. */
+  putSuggestion(s: Suggestion): Promise<boolean>;
+  /** One transaction: create category, move book (if any), mark accepted, release the name reservation. false when a condition fails. */
   acceptSuggestion(id: string, category: Category, book: BookCategory | undefined, resolvedBy: string, resolvedAt: string): Promise<boolean>;
-  /** false when the suggestion is no longer pending. */
-  rejectSuggestion(id: string, resolvedBy: string, resolvedAt: string): Promise<boolean>;
+  /** One transaction: mark rejected and release the name reservation. false when the suggestion is no longer pending. */
+  rejectSuggestion(id: string, nameLower: string, resolvedBy: string, resolvedAt: string): Promise<boolean>;
 }
 
 export interface Deps { store: Store; now: () => Date; newId: () => string; notify: NotifyFn }
@@ -75,7 +76,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const n = normalizeName(body?.category);
       if (!n) return json(400, { error: "Body must be JSON {category}" });
       const categories = await store.listCategories();
-      const match = categories.find((c) => c.name === n.name);
+      const match = categories.find((c) => c.nameLower === n.nameLower);
       if (!match) return json(400, { error: "Unknown category" });
       await store.putBookCategory({ bookId: route.bookId, category: match.name, changedBy: email, changedAt: at });
       return noContent();
@@ -90,11 +91,12 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       }
       if (await nameTaken(store, n.nameLower)) return json(409, { error: "That category already exists or has been suggested" });
       const id = deps.newId();
-      await store.putSuggestion({
+      const reserved = await store.putSuggestion({
         id, name: n.name, nameLower: n.nameLower, ...(bookId ? { bookId } : {}), suggestedBy: email, createdAt: at, status: "pending",
       });
+      if (!reserved) return json(409, { error: "That category already exists or has been suggested" });
       logEvent("suggestion.created", { suggestionId: id, by: email, name: n.name }, deps.now);
-      await safeNotify(deps, "suggestion_pending", { suggestionId: id, name: n.name, ...(bookId ? { bookId } : {}), suggestedBy: email }, "admins");
+      await safeNotify(deps, "suggestion_pending", { suggestionId: id, name: n.name, ...(bookId ? { bookId } : {}), suggestedBy: email }, "admins", { excludeEmail: email });
       return json(201, { id });
     }
     case "createCategory": {
@@ -105,7 +107,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       const created = await store.putCategory({ name: n.name, nameLower: n.nameLower, createdBy: email, createdAt: at, source: "admin" });
       if (!created) return json(409, { error: "That category already exists" });
       logEvent("category.created", { name: n.name, source: "admin", by: email }, deps.now);
-      await safeNotify(deps, "category_created", { name: n.name, createdBy: email, source: "admin" }, "everyone");
+      await safeNotify(deps, "category_created", { name: n.name, createdBy: email, source: "admin" }, "everyone", { excludeEmail: email });
       return json(201, { name: n.name });
     }
     case "accept": {
@@ -121,13 +123,13 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
       logEvent("suggestion.accepted", { suggestionId: s.id, by: email }, deps.now);
       logEvent("category.created", { name: s.name, source: "suggestion", by: email }, deps.now);
       await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "accepted", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
-      await safeNotify(deps, "category_created", { name: s.name, createdBy: email, source: "suggestion" }, "everyone");
+      await safeNotify(deps, "category_created", { name: s.name, createdBy: email, source: "suggestion" }, "everyone", { excludeEmail: email });
       return noContent();
     }
     case "reject": {
       const s = await store.getSuggestion(route.id);
       if (!s) return json(404, { error: "Unknown suggestion" });
-      const ok = await store.rejectSuggestion(s.id, email, at);
+      const ok = await store.rejectSuggestion(s.id, s.nameLower, email, at);
       if (!ok) return json(409, { error: "Suggestion already resolved" });
       logEvent("suggestion.rejected", { suggestionId: s.id, by: email }, deps.now);
       await safeNotify(deps, "suggestion_resolved", { suggestionId: s.id, name: s.name, status: "rejected", resolvedBy: email, ...(s.bookId ? { bookId: s.bookId } : {}) }, [s.suggestedBy]);
