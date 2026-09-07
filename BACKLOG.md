@@ -23,7 +23,8 @@ _(none queued)_
 | # | Item | Notes |
 |---|---|---|
 | 17 | Notification popover focus management. | Move focus into the dialog on open, back to the bell on close; scope the Escape handler to the popover. |
-| 18 | Don't notify the actor about their own action. | `category_created` goes to "everyone" incl. the admin who created it; `books_added` incl. whoever published. One `.filter()` in `notify`. |
+| 18 | Don't notify the actor about their own action. | The three authenticated call sites in the library Lambda (suggest, create category, accept) know the actor's email; an `excludeEmail` option on `notify` covers all three. |
+| 26 | Don't notify the publisher about their own upload. | Split out of #18 after survey: `books_added` fires from a direct Lambda invoke by `scripts/notify-books-added.py`, which has no Cognito session and no notion of who ran it. Fixing it means inventing a publisher identity and threading it through the script, the invoke payload and the event validation. Effort **M**, and worth deciding whether it earns that. |
 | 19 | `loadMore` failure UX on `/notifications`. | The page-wide error banner shows over already-loaded items and Retry resets to page 1; show an inline "couldn't load more — retry" under the list instead. |
 | 20 | `notify-books-added.py` hardening. | A missing/corrupt `added.json` or `--before` file tracebacks instead of warn-and-exit-0 (shielded by `publish-new.sh`); tests for the invoke-failure branches. |
 | 21 | Suggestion duplicate check is not atomic. | Two simultaneous identical suggestions can both persist as pending; accept 409s the second, so no corruption. A `nameLower` lock item would close it. |
