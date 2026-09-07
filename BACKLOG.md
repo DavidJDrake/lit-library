@@ -13,7 +13,6 @@ _(none queued)_
 | # | Item | Notes |
 |---|---|---|
 | 4 | Reading status per user — downloaded / want to read / finished. | "Downloaded" is free from the existing log; the rest is one small table and a toggle on the card. |
-| 5 | Shareable URLs — put search and filters in the query string. | Half done: `?category=` seeds the facet (notifications plan). Remaining: search text, other facets, sort, and writing the params back on change. Also makes a "New category" link clicked twice re-seed (today a no-op because the URL doesn't change). |
 | 16 | OPDS feed. | Another view of `catalog.json` behind the same session cookie; e-reader apps (KOReader, Moon+) can browse it directly. |
 
 ## Deferred from reviews
@@ -55,6 +54,7 @@ _(none queued)_
 | 23 | **Test gaps closed.** Routes are asserted against the real JWT authorizer (proven to fail when a route loses auth), the suggestion chip’s in-flight disabled state is covered, and the overlapping mark-as-read was fixed rather than pinned. | PRs #38–#40 |
 | 8 | **Windowed book grid.** Renders only the rows near the viewport, measuring the browser's own column track list and a card's height rather than reimplementing the CSS. Card height is now deterministic by construction, which the measurement depends on. Verified live: 1,297 cards down to about 21-56 mounted, one distinct card height, zero scroll drift at the bottom. | PR #42 |
 | 6 | **Description enrichment repaired.** Not the second pass the item asked for, which already existed: enrichment had never contributed a single description, because transient failures were cached permanently as misses. Failures are now retried and left uncached, an optional API key is supported, and a flag re-attempts only past misses. | PR #43 |
+| 5 | **Shareable library URLs.** All six facets, the search text and the sort round-trip through the query string; defaults omitted, values ordered so the URL does not depend on click order. A replacing history update keeps the back button useful and closes the loop between state and URL, which also fixed the category link that used to do nothing when already applied. | PR #44 |
 | 25 | **Multiple Kindle devices per user.** Named device list (up to 5) with a default, split-button send with a device menu, bounce rows naming the device, lazy migration of the single saved address. | `infra/lambda/kindle/devices.ts`, `web/src/components/DeviceList.tsx`, `web/src/components/SendToKindleButton.tsx`; spec and plan `2026-09-06-kindle-devices`. |
 | 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | plan `2026-09-04-backlog-1-3` |
