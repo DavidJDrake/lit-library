@@ -41,4 +41,19 @@ describe("NotificationItem", () => {
     expect(screen.getByRole("link", { name: 'Your Kindle rejected "Black Hound of Death" — add library@lit.example.com to your approved senders' }))
       .toHaveAttribute("href", "/settings");
   });
+  it("names the device on a kindle_bounce row", () => {
+    render(
+      <NotificationItem
+        n={{ id: "n1", type: "kindle_bounce", createdAt: new Date().toISOString(), read: false,
+             payload: { bookId: "b1", kind: "Bounce", reason: "Permanent/General", deviceId: "a1" } }}
+        isAdmin={false}
+        titleOf={() => "Black Hound of Death"}
+        sender="library@lit.example.com"
+        deviceLabelOf={(id) => (id === "a1" ? "Scribe" : undefined)}
+        onResolve={vi.fn()} />,
+    );
+    const link = screen.getByRole("link");
+    expect(link).toHaveTextContent('Scribe rejected "Black Hound of Death" — add library@lit.example.com to your approved senders');
+    expect(link).toHaveAttribute("href", "/settings");
+  });
 });

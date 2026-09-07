@@ -8,15 +8,16 @@ interface Props {
   isAdmin: boolean;
   titleOf(bookId: string): string | undefined;
   sender?: string;
+  deviceLabelOf?(deviceId: string): string | undefined;
   onResolve?: (suggestionId: string, action: "accept" | "reject") => Promise<void>;
   onNavigate?: () => void;
   nowMs?: number;
 }
 
-export default function NotificationItem({ n, isAdmin, titleOf, sender, onResolve, onNavigate, nowMs }: Props) {
+export default function NotificationItem({ n, isAdmin, titleOf, sender, deviceLabelOf, onResolve, onNavigate, nowMs }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const r = renderNotification(n, { titleOf, sender });
+  const r = renderNotification(n, { titleOf, sender, deviceLabelOf });
   const p = n.payload ?? {};
   const pending = n.type === "suggestion_pending" && p.status === "pending";
   const name = String(p.name ?? "");
