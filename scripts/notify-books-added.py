@@ -63,9 +63,15 @@ def main(argv: list[str]) -> int:
         return 0
 
     try:
-        outputs = next(iter(json.loads(Path(args.outputs).read_text()).values()))
+        stack_outputs = json.loads(Path(args.outputs).read_text())
+    except (OSError, ValueError) as e:
+        return warn(f"could not find NotificationsFunctionName in {args.outputs} ({e}); books-added notification skipped")
+    if not isinstance(stack_outputs, dict):
+        return warn(f"{args.outputs} is not a JSON object (got {type(stack_outputs).__name__}); books-added notification skipped")
+    try:
+        outputs = next(iter(stack_outputs.values()))
         fn = outputs["NotificationsFunctionName"]
-    except (OSError, ValueError, KeyError, StopIteration) as e:
+    except (KeyError, StopIteration, TypeError) as e:
         return warn(f"could not find NotificationsFunctionName in {args.outputs} ({e}); books-added notification skipped")
     try:
         import boto3

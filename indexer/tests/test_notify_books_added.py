@@ -116,3 +116,14 @@ def test_added_as_null_is_a_warning_not_a_failure(tmp_path):
     r = run(tmp_path, {}, None)
     assert r.returncode == 0
     assert "warning" in r.stderr
+
+
+# Same flaw, pre-existing: the outputs file's .values() call assumed a JSON object without
+# checking, so a valid JSON list raised AttributeError, which main()'s except tuple didn't
+# catch.
+def test_outputs_as_a_list_is_a_warning_not_a_failure(tmp_path):
+    o = tmp_path / "outputs.json"
+    o.write_text(json.dumps([]))
+    r = run(tmp_path, {"a": "x"}, {"a": "x", "b": "y"}, "--outputs", str(o))
+    assert r.returncode == 0
+    assert "warning" in r.stderr
