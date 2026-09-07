@@ -32,7 +32,9 @@ export class EbookShareStack extends Stack {
       keyPairId: signing.publicKey.publicKeyId,
     });
     const notifications = new Notifications(this, "Notifications", { httpApi: api.httpApi, userPool: auth.userPool });
-    const library = new Library(this, "Library", { httpApi: api.httpApi, notificationsTable: notifications.table, userPool: auth.userPool });
+    const library = new Library(this, "Library", {
+      httpApi: api.httpApi, notificationsTable: notifications.table, userPool: auth.userPool, downloadsTable: api.table,
+    });
     library.table.grantReadData(notifications.fn);
     notifications.fn.addEnvironment("LIBRARY_TABLE", library.table.tableName);
     const alerts = new Alerts(this, "Alerts", {

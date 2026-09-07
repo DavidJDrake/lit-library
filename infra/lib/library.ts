@@ -17,6 +17,9 @@ export interface LibraryProps {
   httpApi: apigw.HttpApi;
   notificationsTable: dynamodb.ITable;
   userPool: cognito.IUserPool;
+  // Read-only: derives the "downloaded" overlay from the download log the Api construct
+  // owns. The library Lambda never writes here.
+  downloadsTable: dynamodb.ITable;
 }
 
 // Runtime-mutable overlay on the static catalog: categories, per-book category
@@ -71,6 +74,7 @@ export class Library extends Construct {
         LIBRARY_TABLE: this.table.tableName,
         NOTIFICATIONS_TABLE: props.notificationsTable.tableName,
         USER_POOL_ID: props.userPool.userPoolId,
+        DOWNLOADS_TABLE: props.downloadsTable.tableName,
       },
       // Bundle the Cognito client rather than trust the runtime-provided SDK version; the
       // DynamoDB clients are runtime-provided and already in use.
@@ -78,13 +82,15 @@ export class Library extends Construct {
     });
     this.table.grantReadWriteData(fn);
     props.notificationsTable.grantWriteData(fn);
+    props.downloadsTable.grantReadData(fn); // read-only: derives the "downloaded" overlay, never writes
     fn.addToRolePolicy(new iam.PolicyStatement({ actions: COGNITO_LIST_ACTIONS, resources: [props.userPool.userPoolArn] }));
 
-    // One integration, six routes; the API's default JWT authorizer applies to all of them.
+    // One integration, seven routes; the API's default JWT authorizer applies to all of them.
     const integration = new HttpLambdaIntegration("LibraryIntegration", fn);
     const routes: Array<[string, apigw.HttpMethod]> = [
       ["/api/library", apigw.HttpMethod.GET],
       ["/api/books/{id}/category", apigw.HttpMethod.PUT],
+      ["/api/books/{id}/status", apigw.HttpMethod.PUT],
       ["/api/suggestions", apigw.HttpMethod.POST],
       ["/api/categories", apigw.HttpMethod.POST],
       ["/api/suggestions/{id}/accept", apigw.HttpMethod.POST],
