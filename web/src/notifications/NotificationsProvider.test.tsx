@@ -160,6 +160,48 @@ describe("NotificationsProvider", () => {
     });
     expect(screen.getByTestId("unread")).toHaveTextContent("5");
   });
+  it("a failed markAllRead reverts only the notifications it flipped, leaving a concurrent successful single mark (and the notification it targets) alone", async () => {
+    const deferredAll = deferred<{ ok: boolean; status: number; headers: Headers; json: () => Promise<unknown> }>();
+    let gets = 0;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        const body = String(init.body);
+        if (body === JSON.stringify({ all: true })) return deferredAll.promise;
+        // The single markRead for n(3) below: succeed immediately.
+        return { ok: true, status: 204, headers: new Headers({ "content-type": "application/json" }), json: async () => ({}) };
+      }
+      gets += 1;
+      if (gets === 1) return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(1)], unread: 1, next: "cursor" }) };
+      // loadMore's page: a notification (n(3)) that didn't exist yet when markAllRead started.
+      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ items: [n(3)], unread: 1 }) };
+    }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("1"));
+
+    // markAllRead flips n(1) (the only notification that exists yet) and is left in flight.
+    await userEvent.click(screen.getByRole("button", { name: "read-all" }));
+    expect(screen.getByTestId("unread")).toHaveTextContent("0");
+
+    // A second page loads in, bringing in n(3) -- a notification markAllRead never knew about.
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => expect(screen.getByTestId("count")).toHaveTextContent("2"));
+
+    // n(3) is marked read individually, and that write succeeds.
+    await userEvent.click(screen.getByRole("button", { name: "read-second" }));
+    await waitFor(() => expect(screen.getByTestId("unread")).toHaveTextContent("0"));
+
+    // markAllRead's own write then fails. A whole-list snapshot captured back when
+    // markAllRead started (before n(3) even existed) would restore over it and lose n(3)
+    // entirely; the per-item revert must only touch n(1), the one notification this call
+    // itself flipped, leaving n(3) present and read.
+    await act(async () => {
+      deferredAll.resolve({ ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "x" }) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(screen.getByTestId("count")).toHaveTextContent("2");
+    expect(screen.getByTestId("read-ids")).toHaveTextContent(n(3).id);
+    expect(screen.getByTestId("unread")).toHaveTextContent("1");
+  });
   it("a stale in-flight refresh cannot clobber a markRead that already succeeded", async () => {
     const posted: string[] = [];
     let getCount = 0;

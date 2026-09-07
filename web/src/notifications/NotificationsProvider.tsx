@@ -27,13 +27,11 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  // Mirrors of the latest items/unread so the optimistic handlers below can read "current
-  // truth" synchronously — they aren't in any callback's dep array, so a plain closure
-  // over `items`/`unread` would go stale.
+  // Mirror of the latest items so the optimistic handlers below can read "current truth"
+  // synchronously — it isn't in any callback's dep array, so a plain closure over `items`
+  // would go stale.
   const itemsRef = useRef(items);
   useEffect(() => { itemsRef.current = items; }, [items]);
-  const unreadRef = useRef(unread);
-  useEffect(() => { unreadRef.current = unread; }, [unread]);
 
   // Guards against a background refresh (poll/visibility/manual) landing after a newer
   // refresh started, or after an optimistic write already succeeded, and clobbering
@@ -115,16 +113,23 @@ export function NotificationsProvider({ apiUrl, getIdToken, fetchFn = fetch, chi
     }
   }, [apiUrl, getIdToken, fetchFn]);
 
+  // Same optimistic/per-item-revert treatment as markRead just above, not a whole-list
+  // snapshot: a snapshot restore here would wipe out a concurrent markRead's already-
+  // applied or still-pending flip on a notification this call didn't itself fail to write.
   const markAllRead = useCallback(async () => {
     seqRef.current += 1;
-    const prevItems = itemsRef.current;
-    const prevUnread = unreadRef.current;
+    const refreshGen = refreshAppliedRef.current;
+    const flippedIds = itemsRef.current.filter((n) => !n.read).map((n) => n.id);
     setItems((cur) => cur.map((n) => (n.read ? n : { ...n, read: true })));
     setUnread(0);
     try {
       await markNotificationsRead(apiUrl, await getIdToken(), "all", fetchFn);
     } catch {
-      if (mounted.current) { setItems(prevItems); setUnread(prevUnread); }
+      if (mounted.current && refreshGen === refreshAppliedRef.current && flippedIds.length > 0) {
+        const revertSet = new Set(flippedIds);
+        setItems((cur) => cur.map((n) => (revertSet.has(n.id) ? { ...n, read: false } : n)));
+        setUnread((u) => u + flippedIds.length);
+      }
     }
   }, [apiUrl, getIdToken, fetchFn]);
 
