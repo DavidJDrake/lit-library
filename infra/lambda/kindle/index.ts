@@ -2,12 +2,21 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 }
 import { downloadFilename, type Catalog } from "../download/download";
 import type { DownloadLog } from "../download/index";
 import { logEvent } from "../shared/log";
-import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES, parseKindleAddress } from "./lib";
+import { publicList, validateDevices, type DeviceList } from "./devices";
+import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES } from "./lib";
+
+/** A read of the settings row, plus the opaque version a client sends back on a write. */
+export interface StoredDevices extends DeviceList { version: string | null }
+export type SetDevicesResult = { ok: true; version: string | null } | { ok: false; reason: "stale" };
 
 export interface KindleStore {
-  getAddress(email: string): Promise<string | null>;
-  /** null deletes the settings row. */
-  setAddress(email: string, address: string | null, updatedAt: string): Promise<void>;
+  getDevices(email: string): Promise<StoredDevices>;
+  /**
+   * An empty list deletes the settings row. `expectedVersion` is the version the caller
+   * last read: `undefined` writes unconditionally (an older client), `null` requires that
+   * no row exists, and a string requires the row to still carry that `updatedAt`.
+   */
+  setDevices(email: string, list: DeviceList, updatedAt: string, expectedVersion?: string | null): Promise<SetDevicesResult>;
 }
 export interface Sender { send(raw: string, tags: Record<string, string>): Promise<{ messageId: string }> }
 export interface Deps {
@@ -21,6 +30,7 @@ export interface Deps {
 }
 
 export const NOT_ENABLED_MESSAGE = "Kindle delivery isn't enabled for everyone yet";
+export const STALE_MESSAGE = "Your devices changed in another tab — reload and try again";
 export const TOO_LARGE_MESSAGE = "Too large for Kindle delivery — download instead";
 
 // SES email-tag values allow only [A-Za-z0-9_-]; an email address does not fit, so hex-encode it.
@@ -28,6 +38,15 @@ export const tagValue = (email: string): string => Buffer.from(email, "utf8").to
 
 function json(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+}
+/**
+ * A `version` the client read back from us, or no expectation at all. Anything that is
+ * neither a non-empty string nor an explicit null — including the absent field an older
+ * client sends through the deploy window — writes unconditionally, as it does today.
+ */
+function expectedVersion(body: Record<string, unknown>): string | null | undefined {
+  if (typeof body.version === "string" && body.version) return body.version;
+  return body.version === null ? null : undefined;
 }
 function parseBody(body: string | undefined): Record<string, unknown> {
   if (!body) return {};
@@ -39,15 +58,20 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
   if (typeof bookId !== "string" || !bookId) return json(400, { error: "bad_request", message: "Body must be JSON {bookId, format?}" });
   const requested = typeof body.format === "string" ? body.format.toLowerCase() : undefined;
 
-  const address = await deps.store.getAddress(email);
-  if (!address) return json(409, { error: "no_address" });
+  const { devices, defaultDeviceId } = await deps.store.getDevices(email);
+  if (devices.length === 0) return json(409, { error: "no_address" });
+  const requestedDeviceId = typeof body.deviceId === "string" && body.deviceId ? body.deviceId : undefined;
+  const device = requestedDeviceId
+    ? devices.find((d) => d.id === requestedDeviceId)
+    : devices.find((d) => d.id === defaultDeviceId) ?? devices[0];
+  if (!device) return json(400, { error: "unknown_device", message: "That device is no longer saved — reload and try again" });
 
   let catalog: Catalog;
   try {
     catalog = await deps.loadCatalog();
   } catch (e) {
     console.error("kindle catalog load failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, code: "failed", stage: "catalog", reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, deviceId: device.id, code: "failed", stage: "catalog", reason: (e as Error).message }, deps.now);
     return json(502, { error: "failed", message: "Could not read the book from storage" });
   }
   const book = catalog.books.find((b) => b.id === bookId);
@@ -64,7 +88,7 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     bytes = await deps.loadObject(format.s3Key);
   } catch (e) {
     console.error("kindle object load failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, code: "failed", stage: "object", reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, deviceId: device.id, code: "failed", stage: "object", reason: (e as Error).message }, deps.now);
     return json(502, { error: "failed", message: "Could not read the book from storage" });
   }
   if (bytes.byteLength > KINDLE_MAX_BYTES) {
@@ -73,16 +97,16 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
   }
   const type = format.type as "epub" | "pdf";
   const raw = buildMime({
-    from: deps.senderAddress, to: address, subject: book.title,
+    from: deps.senderAddress, to: device.address, subject: book.title,
     filename: downloadFilename(book.title, type, book.id), contentType: CONTENT_TYPES[type], body: bytes, date: deps.now(),
   });
   let messageId: string;
   try {
-    ({ messageId } = await deps.sender.send(raw, { recipient: tagValue(email), bookId }));
+    ({ messageId } = await deps.sender.send(raw, { recipient: tagValue(email), bookId, deviceId: device.id }));
   } catch (e) {
     const code = classifySesError(e);
     console.error("kindle send failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, format: type, code, reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, format: type, deviceId: device.id, code, reason: (e as Error).message }, deps.now);
     return json(502, { error: code, message: code === "not_enabled" ? NOT_ENABLED_MESSAGE : "Could not send the book right now" });
   }
   const timestamp = deps.now().toISOString();
@@ -90,10 +114,10 @@ async function sendBook(email: string, body: Record<string, unknown>, deps: Deps
     await deps.logSend({ email, sk: `${timestamp}#${bookId}`, bookId, format: `kindle:${type}`, title: book.title, timestamp });
   } catch (e) {
     console.error("kindle log row failed:", e);
-    logEvent("kindle.send_failed", { email, bookId, format: type, code: "log", reason: (e as Error).message }, deps.now);
+    logEvent("kindle.send_failed", { email, bookId, format: type, deviceId: device.id, code: "log", reason: (e as Error).message }, deps.now);
   }
-  logEvent("kindle.sent", { email, bookId, format: type, bytes: bytes.byteLength, sesMessageId: messageId }, deps.now);
-  return json(202, { sentTo: address, format: type });
+  logEvent("kindle.sent", { email, bookId, format: type, deviceId: device.id, bytes: bytes.byteLength, sesMessageId: messageId }, deps.now);
+  return json(202, { sentTo: device.address, format: type, deviceId: device.id, deviceLabel: device.label });
 }
 
 export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, deps: Deps): Promise<APIGatewayProxyResultV2> {
@@ -103,14 +127,23 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
   const email = String(claims.email ?? "").toLowerCase();
   if (!email) return json(401, { error: "unauthorized", message: "Token has no email claim (send the ID token)" });
   try {
-    if (method === "GET" && path === "/api/kindle/address") {
-      return json(200, { kindleAddress: await deps.store.getAddress(email) });
+    if (method === "GET" && path === "/api/kindle/devices") {
+      const stored = await deps.store.getDevices(email);
+      return json(200, { ...publicList(stored), version: stored.version });
     }
-    if (method === "PUT" && path === "/api/kindle/address") {
-      const parsed = parseKindleAddress(parseBody(event.body).kindleAddress);
-      if (parsed === undefined) return json(400, { error: "bad_address", message: "Enter your @kindle.com address" });
-      await deps.store.setAddress(email, parsed, deps.now().toISOString());
-      return { statusCode: 204 };
+    if (method === "PUT" && path === "/api/kindle/devices") {
+      const body = parseBody(event.body);
+      if (!Array.isArray(body.devices)) {
+        return json(400, { error: "bad_request", message: "Body must be JSON {devices, defaultDeviceId?}" });
+      }
+      const existing = await deps.store.getDevices(email);
+      const result = validateDevices(body.devices, body.defaultDeviceId, existing, deps.now().toISOString());
+      if (!result.ok) return json(400, { error: result.error, message: result.message });
+      const written = await deps.store.setDevices(email, result.list, deps.now().toISOString(), expectedVersion(body));
+      // Another tab wrote between this client's read and its save. Dropping a device is
+      // how a legitimate removal is expressed, so the write has to be refused outright.
+      if (!written.ok) return json(409, { error: "stale", message: STALE_MESSAGE });
+      return json(200, { ...publicList(result.list), version: written.version });
     }
     if (method === "POST" && path === "/api/kindle/send") {
       return await sendBook(email, parseBody(event.body), deps);

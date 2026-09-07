@@ -31,6 +31,19 @@ describe("renderNotification", () => {
     expect(renderNotification(mk("kindle_bounce", { bookId: "zz", kind: "Bounce", reason: "x" }), ctx2).text)
       .toBe('Your Kindle rejected "a book" — add library@lit.example.com to your approved senders');
   });
+  it("kindle_bounce names the device when it is still saved", () => {
+    const ctx2 = { ...ctx, sender: "library@lit.example.com", deviceLabelOf: (id: string) => (id === "a1" ? "Scribe" : undefined) };
+    expect(renderNotification(mk("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "x", deviceId: "a1" }), ctx2))
+      .toEqual({ icon: "📵", text: 'Scribe rejected "Black Hound of Death" — add library@lit.example.com to your approved senders', href: "/settings" });
+  });
+
+  it("kindle_bounce falls back when the device is gone or was never recorded", () => {
+    const ctx2 = { ...ctx, sender: "library@lit.example.com", deviceLabelOf: () => undefined };
+    const expected = 'Your Kindle rejected "Black Hound of Death" — add library@lit.example.com to your approved senders';
+    expect(renderNotification(mk("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "x", deviceId: "gone" }), ctx2).text).toBe(expected);
+    expect(renderNotification(mk("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "x" }), ctx2).text).toBe(expected);
+    expect(renderNotification(mk("kindle_bounce", { bookId: "b1", kind: "Bounce", reason: "x", deviceId: "a1" }), { ...ctx, sender: "library@lit.example.com" }).text).toBe(expected);
+  });
 });
 
 describe("relativeTime / localPart", () => {

@@ -4,54 +4,53 @@ import { describe, expect, it, vi } from "vitest";
 import { KindleProvider } from "../kindle/KindleProvider";
 import SettingsPage from "./SettingsPage";
 
-function server(address: string | null) {
-  const puts: string[] = [];
-  const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
-    if (init?.method === "PUT") { puts.push(String(init.body)); return { ok: true, status: 204, headers: new Headers() }; }
-    return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: address }) };
-  }) as unknown as typeof fetch;
-  return { fetchFn, puts };
-}
+const json = (status: number, body: unknown) => ({
+  ok: status >= 200 && status < 300, status,
+  headers: new Headers({ "content-type": "application/json" }),
+  json: async () => body,
+}) as unknown as Response;
+
 const mount = (fetchFn: typeof fetch) => render(
   <KindleProvider apiUrl="/api" getIdToken={async () => "tok"} fetchFn={fetchFn} sender="library@lit.example.com"><SettingsPage /></KindleProvider>,
 );
 
 describe("SettingsPage", () => {
-  it("shows the saved address, the sender, and the checklist; saves changes", async () => {
-    const { fetchFn, puts } = server("jay_abc@kindle.com");
+  it("shows the saved devices and the sender", async () => {
+    const fetchFn = vi.fn(async () => json(200, { devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" })) as unknown as typeof fetch;
     mount(fetchFn);
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toHaveValue("jay_abc@kindle.com"));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Your devices" })).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(screen.getAllByText(/library@lit\.example\.com/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Personal Document Settings/)).toBeInTheDocument();
-    await userEvent.clear(screen.getByRole("textbox", { name: "Your Kindle email" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "new_1@kindle.com");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(puts).toEqual([JSON.stringify({ kindleAddress: "new_1@kindle.com" })]));
-    expect(screen.getByText("Saved")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Scribe")).toBeInTheDocument();
   });
-  it("shows the empty state while loading and for no address", async () => {
-    mount(server(null).fetchFn);
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toHaveValue(""));
+
+  it("shows a loading state before the list arrives", () => {
+    const fetchFn = vi.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    mount(fetchFn);
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
-  it("clears the Saved status after a later save fails", async () => {
-    let fail = false;
-    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
-      if (init?.method === "PUT") {
-        if (fail) return { ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) };
-        return { ok: true, status: 204, headers: new Headers() };
-      }
-      return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ kindleAddress: "jay_abc@kindle.com" }) };
+
+  it("shows a failure with a retry instead of an add form when the load fails", async () => {
+    const fetchFn = vi.fn(async () => { throw new Error("offline"); }) as unknown as typeof fetch;
+    mount(fetchFn);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load your devices"));
+    // The add form is what would compose a whole-list PUT, so it must not be reachable.
+    expect(screen.queryByRole("heading", { name: "Add a device" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Your devices" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("retrying a failed load shows the devices it finds", async () => {
+    let attempt = 0;
+    const fetchFn = vi.fn(async () => {
+      if (attempt++ === 0) throw new Error("offline");
+      return json(200, { devices: [{ id: "a1", label: "Scribe", address: "a@kindle.com" }], defaultDeviceId: "a1" });
     }) as unknown as typeof fetch;
     mount(fetchFn);
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toHaveValue("jay_abc@kindle.com"));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
-    fail = true;
-    await userEvent.clear(screen.getByRole("textbox", { name: "Your Kindle email" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "new_2@kindle.com");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getByDisplayValue("Scribe")).toBeInTheDocument());
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

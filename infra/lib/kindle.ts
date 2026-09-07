@@ -97,7 +97,7 @@ export class Kindle extends Construct {
     }));
 
     const integration = new HttpLambdaIntegration("KindleIntegration", this.fn);
-    props.httpApi.addRoutes({ path: "/api/kindle/address", methods: [apigw.HttpMethod.GET, apigw.HttpMethod.PUT], integration });
+    props.httpApi.addRoutes({ path: "/api/kindle/devices", methods: [apigw.HttpMethod.GET, apigw.HttpMethod.PUT], integration });
     props.httpApi.addRoutes({ path: "/api/kindle/send", methods: [apigw.HttpMethod.POST], integration });
 
     this.eventsFn = new NodejsFunction(this, "EventsFn", {

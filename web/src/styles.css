@@ -69,6 +69,14 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .kindle { display: flex; gap: 0.6rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap; }
 .kindle-form label { display: block; font-size: 0.9rem; }
 .kindle-form input { display: block; width: 100%; margin-top: 0.25rem; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
+.kindle-send { position: relative; display: inline-flex; align-items: stretch; }
+.kindle-send .caret { border: 1px solid var(--border); border-left: 0; background: none; cursor: pointer; padding: 0 0.5rem; color: inherit; }
+.kindle-send .caret[disabled] { opacity: 0.5; cursor: default; }
+.kindle-menu { position: absolute; top: 100%; right: 0; z-index: 5; min-width: 10rem; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgb(0 0 0 / 0.15); }
+.kindle-menu button { text-align: left; padding: 0.4rem 0.6rem; border: 0; background: none; cursor: pointer; color: inherit; }
+.kindle-menu button:hover { background: rgb(0 0 0 / 0.06); }
+.kindle-menu button[aria-checked="true"]::after { content: " ✓"; }
 .close { position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: 0; font-size: 1.5rem; color: var(--muted); }
 .toast { position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%); background: var(--danger); color: #fff; padding: 0.7rem 1rem; border-radius: 8px; z-index: 20; }
 .toast.ok { background: var(--accent); }
@@ -107,3 +115,8 @@ dialog.detail::backdrop { background: rgba(0,0,0,0.5); }
 .settings-link { text-decoration: none; font-size: 1.1rem; color: inherit; }
 .settings-section h3 { margin-top: 0; }
 .settings-section { padding: 1rem; }
+.device-list ul { list-style: none; margin: 0 0 1rem; padding: 0; }
+.device-list li.device { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+.device-list li.device input { min-width: 10rem; }
+.device-list li.unnamed input { border-color: var(--accent); }
+.device-list h4 { margin: 0.75rem 0 0.35rem; }

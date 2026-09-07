@@ -34,14 +34,19 @@ function Shell({ fetchFn }: { fetchFn: typeof fetch }) {
     await Promise.all([refreshOverlay().catch(() => undefined), notifications.refresh()]);
   }, [auth, fetchFn, refreshOverlay, notifications]);
 
-  const bell = <NotificationBell isAdmin={auth.isAdmin} titleOf={titleOf} sender={auth.kindleSender} onResolve={resolveFromBell} />;
+  const deviceLabelOf = useCallback(
+    (id: string) => kindle.devices?.find((d) => d.id === id)?.label || undefined,
+    [kindle.devices],
+  );
+
+  const bell = <NotificationBell isAdmin={auth.isAdmin} titleOf={titleOf} sender={auth.kindleSender} deviceLabelOf={deviceLabelOf} onResolve={resolveFromBell} />;
   return (
     <>
       <Header email={auth.email} onSignOut={() => void signOut()} bell={bell} />
       {path === "/settings"
         ? <SettingsPage />
         : path === "/notifications"
-        ? <NotificationsPage isAdmin={auth.isAdmin} titleOf={titleOf} sender={auth.kindleSender} onResolve={resolveFromBell} />
+        ? <NotificationsPage isAdmin={auth.isAdmin} titleOf={titleOf} sender={auth.kindleSender} deviceLabelOf={deviceLabelOf} onResolve={resolveFromBell} />
         : <Library key={search} apiUrl={auth.apiUrl} getIdToken={auth.getIdToken} fetchFn={fetchFn} isAdmin={auth.isAdmin} onChanged={() => void notifications.refresh()} kindle={kindle} />}
     </>
   );

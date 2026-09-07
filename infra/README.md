@@ -96,7 +96,13 @@ that needs `lambda:InvokeFunction` on the caller's credentials.
 ## Send to Kindle (SES)
 
 The stack verifies the site domain in SES with Easy DKIM (three CNAMEs in the hosted
-zone) and sends from `kindleSender` (`config.local.json`). One-time steps:
+zone) and sends from `kindleSender` (`config.local.json`).
+
+Each reader saves up to five devices under `/settings`, one per Amazon
+`@kindle.com` address, and marks one the default. The address that was saved
+before devices existed is migrated on first read and shows up asking to be named.
+
+One-time steps:
 
 1. **Sandbox testing.** New SES accounts are sandboxed: mail goes only to verified
    addresses. SES console → Identities → Create identity → *Email address* → your own
@@ -120,8 +126,9 @@ CloudWatch Logs Insights, select the Lambda log groups and run:
 
 or narrow to `filter event like /^kindle\./`. Events: `download.issued`,
 `suggestion.created|accepted|rejected`, `category.created`, `notification.fanout`,
-`kindle.sent`, `kindle.oversize`, `kindle.send_failed`, `kindle.bounce`. Kindle Lambdas
-keep logs 3 months; the others 1 month.
+`kindle.sent`, `kindle.oversize`, `kindle.send_failed`, `kindle.bounce`. The `kindle.sent`,
+`kindle.send_failed`, and `kindle.bounce` events carry a `deviceId` field identifying which
+device was targeted or rejected the send. Kindle Lambdas keep logs 3 months; the others 1 month.
 
 ## Alerts
 
