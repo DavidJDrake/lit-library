@@ -26,8 +26,7 @@ _(none queued)_
 
 | # | Item | Effort | Notes |
 |---|---|---|---|
-| 13 | Screenshots or a short GIF in the README. | S | Blur covers if purchases shouldn't be visible. |
-| 14 | A "what I'd do differently" retrospective section. | S | Material: the CloudFront cache-policy rule that bit, signed cookies vs an auth'd catalog API, keeping search client-side. |
+| 13 | Screenshots in the README. | S | Recipe written up in `docs/screenshots.md`, including the public-domain-only view and how to blank the email and feed token. The images themselves still need taking: the browser tooling used here writes them to an environment this checkout cannot read. |
 | 15 | Post the real first-month AWS bill in the README. | S | A real number beats an estimate. |
 
 ## Done
@@ -55,6 +54,7 @@ _(none queued)_
 | 4 | **Reading status per reader.** Want to read, reading and finished, stored per reader in the existing library table, set from the book dialog and shown as a chip on the card. Downloaded appears alongside them as a derived, non-settable marker from the download log, so a book can show both at once. Filterable as a facet like any other. | PR #45 |
 | 16 | **OPDS 2.0 feed.** JSON acquisition feed of the whole catalogue for e-reader apps, authenticated by a per-reader token that is 256 bits of entropy, stored only as a hash, revocable from Settings, and read-only. Minting and revoking still require Google sign-in; only the feed and acquisition routes are open, and they check the token in the handler. Acquisition redirects to a freshly signed URL and logs the download. | PR #47 |
 | 27 | **Consistent email normalisation.** All four handlers now take the caller's address through one helper that trims and lowercases, so a fifth cannot drift. The downloads table had two producers that disagreed, which would have split a mixed-case reader across two partitions. Every allowlisted address was already lowercase, so nothing needed migrating. | PR #48 |
+| 14 | **"What I'd do differently" retrospective.** Signed cookies versus an authenticated catalog API, client-side search and where it expires, the cache policy CloudFront rejects, the enrichment cache that froze an outage into permanent state, uniform card heights as a prerequisite for windowing, a test harness that ran the wrong code, and where the review effort actually paid. | README |
 | 25 | **Multiple Kindle devices per user.** Named device list (up to 5) with a default, split-button send with a device menu, bounce rows naming the device, lazy migration of the single saved address. | `infra/lambda/kindle/devices.ts`, `web/src/components/DeviceList.tsx`, `web/src/components/SendToKindleButton.tsx`; spec and plan `2026-09-06-kindle-devices`. |
 | 1 | **Close the stale-session gap.** Made `DELETE /api/session` unauthenticated (it only clears cookies), shortened the signed cookie to 2 h, and had the app renew it silently every 90 min while signed in. | plan `2026-09-04-backlog-1-3` |
 | 2 | **"Recently added" first, plus a one-command refresh.** Default the grid to newest-first and add a script that indexes new bundles and publishes in one step. | plan `2026-09-04-backlog-1-3` |

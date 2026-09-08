@@ -199,6 +199,75 @@ weekly grouped update PRs for the three package manifests and the workflow actio
 - Every Lambda writes structured JSON events (`event` field) to CloudWatch
   Logs; the two Kindle Lambdas keep them 3 months.
 
+## What I'd do differently
+
+Some of these are design calls I stand by but would weigh differently a second
+time; others are things the project taught me by breaking.
+
+**Signed cookies for the catalog, rather than an authenticated API.** The
+catalog and cover images are served straight from CloudFront behind a signed
+cookie, which is why browsing feels instant and costs almost nothing. The price
+is a second credential with its own lifetime, and a whole class of bugs where
+the cookie and the ID token disagree about whether you are signed in. It also
+forced a CloudFront function to block percent-encoded paths that route around
+the gate. An authenticated API in front of the catalog would have been slower
+and dearer, but there would be exactly one thing to get right instead of two.
+I would still choose the cookie for a library this size, and I would budget for
+the edge cases from the start rather than discovering them.
+
+**Keeping search in the browser.** The whole catalog is about a megabyte, so it
+loads once and every search after that is instant with no request at all. That
+holds beautifully at 1,300 books and would stop holding somewhere in the tens of
+thousands, at which point the answer is a real index rather than a bigger
+download. Knowing where a decision expires is more useful than knowing it was
+right.
+
+**A cache policy CloudFront quietly rejects.** The API behaviour allow-lists
+request headers while disabling caching, which CloudFront refuses; the fix was a
+one-second maximum rather than zero. Nothing in the local build objected. The
+lesson was not about caching but about feedback: an offline synthesis proves a
+template is well-formed, not that the service will accept it.
+
+**A cache that remembered failures forever.** Metadata enrichment cached every
+lookup, misses included, so re-runs would never re-query. That was a deliberate
+kindness to the upstream services and it silently froze one bad afternoon into
+permanent state: when Google Books rate-limited the indexing run, every failure
+was recorded as "this book has no description" and never retried. Descriptions
+sat at 31% and I assumed the feature half-worked. It had never worked at all —
+every description in the library came from metadata already inside the files.
+If you cache a negative result, record *why* it was negative, or you will cache
+an outage as a fact.
+
+**Uniform card heights are load-bearing.** Rendering all 1,300 covers at once is
+fine on a desktop and heavy on a phone, so the grid now renders only the rows
+near the viewport. That requires knowing how tall a row is, and the cards turned
+out to have fifteen different heights: titles wrapping to two lines, author
+lists to four, format badges wrapping at phone widths, and covers stretched by
+placeholder text. The feature was impossible until the cards were made exactly
+uniform. A layout that merely looks tidy is not the same as one that is
+measurably regular, and only the second kind can be optimised.
+
+**Tests that ran the wrong code.** Work happened in git worktrees, and the
+Python virtualenv held an absolute path to the main checkout. Tests collected
+from the branch imported the package from `main`, so a suite could pass while
+exercising code that was not under review. Nothing failed; the reassurance was
+simply false. A test harness that can silently test the wrong thing is worse
+than one that is merely missing.
+
+**Where the review effort actually paid.** Reviewing each change on its own
+caught ordinary mistakes, but the findings that mattered came from looking at a
+whole branch at once: a failed page load being stored as "you have no devices",
+so the next save deleted the rest; two browser tabs silently overwriting each
+other's device list. Neither is visible from any single commit. Budget for the
+wide, boring look at the end, not only the sharp look at each piece.
+
+**What I would keep without hesitation.** Writing the design down before
+building, so disagreements happened in prose rather than in code. Structured
+JSON logs from day one, which turned "descriptions seem low" into a countable
+question. And verifying user-visible behaviour in a real browser against the
+live site: a content security policy, a card's height and a scroll position are
+all things a test suite will cheerfully confirm while the page is broken.
+
 ## License
 
 [MIT](LICENSE) — free to use, modify, and share. Please don't use it to share
