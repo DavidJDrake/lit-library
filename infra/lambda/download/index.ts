@@ -8,6 +8,7 @@ import { Catalog, downloadFilename, findFormat, parseRequest } from "./download"
 import { buildOpdsFeed, OPDS_MEDIA_TYPE } from "./opds-feed";
 import { DynamoOpdsTokenStore, type OpdsTokenResolver } from "./opds-store";
 import { matchRoute } from "./routes";
+import { callerEmail } from "../shared/caller";
 
 export const URL_TTL_SECONDS = 900;
 const CATALOG_TTL_MS = 60_000;
@@ -42,7 +43,7 @@ async function handleDownload(event: APIGatewayProxyEventV2, deps: Deps): Promis
   // Same-shape access as before this file grew OPDS routes: this route still requires
   // the real Cognito JWT authorizer, which is what actually populates this claim.
   const claims = (event.requestContext as { authorizer?: { jwt?: { claims?: Record<string, unknown> } } }).authorizer?.jwt?.claims ?? {};
-  const email = String(claims.email ?? "");
+  const email = callerEmail(claims);
   if (!email) return json(401, { error: "Token has no email claim (send the ID token)" });
 
   let catalog: Catalog;

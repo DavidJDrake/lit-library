@@ -66,6 +66,21 @@ describe("POST /api/download", () => {
   it("400 on a bad body", async () => {
     expect(parse(await handle(event("nope"), deps())).status).toBe(400);
   });
+  it("keys the download row by a lowercased email, so one reader cannot split across two partitions", async () => {
+    // The downloads table is keyed by this value, and Send-to-Kindle writes the same
+    // table. If one producer lowercased and the other did not, a reader with a
+    // mixed-case address would get half their history under each spelling.
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const d = deps();
+    const { status } = parse(await handle(event('{"bookId":"abc","format":"epub"}', "Reader@Example.COM"), d));
+    expect(status).toBe(200);
+    expect(d.logDownload).toHaveBeenCalledWith(expect.objectContaining({ email: "reader@example.com" }));
+    expect(log.mock.calls.map((c) => JSON.parse(String(c[0])))).toContainEqual(
+      expect.objectContaining({ event: "download.issued", email: "reader@example.com" }),
+    );
+    log.mockRestore();
+  });
+
   it("401 when the token has no email claim", async () => {
     expect(parse(await handle(event('{"bookId":"abc","format":"epub"}', undefined), deps())).status).toBe(401);
   });
