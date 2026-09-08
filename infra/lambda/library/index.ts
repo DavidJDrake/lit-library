@@ -4,6 +4,7 @@ import { logEvent } from "../shared/log";
 import { hashOpdsToken } from "../shared/opds-token";
 import type { DownloadsStore } from "./downloads";
 import { ADMIN_ROUTES, isAdmin, matchRoute, normalizeName, parseJsonBody, type Route } from "./lib";
+import { callerEmail } from "../shared/caller";
 
 export interface Category { name: string; nameLower: string; createdBy: string; createdAt: string; source: "seed" | "admin" | "suggestion" }
 export interface BookCategory { bookId: string; category: string; changedBy: string; changedAt: string }
@@ -211,7 +212,7 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
   const route = matchRoute(event.requestContext.http.method, event.rawPath);
   if (!route) return json(404, { error: "Not found" });
   const claims = (event.requestContext.authorizer?.jwt?.claims ?? {}) as Record<string, unknown>;
-  const email = String(claims.email ?? "");
+  const email = callerEmail(claims);
   if (!email) return json(401, { error: "Token has no email claim (send the ID token)" });
   if (ADMIN_ROUTES.has(route.kind) && !isAdmin(claims)) return json(403, { error: "Admin only" });
   try {

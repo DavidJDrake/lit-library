@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
 import type { NotificationType, NotifyFn } from "./fanout";
+import { callerEmail } from "../shared/caller";
 
 export interface NotificationRecord { id: string; type: NotificationType; payload: Record<string, unknown>; read: boolean; createdAt: string }
 export interface NotificationStore {
@@ -61,7 +62,7 @@ async function handleHttp(event: APIGatewayProxyEventV2WithJWTAuthorizer, deps: 
   const method = event.requestContext.http.method;
   const path = event.rawPath;
   const claims = (event.requestContext.authorizer?.jwt?.claims ?? {}) as Record<string, unknown>;
-  const email = String(claims.email ?? "").toLowerCase();
+  const email = callerEmail(claims);
   if (!email) return json(401, { error: "Token has no email claim (send the ID token)" });
 
   if (method === "GET" && path === "/api/notifications") {

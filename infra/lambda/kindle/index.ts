@@ -4,6 +4,7 @@ import type { DownloadLog } from "../download/index";
 import { logEvent } from "../shared/log";
 import { publicList, validateDevices, type DeviceList } from "./devices";
 import { buildMime, chooseFormat, classifySesError, CONTENT_TYPES, KINDLE_MAX_BYTES } from "./lib";
+import { callerEmail } from "../shared/caller";
 
 /** A read of the settings row, plus the opaque version a client sends back on a write. */
 export interface StoredDevices extends DeviceList { version: string | null }
@@ -124,7 +125,7 @@ export async function handle(event: APIGatewayProxyEventV2WithJWTAuthorizer, dep
   const method = event.requestContext.http.method;
   const path = event.rawPath;
   const claims = (event.requestContext.authorizer?.jwt?.claims ?? {}) as Record<string, unknown>;
-  const email = String(claims.email ?? "").toLowerCase();
+  const email = callerEmail(claims);
   if (!email) return json(401, { error: "unauthorized", message: "Token has no email claim (send the ID token)" });
   try {
     if (method === "GET" && path === "/api/kindle/devices") {
