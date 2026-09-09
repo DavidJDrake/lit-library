@@ -7,7 +7,7 @@ from .catalog import write_outputs
 from .config import load_config
 from .enrich import Enricher
 from .pipeline import build_books
-from .publish import invalidate_catalog, publish_site, sync_books
+from .publish import delete_book_objects, find_orphan_books, invalidate_catalog, publish_site, sync_books
 from .scan import scan_library
 
 OVERRIDES_STUB = """\
@@ -46,6 +46,14 @@ def main(argv: list[str] | None = None) -> int:
 
     p_publish = sub.add_parser("publish", help="sync books and site assets to S3")
     p_publish.add_argument("--config", required=True, type=Path)
+
+    p_prune = sub.add_parser(
+        "prune",
+        help="list book files in S3 that are no longer in the library (add --delete to remove them)",
+    )
+    p_prune.add_argument("--config", required=True, type=Path)
+    p_prune.add_argument("--delete", action="store_true",
+                         help="actually delete; without it, prune only reports")
 
     args = parser.parse_args(argv)
     cfg = load_config(args.config)
@@ -87,6 +95,38 @@ def main(argv: list[str] | None = None) -> int:
         m = publish_site(s3, cfg.site_bucket, cfg.output_dir)
         invalidate_catalog(cf, cfg.cloudfront_distribution_id)
         print(f"Uploaded {n} book files, {m} site objects")
+        return 0
+
+    if args.command == "prune":
+        if not cfg.books_bucket:
+            print("books_bucket must be set in config", file=sys.stderr)
+            return 2
+        import boto3
+
+        files = scan_library(cfg.library_root)
+        # A scan that finds nothing almost certainly means the library is not where
+        # the config says (an unmounted drive, the wrong config), and every book in
+        # the bucket would look orphaned. Deleting the whole library on a
+        # misconfiguration is not a risk worth taking for a cleanup command.
+        if not files:
+            print(f"no books found under {cfg.library_root}; refusing to prune", file=sys.stderr)
+            return 2
+
+        s3 = boto3.client("s3", region_name=cfg.aws_region)
+        orphans = find_orphan_books(s3, cfg.books_bucket, files)
+        if not orphans:
+            print(f"no orphaned book files ({len(files)} in the library)")
+            return 0
+
+        for key in orphans:
+            print(key)
+        if not args.delete:
+            print(f"\n{len(orphans)} orphaned file(s); re-run with --delete to remove them")
+            return 0
+
+        n = delete_book_objects(s3, cfg.books_bucket, orphans,
+                                cfg.metadata_dir / "publish-state.json")
+        print(f"\ndeleted {n} orphaned file(s)")
         return 0
 
     return 1
