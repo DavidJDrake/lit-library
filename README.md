@@ -131,6 +131,27 @@ afterthought:
 If you're evaluating AI-assisted development, the plans and the commit
 history are the interesting part.
 
+### Removing a book
+
+Delete the file from the library and republish; the catalog is rebuilt from a
+fresh scan, so it disappears from the site at once and nobody is notified,
+because nothing new arrived.
+
+Publishing only ever uploads, so the stored copy stays behind: unreachable
+through the site, since download links are only minted for catalogued books, but
+still there and still paid for. `prune` finds those leftovers and reports them,
+and removes them when you add `--delete`:
+
+```bash
+cd indexer
+.venv/bin/python -m ebook_indexer prune --config ../config.yaml            # report
+.venv/bin/python -m ebook_indexer prune --config ../config.yaml --delete   # remove
+```
+
+It refuses to run at all if the library scan comes back empty, which almost
+always means the library is not where the config says rather than that every
+book has been deleted.
+
 ## Deploy your own
 
 Prerequisites: an AWS account with CLI credentials, a Route 53 hosted zone
