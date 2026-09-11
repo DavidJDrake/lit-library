@@ -12,7 +12,7 @@ import { callerEmail } from "../shared/caller";
 
 export const URL_TTL_SECONDS = 900;
 const CATALOG_TTL_MS = 60_000;
-const OPDS_FEED_TITLE = "My Library";
+const OPDS_FEED_TITLE = "Lit Library";
 
 export interface DownloadLog {
   email: string; sk: string; bookId: string; format: string; title: string; timestamp: string;

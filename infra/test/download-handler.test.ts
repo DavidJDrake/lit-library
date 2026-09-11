@@ -115,7 +115,7 @@ describe("GET /api/opds (feed)", () => {
     expect(r.statusCode).toBe(200);
     expect(r.headers["content-type"]).toBe("application/opds+json");
     const feed = JSON.parse(r.body);
-    expect(feed.metadata.title).toBeTruthy();
+    expect(feed.metadata.title).toBe("Lit Library");
     expect(feed.links).toEqual(expect.arrayContaining([expect.objectContaining({ rel: "self" })]));
     expect(feed.publications).toHaveLength(1);
     expect(feed.publications[0].metadata.title).toBe("Attacking Network Protocols");
