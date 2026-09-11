@@ -2,11 +2,87 @@
 
 Prioritized improvements, grouped by purpose. Effort is rough: **S** = under an hour
 with the usual plan → build → review loop, **M** = an evening, **L** = a weekend.
-Items move to "Done" with the commit or plan that closed them.
+Items move to "Done" with the commit or plan that closed them. Larger pieces of work
+live under "Epics": each states its goal, the evidence for doing it, and the tasks it
+breaks into. Tasks are ticked off as they land; the epic closes when they all are.
 
 ## Soon
 
 _(none queued)_
+
+## Epics
+
+Evidence below was measured on 2026-09-11 against the live library (1,327 books).
+
+### 28. Backups that survive losing the bucket
+
+**Goal:** the state that cannot be regenerated stays recoverable even if the books
+bucket is emptied, corrupted or deleted.
+
+**Why:** `scripts/backup.sh` writes to `_backup/` *inside the books bucket* — the same
+bucket it is backing up — and that bucket has versioning disabled, so one bad sync or
+recursive delete takes the books and every backup with them. The newest backup is from
+2026-09-06 and only exists because it was run by hand. The DynamoDB exports are the
+irreplaceable part: reading statuses, category edits, suggestions, Kindle devices and
+OPDS token hashes. The bucket holds 3,049 objects / 95 GB.
+
+- [ ] Separate backup bucket, versioning on, public access blocked, its own lifecycle
+- [ ] Decide whether the books bucket also gets versioning (cost against 95 GB)
+- [ ] Run it on a schedule, with a failure alarm through the existing SNS topic
+- [ ] Rehearse a restore: load a DynamoDB export into a scratch table and check row counts
+
+**Effort:** M. Do this one first — it is the only backlog item where a mistake is
+unrecoverable.
+
+### 29. Fill in the catalog metadata
+
+**Goal:** a book card shows what a reader needs to choose it.
+
+**Why:** measured across the 1,327 books — 923 (69%) have no description, 508 (38%) no
+year, 331 (24%) no author, 99 (7%) no cover, and 91 titles are still filename-ish
+(`Cyberpunk2020Corerulebook`, `Blackhandsstreetweapons2020`). Enrichment has never
+contributed a description because no `GOOGLE_BOOKS_API_KEY` is set (see #6, which fixed
+the caching bug behind it).
+
+- [ ] Add `GOOGLE_BOOKS_API_KEY`; run `--retry-failed-enrichment` on a small batch first
+- [ ] Re-run across the library, then re-measure the five counts above
+- [ ] Fall back to embedded EPUB/PDF metadata where enrichment finds nothing
+- [ ] Split run-together titles, with the changes reviewed before publishing
+
+**Effort:** M.
+
+### 30. Group duplicate editions
+
+**Goal:** one book, one card, however many bundles it arrived in.
+
+**Why:** 90 titles appear in more than one bundle — 201 books, about 15% of the
+catalog. *AWS Certified Security – Specialty* is in three bundles; *The Docker
+Workshop* and *The Kubernetes Workshop* in two each. Bundle sellers repackage the same
+titles, so browsing shows the same cover repeatedly and search results pad out.
+
+- [ ] Pick a match key (normalised title plus author) and count false merges on the real catalog
+- [ ] Group matches in the catalog builder: one book, several sources
+- [ ] One card in the UI; the dialog lists sources and the download picks one
+- [ ] Migrate reading statuses and download rows onto the surviving book id
+
+**Effort:** M. Worth doing while only one reader has status rows to migrate.
+
+### 31. Give the other readers a reason to come back
+
+**Goal:** the library is used by the people it was shared with, not just its owner.
+
+**Why:** three accounts exist; two have ever downloaded anything; nine downloads in
+total. Only one reader (the owner) has a reading status, a Kindle device or an OPDS
+token. Notifications are in-app only, so they reach nobody who does not visit. This is
+an attention problem, not a feature gap — the library has 1,327 books and one habitual
+reader.
+
+- [ ] Ask the two readers what would bring them back, before building anything
+- [ ] Email digest of new books, reusing the notification fan-out and the verified SES domain
+- [ ] An entry point that is not a search box: shelves, or a few picks per category
+- [ ] Email preferences and unsubscribe in Settings
+
+**Effort:** M, and the first task is free.
 
 ## Product polish
 
@@ -27,7 +103,7 @@ _(none queued)_
 | # | Item | Effort | Notes |
 |---|---|---|---|
 | 13 | Screenshots in the README. | S | Recipe written up in `docs/screenshots.md`, including the public-domain-only view and how to blank the email and feed token. The images themselves still need taking: the browser tooling used here writes them to an environment this checkout cannot read. |
-| 15 | Post the real first-month AWS bill in the README. | S | A real number beats an estimate. |
+| 15 | Post the real first-month AWS bill in the README. | S | A real number beats an estimate. Not obtainable from the CLI so far: on 2026-09-11 the `EstimatedCharges` billing metric read $0.00 for the whole of August and September to date, and Cost Explorer returned only fractional refunds. 95 GB of Intelligent-Tiering storage should not be free, so credits are the likely explanation — read the figure off the Billing console rather than trusting either API. |
 
 ## Done
 
