@@ -14,6 +14,8 @@ def scan_library(root: Path) -> list[ScannedFile]:
         if fmt is None:
             continue
         rel = path.relative_to(root).as_posix()
+        if any(part.startswith(".") for part in rel.split("/")):
+            continue  # hidden folders and files (e.g. ".playwright-mcp/", "._book.epub")
         files.append(
             ScannedFile(
                 path=path.resolve(),
