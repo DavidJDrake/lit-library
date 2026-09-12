@@ -182,10 +182,9 @@ the drill table, and record the commands and observed counts in
 |---|---|
 | `storage.test.ts` | Backup bucket: versioning enabled, public access blocked, RETAIN, noncurrent expiry. Books bucket: versioning enabled with its 30-day rule, existing Intelligent-Tiering rule intact. |
 | `backup-construct.test.ts` (new, mirrors `notifications-construct.test.ts`) | Weekly schedule rule targets the function; environment names; IAM grants read on both tables and put on the backup bucket, with **no** delete action and no grant on the books bucket. |
-| `backup-handler.test.ts` (new) | Paginated scan spanning more than one page returns every row; object keys carry the stamp; a failing scan or put propagates rather than exiting zero. |
+| `backup-export.test.ts` (new) | Paginated scan spanning more than one page returns every row; object keys carry the stamp; a failing scan or put propagates rather than exiting zero. |
 | `library.test.ts`, `api.test.ts` | PITR enabled on each table. |
-| `alerts.test.ts` | An Errors alarm exists for the backup function. |
-| `stack.test.ts` | `BackupBucketName` output present. |
+| `stack.test.ts` | `BackupBucketName` output present; the backup function is registered with `alerts.watch`, so the alarm count rises from 7 to 8. |
 
 ## Cost
 
