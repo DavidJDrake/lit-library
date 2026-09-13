@@ -46,7 +46,18 @@ year, 331 (24%) no author, 99 (7%) no cover, and 91 titles are still filename-is
 contributed a description because no `GOOGLE_BOOKS_API_KEY` is set (see #6, which fixed
 the caching bug behind it).
 
-- [ ] Add `GOOGLE_BOOKS_API_KEY`; run `--retry-failed-enrichment` on a small batch first
+- [ ] **Blocker — make the Google Books lookup require a real title match.** It accepts the first
+  hit of an `intitle:` search with no similarity check (`enrich.py`, `_google_books`). Measured
+  2026-09-13: with a key, 153 of 168 magazine issues would have been renamed to unrelated books
+  ("Raspberry Pi Official Magazine 151" became *The Official Raspberry Pi Projects Book Volume 1*).
+  A library-wide retry would do the same to any book without an embedded title or ISBN. The
+  magazine is protected by overrides; nothing else is. **Never run the indexer with the key set
+  until this is fixed.**
+- [ ] Use the key. It exists — restricted to the Books API in the `ebook-share` Google Cloud
+  project, saved at `~/.config/ebook-share/google-books-api-key`, deliberately not exported by
+  any shell profile. Pass it as `GOOGLE_BOOKS_API_KEY=$(cat ~/.config/ebook-share/google-books-api-key)`
+  and run `--retry-failed-enrichment` on a small batch first. Check the key's daily quota against
+  the ~1,500 lookups a full retry needs.
 - [ ] Re-run across the library, then re-measure the five counts above
 - [ ] Fall back to embedded EPUB/PDF metadata where enrichment finds nothing
 - [ ] Split run-together titles, with the changes reviewed before publishing

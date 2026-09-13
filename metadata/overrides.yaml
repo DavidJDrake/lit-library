@@ -1577,3 +1577,1034 @@ d58ebc3d244fd055:
   category: Comics
 ecc2954389b3050f:
   category: Comics
+
+# --- Raspberry Pi Official Magazine (Previously MagPi): issues 1-168. Titles, publisher,
+# description and year are pinned so enrichment can never rename an issue: the Google Books
+# lookup takes the first search hit with no similarity check (see BACKLOG). Years for issues
+# 31-168 follow the monthly schedule, verified against dates printed in 132 issues; 1-30 blank.
+00ac6088ce580469:
+  authors: []
+  description: Issue 28 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 028
+  year: null
+00e76a8d8926bedb:
+  authors: []
+  description: Issue 55 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 055
+  year: 2017
+01c96e21613c0637:
+  authors: []
+  description: Issue 160 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 160
+  year: 2025
+02230cee7f0a183c:
+  authors: []
+  description: Issue 95 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 095
+  year: 2020
+027542f5ee0a6b4d:
+  authors: []
+  description: Issue 162 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 162
+  year: 2026
+03cc2787eac495fc:
+  authors: []
+  description: Issue 25 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 025
+  year: null
+0411c4f43fb186fd:
+  authors: []
+  description: Issue 105 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 105
+  year: 2021
+042b5adb6f0c281a:
+  authors: []
+  description: Issue 112 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 112
+  year: 2021
+04dcaa3207fa2351:
+  authors: []
+  description: Issue 106 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 106
+  year: 2021
+0caa1111634d0187:
+  authors: []
+  description: Issue 56 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 056
+  year: 2017
+0d683ee5454986a3:
+  authors: []
+  description: Issue 27 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 027
+  year: null
+0e82fe8bfc5378c5:
+  authors: []
+  description: Issue 40 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 040
+  year: 2015
+0f8bbe25b94bac98:
+  authors: []
+  description: Issue 117 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 117
+  year: 2022
+0fc839c4e5e61fda:
+  authors: []
+  description: Issue 7 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 007
+  year: null
+102d20385731d28a:
+  authors: []
+  description: Issue 138 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 138
+  year: 2024
+1298660084ee15e0:
+  authors: []
+  description: Issue 110 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 110
+  year: 2021
+13c6fd8cd4970deb:
+  authors: []
+  description: Issue 118 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 118
+  year: 2022
+147b66f214ff1698:
+  authors: []
+  description: Issue 146 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 146
+  year: 2024
+1493a735f89671bc:
+  authors: []
+  description: Issue 57 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 057
+  year: 2017
+1552b5066d61406f:
+  authors: []
+  description: Issue 3 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 003
+  year: null
+1975538b4d210a06:
+  authors: []
+  description: Issue 125 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 125
+  year: 2023
+1977f8ffd470d1ee:
+  authors: []
+  description: Issue 14 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 014
+  year: null
+1b8cebc3b2c39fcf:
+  authors: []
+  description: Issue 23 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 023
+  year: null
+1ea5f56f7fd0eb36:
+  authors: []
+  description: Issue 75 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 075
+  year: 2018
+1f84609bc904a2fe:
+  authors: []
+  description: Issue 116 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 116
+  year: 2022
+1fc49194b772424e:
+  authors: []
+  description: Issue 38 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 038
+  year: 2015
+203850be6a048767:
+  authors: []
+  description: Issue 123 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 123
+  year: 2022
+240cae867afa1b78:
+  authors: []
+  description: Issue 76 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 076
+  year: 2018
+2426e993a48e4658:
+  authors: []
+  description: Issue 19 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 019
+  year: null
+242f264e8cdd7c92:
+  authors: []
+  description: Issue 143 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 143
+  year: 2024
+24f82094af3c9cc0:
+  authors: []
+  description: Issue 82 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 082
+  year: 2019
+25fc4e5417defa3c:
+  authors: []
+  description: Issue 114 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 114
+  year: 2022
+278ec8adbb171143:
+  authors: []
+  description: Issue 52 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 052
+  year: 2016
+27a28c1129e351cf:
+  authors: []
+  description: Issue 16 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 016
+  year: null
+281a24cebeeb208b:
+  authors: []
+  description: Issue 6 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 006
+  year: null
+2953d54beb914912:
+  authors: []
+  description: Issue 61 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 061
+  year: 2017
+2bf21d9f78f3ed21:
+  authors: []
+  description: Issue 128 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 128
+  year: 2023
+2c1154a79ae5c37a:
+  authors: []
+  description: Issue 142 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 142
+  year: 2024
+30cab4f9371bf02a:
+  authors: []
+  description: Issue 89 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 089
+  year: 2020
+3134c314bf96cb79:
+  authors: []
+  description: Issue 21 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 021
+  year: null
+31cbff118aa1b1e6:
+  authors: []
+  description: Issue 122 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 122
+  year: 2022
+3d0348c5b090699d:
+  authors: []
+  description: Issue 59 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 059
+  year: 2017
+3daa0b1261380557:
+  authors: []
+  description: Issue 81 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 081
+  year: 2019
+3e24505f392d98d0:
+  authors: []
+  description: Issue 167 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 167
+  year: 2026
+3e9bb55ff69e23e3:
+  authors: []
+  description: Issue 166 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 166
+  year: 2026
+3eeb3bda7e283305:
+  authors: []
+  description: Issue 119 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 119
+  year: 2022
+3f49fc6764ef7bb4:
+  authors: []
+  description: Issue 90 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 090
+  year: 2020
+40592fb87e1951d5:
+  authors: []
+  description: Issue 153 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 153
+  year: 2025
+4190d0394ca94026:
+  authors: []
+  description: Issue 108 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 108
+  year: 2021
+41a8c6fa4aeb5055:
+  authors: []
+  description: Issue 33 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 033
+  year: 2015
+44257f0f4cdbdaf4:
+  authors: []
+  description: Issue 74 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 074
+  year: 2018
+468059124711e78d:
+  authors: []
+  description: Issue 103 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 103
+  year: 2021
+46c55944cfbe0523:
+  authors: []
+  description: Issue 8 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 008
+  year: null
+49be7f463d5c91e8:
+  authors: []
+  description: Issue 51 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 051
+  year: 2016
+4e46414097387fd2:
+  authors: []
+  description: Issue 63 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 063
+  year: 2017
+4e48f546df7fcce2:
+  authors: []
+  description: Issue 99 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 099
+  year: 2020
+4f0ab6d97f15d825:
+  authors: []
+  description: Issue 140 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 140
+  year: 2024
+4f76c48caef215af:
+  authors: []
+  description: Issue 84 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 084
+  year: 2019
+4ff775ebd5bc87fd:
+  authors: []
+  description: Issue 46 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 046
+  year: 2016
+513eff168603374b:
+  authors: []
+  description: Issue 88 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 088
+  year: 2019
+51ecc8c72300a2a4:
+  authors: []
+  description: Issue 67 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 067
+  year: 2018
+53cb81cf8849de8c:
+  authors: []
+  description: Issue 66 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 066
+  year: 2018
+53f4a60bf930387c:
+  authors: []
+  description: Issue 130 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 130
+  year: 2023
+546a73ab3e774acd:
+  authors: []
+  description: Issue 62 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 062
+  year: 2017
+5673643440f798d9:
+  authors: []
+  description: Issue 129 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 129
+  year: 2023
+57740aeb49754a18:
+  authors: []
+  description: Issue 43 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 043
+  year: 2016
+58e86a41285f4c25:
+  authors: []
+  description: Issue 152 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 152
+  year: 2025
+5bb09ddb34cfd8b9:
+  authors: []
+  description: Issue 83 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 083
+  year: 2019
+5ccf850d5472d9c2:
+  authors: []
+  description: Issue 48 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 048
+  year: 2016
+5d0509c9deb435d9:
+  authors: []
+  description: Issue 134 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 134
+  year: 2023
+5dcfd0f0ea46cee2:
+  authors: []
+  description: Issue 12 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 012
+  year: null
+5ecdbc130e4ed791:
+  authors: []
+  description: Issue 155 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 155
+  year: 2025
+5f5acdd3f4d7a619:
+  authors: []
+  description: Issue 104 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 104
+  year: 2021
+6026ba328702bc53:
+  authors: []
+  description: Issue 77 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 077
+  year: 2019
+61a465efe46527f0:
+  authors: []
+  description: Issue 133 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 133
+  year: 2023
+628f8123c753461b:
+  authors: []
+  description: Issue 70 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 070
+  year: 2018
+62c74582a4bb0524:
+  authors: []
+  description: Issue 2 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 002
+  year: null
+63bc91e936491905:
+  authors: []
+  description: Issue 158 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 158
+  year: 2025
+63d34d2fbcabb7bf:
+  authors: []
+  description: Issue 145 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 145
+  year: 2024
+64f9a798dc400323:
+  authors: []
+  description: Issue 20 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 020
+  year: null
+6a1b49a1a7757191:
+  authors: []
+  description: Issue 31 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 031
+  year: 2015
+6b5c97cec7bf0c52:
+  authors: []
+  description: Issue 92 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 092
+  year: 2020
+6ba6732972e3482b:
+  authors: []
+  description: Issue 86 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 086
+  year: 2019
+6d0c07a0f7842a0b:
+  authors: []
+  description: Issue 1 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 001
+  year: null
+6dc87657a9d7d50d:
+  authors: []
+  description: Issue 97 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 097
+  year: 2020
+6e0a45a3c326e701:
+  authors: []
+  description: Issue 126 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 126
+  year: 2023
+6e6af6f35420540b:
+  authors: []
+  description: Issue 44 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 044
+  year: 2016
+6e7b99a6496f8022:
+  authors: []
+  description: Issue 164 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 164
+  year: 2026
+7093278c08d8eef1:
+  authors: []
+  description: Issue 168 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 168
+  year: 2026
+747155a23afa929c:
+  authors: []
+  description: Issue 41 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 041
+  year: 2016
+74d0ce9de0b6e6bd:
+  authors: []
+  description: Issue 148 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 148
+  year: 2024
+74d317052c4c105c:
+  authors: []
+  description: Issue 85 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 085
+  year: 2019
+752b157006a3e933:
+  authors: []
+  description: Issue 159 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 159
+  year: 2025
+755144ec1b6e2117:
+  authors: []
+  description: Issue 141 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 141
+  year: 2024
+756bcb5ef4fcd47f:
+  authors: []
+  description: Issue 29 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 029
+  year: null
+7897f81d6c043ece:
+  authors: []
+  description: Issue 161 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 161
+  year: 2026
+7a3f1f14f92b0d2b:
+  authors: []
+  description: Issue 58 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 058
+  year: 2017
+7afe6c36eb8b717d:
+  authors: []
+  description: Issue 157 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 157
+  year: 2025
+7fe9c7af0218acf8:
+  authors: []
+  description: Issue 96 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 096
+  year: 2020
+8368c13e747229d5:
+  authors: []
+  description: Issue 13 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 013
+  year: null
+85682c7bc5df5206:
+  authors: []
+  description: Issue 120 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 120
+  year: 2022
+85c07ff987484a65:
+  authors: []
+  description: Issue 149 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 149
+  year: 2025
+87524506750cb09b:
+  authors: []
+  description: Issue 69 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 069
+  year: 2018
+8850a685bab2bc02:
+  authors: []
+  description: Issue 10 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 010
+  year: null
+8b1460e7a3e5ca70:
+  authors: []
+  description: Issue 30 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 030
+  year: null
+8b311aa424a6e410:
+  authors: []
+  description: Issue 34 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 034
+  year: 2015
+8f6e641eae11800e:
+  authors: []
+  description: Issue 98 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 098
+  year: 2020
+8f8bf8274155a3d6:
+  authors: []
+  description: Issue 156 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 156
+  year: 2025
+90f480978c155fb4:
+  authors: []
+  description: Issue 53 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 053
+  year: 2017
+924ca757bbcc37cb:
+  authors: []
+  description: Issue 5 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 005
+  year: null
+92df6d5f5cb14df7:
+  authors: []
+  description: Issue 68 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 068
+  year: 2018
+952316405cc41d6b:
+  authors: []
+  description: Issue 22 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 022
+  year: null
+98fd7d6bd06a11df:
+  authors: []
+  description: Issue 64 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 064
+  year: 2017
+a26fd94deaa614ca:
+  authors: []
+  description: Issue 72 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 072
+  year: 2018
+a2c3e65ac77a148a:
+  authors: []
+  description: Issue 60 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 060
+  year: 2017
+a2dc630eee1feffe:
+  authors: []
+  description: Issue 163 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 163
+  year: 2026
+a39f61a77e98ddce:
+  authors: []
+  description: Issue 26 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 026
+  year: null
+a5a043c53c58cc46:
+  authors: []
+  description: Issue 121 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 121
+  year: 2022
+a72e6401a6a7a5b3:
+  authors: []
+  description: Issue 9 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 009
+  year: null
+a9cdcfcda542d120:
+  authors: []
+  description: Issue 49 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 049
+  year: 2016
+ab90f3b1a9276f6b:
+  authors: []
+  description: Issue 80 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 080
+  year: 2019
+ad4a88c447bb0273:
+  authors: []
+  description: Issue 17 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 017
+  year: null
+af1085a7e7a55043:
+  authors: []
+  description: Issue 150 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 150
+  year: 2025
+b10d58dd80376779:
+  authors: []
+  description: Issue 136 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 136
+  year: 2023
+b14ead8e5d07979b:
+  authors: []
+  description: Issue 87 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 087
+  year: 2019
+b2232e977313ac3f:
+  authors: []
+  description: Issue 18 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 018
+  year: null
+b508118dc47412fe:
+  authors: []
+  description: Issue 124 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 124
+  year: 2022
+b8378b21a55d1ff6:
+  authors: []
+  description: Issue 100 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 100
+  year: 2020
+bbe097bcb719d2ae:
+  authors: []
+  description: Issue 47 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 047
+  year: 2016
+c1b635374fecedd2:
+  authors: []
+  description: Issue 107 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 107
+  year: 2021
+c1dcbd015d1af7d0:
+  authors: []
+  description: Issue 154 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 154
+  year: 2025
+c23517188a910bfc:
+  authors: []
+  description: Issue 24 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 024
+  year: null
+c2a1d877b94c85c6:
+  authors: []
+  description: Issue 165 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 165
+  year: 2026
+c650302a91181fa1:
+  authors: []
+  description: Issue 4 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 004
+  year: null
+c7494d5f451e06aa:
+  authors: []
+  description: Issue 113 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 113
+  year: 2022
+c796dd3f9b981b67:
+  authors: []
+  description: Issue 115 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 115
+  year: 2022
+c9d0688ddce5a807:
+  authors: []
+  description: Issue 65 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 065
+  year: 2018
+cae13339feecb8fc:
+  authors: []
+  description: Issue 71 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 071
+  year: 2018
+cded55868512b679:
+  authors: []
+  description: Issue 11 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 011
+  year: null
+d0662dcd5ef574b7:
+  authors: []
+  description: Issue 15 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 015
+  year: null
+d0f0f13125a2ecdb:
+  authors: []
+  description: Issue 144 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 144
+  year: 2024
+d32ad951e831428d:
+  authors: []
+  description: Issue 102 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 102
+  year: 2021
+d521f12d51bc2dc6:
+  authors: []
+  description: Issue 54 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 054
+  year: 2017
+d7a9127dc0cc3780:
+  authors: []
+  description: Issue 79 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 079
+  year: 2019
+d8308d06582c7ba3:
+  authors: []
+  description: Issue 111 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 111
+  year: 2021
+d9049c6899a4b590:
+  authors: []
+  description: Issue 147 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 147
+  year: 2024
+d91cf23550e38517:
+  authors: []
+  description: Issue 137 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 137
+  year: 2024
+dad153d1f68e8007:
+  authors: []
+  description: Issue 32 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 032
+  year: 2015
+daf71fd18f81c598:
+  authors: []
+  description: Issue 151 of Raspberry Pi Official Magazine, the official Raspberry
+    Pi magazine (previously The MagPi).
+  publisher: Raspberry Pi Press
+  title: Raspberry Pi Official Magazine 151
+  year: 2025
+df115ed750f717b1:
+  authors: []
+  description: Issue 132 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 132
+  year: 2023
+df2de4f354224eee:
+  authors: []
+  description: Issue 91 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 091
+  year: 2020
+e164498b65237829:
+  authors: []
+  description: Issue 50 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 050
+  year: 2016
+e5ad069630d65404:
+  authors: []
+  description: Issue 127 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 127
+  year: 2023
+e8053825a50f8cf3:
+  authors: []
+  description: Issue 109 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 109
+  year: 2021
+e8d9235c26c6b856:
+  authors: []
+  description: Issue 131 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 131
+  year: 2023
+e94806061d4f34ea:
+  authors: []
+  description: Issue 36 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 036
+  year: 2015
+ebd8da5dcc3ca161:
+  authors: []
+  description: Issue 39 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 039
+  year: 2015
+ebed402ae16fbe08:
+  authors: []
+  description: Issue 101 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 101
+  year: 2021
+ecf2af1a4a7dd25f:
+  authors: []
+  description: Issue 45 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 045
+  year: 2016
+ee9c3f60a5aa371c:
+  authors: []
+  description: Issue 73 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 073
+  year: 2018
+f0312e9743026244:
+  authors: []
+  description: Issue 78 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 078
+  year: 2019
+f0f8715e31a4c366:
+  authors: []
+  description: Issue 139 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 139
+  year: 2024
+f48f8853505f3c51:
+  authors: []
+  description: Issue 93 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 093
+  year: 2020
+f685aa194dd5e676:
+  authors: []
+  description: Issue 94 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 094
+  year: 2020
+f92fc1cc65fbaecb:
+  authors: []
+  description: Issue 135 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 135
+  year: 2023
+fad9e0273c2ef4b2:
+  authors: []
+  description: Issue 42 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 042
+  year: 2016
+fc816566d4e5335b:
+  authors: []
+  description: Issue 35 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 035
+  year: 2015
+fe6891f0836fba8b:
+  authors: []
+  description: Issue 37 of The MagPi, the official Raspberry Pi magazine.
+  publisher: Raspberry Pi Press
+  title: The MagPi 037
+  year: 2015
