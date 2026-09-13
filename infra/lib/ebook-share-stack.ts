@@ -65,6 +65,7 @@ export class EbookShareStack extends Stack {
     new CfnOutput(this, "SiteUrl", { value: site.url });
     new CfnOutput(this, "SiteBucketName", { value: storage.siteBucket.bucketName });
     new CfnOutput(this, "BooksBucketName", { value: storage.booksBucket.bucketName });
+    new CfnOutput(this, "BackupBucketName", { value: storage.backupBucket.bucketName });
     new CfnOutput(this, "DistributionId", { value: site.distribution.distributionId });
     new CfnOutput(this, "UserPoolId", { value: auth.userPool.userPoolId });
     new CfnOutput(this, "UserPoolClientId", { value: auth.client.userPoolClientId });

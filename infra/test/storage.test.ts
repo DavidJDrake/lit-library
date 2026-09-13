@@ -10,14 +10,34 @@ function synth() {
 }
 
 describe("Storage", () => {
-  it("creates exactly two private buckets", () => {
+  it("creates exactly three private buckets", () => {
     const t = synth();
-    t.resourceCountIs("AWS::S3::Bucket", 2);
+    t.resourceCountIs("AWS::S3::Bucket", 3);
     t.allResourcesProperties("AWS::S3::Bucket", {
       PublicAccessBlockConfiguration: {
         BlockPublicAcls: true, BlockPublicPolicy: true,
         IgnorePublicAcls: true, RestrictPublicBuckets: true,
       },
+    });
+  });
+
+  it("backup bucket is versioned, retained, and keeps old versions for 90 days", () => {
+    const t = synth();
+    // Identified by its 90-day noncurrent rule: the books bucket uses 30 (Task 2).
+    t.hasResource("AWS::S3::Bucket", {
+      DeletionPolicy: "Retain",
+      Properties: Match.objectLike({
+        VersioningConfiguration: { Status: "Enabled" },
+        LifecycleConfiguration: {
+          Rules: Match.arrayWith([
+            Match.objectLike({
+              Status: "Enabled",
+              NoncurrentVersionExpiration: { NoncurrentDays: 90 },
+              AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 },
+            }),
+          ]),
+        },
+      }),
     });
   });
 
@@ -44,9 +64,9 @@ describe("Storage", () => {
     t.resourceCountIs("Custom::S3AutoDeleteObjects", 1);
   });
 
-  it("enforces SSL on both buckets", () => {
+  it("enforces SSL on every bucket", () => {
     const t = synth();
-    t.resourceCountIs("AWS::S3::BucketPolicy", 2);
+    t.resourceCountIs("AWS::S3::BucketPolicy", 3);
     t.allResourcesProperties("AWS::S3::BucketPolicy", {
       PolicyDocument: Match.objectLike({
         Statement: Match.arrayWith([
