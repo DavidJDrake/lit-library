@@ -15,3 +15,6 @@ echo "new books: $((after - before))"
 echo "published — CloudFront invalidation requested for catalog.json"
 REGION=$(.venv/bin/python -c "import yaml;print(yaml.safe_load(open('../config.yaml')).get('aws_region','us-east-1'))" 2>/dev/null || echo us-east-1)
 .venv/bin/python "$ROOT/scripts/notify-books-added.py" --before "$BEFORE" --added ../metadata/added.json --region "$REGION" || true
+# metadata/ only changes when a publish changes it, so this is the moment to back it
+# up. A failed backup must not fail the publish: the books are already live.
+"$ROOT/scripts/backup.sh" || echo "WARNING: backup failed - run scripts/backup.sh by hand" >&2

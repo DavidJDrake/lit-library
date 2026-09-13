@@ -18,7 +18,7 @@ function synthStack() {
 describe("EbookShareStack", () => {
   it("composes storage, site, auth, and api", () => {
     const t = synthStack();
-    t.resourceCountIs("AWS::S3::Bucket", 2);
+    t.resourceCountIs("AWS::S3::Bucket", 3);
     t.resourceCountIs("AWS::CloudFront::Distribution", 1);
     t.resourceCountIs("AWS::Cognito::UserPool", 1);
     t.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
@@ -29,7 +29,7 @@ describe("EbookShareStack", () => {
   it("exports every value the indexer and the SPA need", () => {
     const t = synthStack();
     for (const name of [
-      "SiteUrl", "SiteBucketName", "BooksBucketName", "DistributionId",
+      "SiteUrl", "SiteBucketName", "BooksBucketName", "BackupBucketName", "DistributionId",
       "UserPoolId", "UserPoolClientId", "CognitoDomain", "ApiUrl", "DownloadsTable", "LibraryTable", "SigningKeyPairId",
       "NotificationsFunctionName", "KindleSender",
     ]) {
@@ -89,6 +89,6 @@ describe("EbookShareStack", () => {
     const alarms = Object.values(t.findResources("AWS::CloudWatch::Alarm", {
       Properties: { Namespace: "AWS/Lambda", MetricName: "Errors" },
     }));
-    expect(alarms).toHaveLength(7);
+    expect(alarms).toHaveLength(8);
   });
 });

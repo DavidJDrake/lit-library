@@ -28,6 +28,7 @@ describe("Api", () => {
       Properties: Match.objectLike({
         BillingMode: "PAY_PER_REQUEST",
         KeySchema: [{ AttributeName: "email", KeyType: "HASH" }, { AttributeName: "sk", KeyType: "RANGE" }],
+        PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true },
       }),
     });
   });

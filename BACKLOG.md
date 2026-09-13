@@ -26,13 +26,15 @@ recursive delete takes the books and every backup with them. The newest backup i
 irreplaceable part: reading statuses, category edits, suggestions, Kindle devices and
 OPDS token hashes. The bucket holds 3,049 objects / 95 GB.
 
-- [ ] Separate backup bucket, versioning on, public access blocked, its own lifecycle
-- [ ] Decide whether the books bucket also gets versioning (cost against 95 GB)
-- [ ] Run it on a schedule, with a failure alarm through the existing SNS topic
-- [ ] Rehearse a restore: load a DynamoDB export into a scratch table and check row counts
+- [x] Separate backup bucket, versioning on, public access blocked, its own lifecycle
+- [x] Decide whether the books bucket also gets versioning (cost against 95 GB)
+- [x] Run it on a schedule, with a failure alarm through the existing SNS topic
+- [x] Rehearse a restore: PITR-restore a table into a scratch table and check row counts
 
 **Effort:** M. Do this one first — it is the only backlog item where a mistake is
 unrecoverable.
+
+**Closed by:** PR #53, spec and plan `2026-09-12-backup-resilience`.
 
 ### 29. Fill in the catalog metadata
 

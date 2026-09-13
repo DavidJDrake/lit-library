@@ -36,6 +36,8 @@ export class Library extends Construct {
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      // Continuous 35-day recovery for the only data that exists nowhere else.
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     // Seed the built-in categories so catalog.json values and the table agree from
