@@ -133,8 +133,8 @@ device was targeted or rejected the send. Kindle Lambdas keep logs 3 months; the
 ## Alerts
 
 `Alerts/*` creates one SNS topic (email subscription from `alarmEmail` in
-`config.local.json`) and seven CloudWatch alarms: `Errors ≥ 1` in 5 minutes for each of
-the five Lambdas, `5xx ≥ 1` in 5 minutes on the HTTP API, and month-to-date
+`config.local.json`) and ten CloudWatch alarms: `Errors ≥ 1` in 5 minutes for each of
+the eight Lambdas, `5xx ≥ 1` in 5 minutes on the HTTP API, and month-to-date
 `EstimatedCharges > $5` (USD, 6-hour period). Every alarm emails on ALARM and again on
 OK, and treats missing data as fine (a quiet site is not a broken site).
 
