@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Back up everything that cannot be regenerated to a private prefix in the books bucket.
+# Back up everything that cannot be regenerated to the dedicated backup bucket.
 # Usage: scripts/backup.sh [--dry-run]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

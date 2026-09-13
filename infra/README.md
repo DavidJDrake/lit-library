@@ -158,9 +158,13 @@ them causes CloudFormation to create a brand-new resource and orphan (not
 delete, but stop managing) the old one:
 
 - `Storage/Books` — the books S3 bucket
+- `Storage/Backup` — the backup S3 bucket
 - `Api/Downloads` — the downloads DynamoDB table
 - `Auth/UserPool` — the Cognito user pool
 - `Library/Table` — the category overlay table
+- `Backup` — the weekly export construct
+- `Backup/Fn` — the weekly export Lambda
+- `Backup/Weekly` — the EventBridge rule that triggers it
 
 ## Sending the right token to `/download`
 
@@ -228,44 +232,93 @@ first to generate a real key pair (private key → Secrets Manager, public key
 
 ## Backups
 
-Everything that can't be regenerated — the enrichment cache and `added.json`
-in `metadata/`, `infra/outputs.json`, `infra/config.local.json`, `config.yaml`,
-and the downloads DynamoDB table — is backed up to a private `_backup/`
-prefix in the books bucket:
+Backups live in their own versioned S3 bucket (the `Storage/Backup` bucket,
+`RemovalPolicy.RETAIN`) — not in a prefix inside the books bucket. Keeping
+them out of the bucket they protect means a bad sync or a recursive delete
+against the books bucket can't take the backups down with it. There are
+three layers:
+
+**1. Point-in-time recovery (PITR) on both DynamoDB tables.** The library
+table and the downloads table each have continuous PITR enabled, covering
+any point in the last 35 days to the second. This is the primary restore
+path for table data — see "Restoring a table" below. The JSON exports
+described in layers 2 and 3 are a readable secondary artifact, not the
+primary path: they're plain `aws dynamodb scan --output json` snapshots,
+useful for auditing past rows by eye, not for re-importing into a table.
+
+**2. `metadata/` backed up at the end of every publish.** `scripts/publish-new.sh`
+runs `scripts/backup.sh` as its last step, so every publish leaves a fresh
+copy behind. It can also be run by hand:
 
 ```
 scripts/backup.sh
 ```
 
 `scripts/backup.sh --dry-run` shows what would be uploaded without writing
-anything. The bucket is private and the download Lambda can only presign
-keys listed in the catalog, so `_backup/` is unreachable from the site.
-
-In addition to syncing the current `metadata/` contents (which a later run
-can overwrite), each run also writes a point-in-time snapshot: a
-`metadata-<stamp>.tar.gz` archive of the whole `metadata/` directory (minus
-`publish.log`) at `_backup/metadata-archives/`, so a bad enrichment run or an
+anything. It syncs the current `metadata/` contents (which a later run can
+overwrite) to `metadata/` in the backup bucket, writes a
+`metadata-<stamp>.tar.gz` snapshot of the whole `metadata/` directory (minus
+`publish.log`) to `metadata-archives/` so a bad enrichment run or an
 accidental edit can be rolled back to any prior backup, not just the most
-recent one.
+recent one, and copies `infra/outputs.json`, `infra/config.local.json`, and
+`config.yaml`. It also exports both DynamoDB tables to
+`dynamodb/library-<stamp>.json` and `dynamodb/downloads-<stamp>.json`, in the
+same format as layer 3 below.
 
-The DynamoDB export at `_backup/dynamodb/downloads-<stamp>.json` is a log of
-that run's table contents, not a restorable snapshot — restoring means
-reading it (e.g. to audit past downloads), not re-importing it into the
-table.
+**3. A weekly Lambda (`Backup/Fn`) exporting both tables.** Triggered by the
+`Backup/Weekly` EventBridge rule on a 7-day rate, independent of whether
+anyone has published recently, so the JSON exports don't go stale between
+publishes. It writes to the same `dynamodb/<table>-<stamp>.json` keys as
+`scripts/backup.sh`, and its failures page through the same Errors alarm as
+the other Lambdas (see "Alerts").
 
-To restore:
+The backup bucket is private and the download Lambda can only presign keys
+listed in the catalog, so none of this is reachable from the site.
+
+### Restoring a table
+
+A PITR restore **creates a new table** — it does not restore in place. After
+restoring, every Lambda whose `LIBRARY_TABLE` or `DOWNLOADS_TABLE`
+environment variable pointed at the old table needs to be repointed at the
+new one (`notifications.fn`, `api.downloadFn`, `backup.fn`, `kindle.fn`,
+`kindle.eventsFn`, and the `library` and `api` Lambdas that own the tables).
+It's easy to forget this step under pressure and end up with some Lambdas
+reading the restored table and others still reading the old one.
 
 ```
-aws s3 sync s3://<books-bucket>/_backup/metadata/ metadata/
-aws s3 cp s3://<books-bucket>/_backup/infra/outputs.json infra/outputs.json
-aws s3 cp s3://<books-bucket>/_backup/config.yaml config.yaml
-aws s3 cp s3://<books-bucket>/_backup/infra/config.local.json infra/config.local.json
+aws dynamodb restore-table-to-point-in-time --source-table-name <table> \
+  --target-table-name <table>-restored --use-latest-restorable-time
+aws dynamodb wait table-exists --table-name <table>-restored
+```
+
+This was rehearsed against the library table on 2026-09-13: a restore-to-latest
+of `EbookShare-LibraryTableDD80DB24-1ATPWWZ91C7NF` into
+`EbookShare-LibraryTableDD80DB24-1ATPWWZ91C7NF-drill` came back with 106 items,
+matching the live table's 106, confirming PITR restores the full row count.
+The drill table was then deleted (`aws dynamodb delete-table`) so it wouldn't
+sit around as a second billed table.
+
+### Restoring `metadata/` and config files
+
+```
+aws s3 sync s3://<backup-bucket>/metadata/ metadata/
+aws s3 cp s3://<backup-bucket>/infra/outputs.json infra/outputs.json
+aws s3 cp s3://<backup-bucket>/config.yaml config.yaml
+aws s3 cp s3://<backup-bucket>/infra/config.local.json infra/config.local.json
 ```
 
 To restore `metadata/` from a specific point in time instead of the latest
 sync:
 
 ```
-aws s3 cp s3://<books-bucket>/_backup/metadata-archives/metadata-<stamp>.tar.gz .
+aws s3 cp s3://<backup-bucket>/metadata-archives/metadata-<stamp>.tar.gz .
 tar -xzf metadata-<stamp>.tar.gz
 ```
+
+### Books bucket versioning
+
+The books bucket itself is versioned, so a deleted book is recoverable from
+its noncurrent version for 30 days (after which the lifecycle rule expires
+it). Versioning on an S3 bucket cannot be turned off once enabled — only
+suspended, which stops new versions from being created but leaves existing
+ones in place.
