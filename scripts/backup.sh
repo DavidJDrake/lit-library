@@ -9,8 +9,20 @@ case "$DRY" in
   *) echo "usage: $0 [--dry-run]" >&2; exit 2;;
 esac
 REGION=$(python3 -c "import json;print(json.load(open('$ROOT/infra/config.local.json'))['region'])")
-read -r BUCKET TABLE LIBTABLE < <(python3 -c "import json;o=next(iter(json.load(open('$ROOT/infra/outputs.json')).values()));print(o['BooksBucketName'], o['DownloadsTable'], o.get('LibraryTable',''))")
-DEST="s3://$BUCKET/_backup"
+# Assign through a variable, not process substitution: `read < <(cmd)` discards the
+# command's exit status, so a missing output would sail past `set -e`.
+RESOURCES=$(python3 -c "
+import json, sys
+o = next(iter(json.load(open('$ROOT/infra/outputs.json')).values()))
+bucket = o.get('BackupBucketName')
+if not bucket:
+    sys.exit('outputs.json has no BackupBucketName - deploy the stack before backing up')
+print(bucket, o['DownloadsTable'], o.get('LibraryTable', ''))
+")
+read -r BUCKET TABLE LIBTABLE <<<"$RESOURCES"
+# Never fall back to the books bucket: backups sharing a bucket with the data they
+# protect is the problem this replaced.
+DEST="s3://$BUCKET"
 STAMP=$(date -u +%Y-%m-%dT%H%M%SZ)
 trap 'rm -rf "${TARDIR:-}" "${TMP:-}" "${LTMP:-}"' EXIT
 SYNC=(aws s3 sync "$ROOT/metadata/" "$DEST/metadata/" --region "$REGION" --exclude "publish.log")
