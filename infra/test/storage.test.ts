@@ -58,6 +58,26 @@ describe("Storage", () => {
     });
   });
 
+  it("books bucket keeps deleted or overwritten books recoverable for 30 days", () => {
+    const t = synth();
+    t.hasResource("AWS::S3::Bucket", {
+      DeletionPolicy: "Retain",
+      Properties: Match.objectLike({
+        VersioningConfiguration: { Status: "Enabled" },
+        LifecycleConfiguration: {
+          Rules: Match.arrayWith([
+            Match.objectLike({
+              Status: "Enabled",
+              // Same rule still carries the Intelligent-Tiering transition.
+              Transitions: [{ StorageClass: "INTELLIGENT_TIERING", TransitionInDays: 0 }],
+              NoncurrentVersionExpiration: { NoncurrentDays: 30 },
+            }),
+          ]),
+        },
+      }),
+    });
+  });
+
   it("site bucket is deleted with the stack", () => {
     const t = synth();
     t.hasResource("AWS::S3::Bucket", { DeletionPolicy: "Delete" });

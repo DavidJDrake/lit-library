@@ -15,6 +15,7 @@ export class Storage extends Construct {
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
       removalPolicy: RemovalPolicy.RETAIN,
+      versioned: true,
       lifecycleRules: [
         {
           // The indexer already uploads with StorageClass=INTELLIGENT_TIERING;
@@ -22,6 +23,9 @@ export class Storage extends Construct {
           transitions: [
             { storageClass: s3.StorageClass.INTELLIGENT_TIERING, transitionAfter: Duration.days(0) },
           ],
+          // An accidental delete (a mis-pointed `prune --delete`, a bad sync) stays
+          // recoverable for 30 days, then stops costing anything.
+          noncurrentVersionExpiration: Duration.days(30),
         },
       ],
     });
