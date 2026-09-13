@@ -3,6 +3,7 @@ import { Construct } from "constructs";
 import { Alerts } from "./alerts";
 import { Api } from "./api";
 import { Auth } from "./auth";
+import { Backup } from "./backup";
 import type { InfraConfig } from "./config";
 import { Kindle } from "./kindle";
 import { Library } from "./library";
@@ -55,6 +56,12 @@ export class EbookShareStack extends Stack {
     });
     alerts.watch(kindle.fn);
     alerts.watch(kindle.eventsFn);
+    const backup = new Backup(this, "Backup", {
+      libraryTable: library.table,
+      downloadsTable: api.table,
+      backupBucket: storage.backupBucket,
+    });
+    alerts.watch(backup.fn);
     // apiEndpoint is "https://<id>.execute-api.<region>.amazonaws.com"; CloudFront needs the host only.
     const apiDomainName = Fn.select(2, Fn.split("/", api.httpApi.apiEndpoint));
     const site = new Site(this, "Site", {

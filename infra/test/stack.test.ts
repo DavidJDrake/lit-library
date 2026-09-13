@@ -89,6 +89,6 @@ describe("EbookShareStack", () => {
     const alarms = Object.values(t.findResources("AWS::CloudWatch::Alarm", {
       Properties: { Namespace: "AWS/Lambda", MetricName: "Errors" },
     }));
-    expect(alarms).toHaveLength(7);
+    expect(alarms).toHaveLength(8);
   });
 });
