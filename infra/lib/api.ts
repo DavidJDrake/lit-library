@@ -38,6 +38,8 @@ export class Api extends Construct {
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      // Continuous 35-day recovery for the only data that exists nowhere else.
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const downloadFn = this.downloadFn = new NodejsFunction(this, "DownloadFn", {

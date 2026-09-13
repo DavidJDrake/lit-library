@@ -37,6 +37,7 @@ describe("Library", () => {
       Properties: Match.objectLike({
         BillingMode: "PAY_PER_REQUEST",
         KeySchema: [{ AttributeName: "pk", KeyType: "HASH" }, { AttributeName: "sk", KeyType: "RANGE" }],
+        PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true },
       }),
     });
   });
