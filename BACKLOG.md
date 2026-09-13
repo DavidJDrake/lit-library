@@ -34,9 +34,7 @@ OPDS token hashes. The bucket holds 3,049 objects / 95 GB.
 **Effort:** M. Do this one first — it is the only backlog item where a mistake is
 unrecoverable.
 
-**Closed by:** plan `2026-09-12-backup-resilience` (no PR opened yet for the
-`backup-resilience` branch at the time of writing — update this line with the
-PR number once one is opened).
+**Closed by:** PR #53, spec and plan `2026-09-12-backup-resilience`.
 
 ### 29. Fill in the catalog metadata
 
