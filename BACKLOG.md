@@ -29,7 +29,7 @@ OPDS token hashes. The bucket holds 3,049 objects / 95 GB.
 - [x] Separate backup bucket, versioning on, public access blocked, its own lifecycle
 - [x] Decide whether the books bucket also gets versioning (cost against 95 GB)
 - [x] Run it on a schedule, with a failure alarm through the existing SNS topic
-- [x] Rehearse a restore: load a DynamoDB export into a scratch table and check row counts
+- [x] Rehearse a restore: PITR-restore a table into a scratch table and check row counts
 
 **Effort:** M. Do this one first — it is the only backlog item where a mistake is
 unrecoverable.
