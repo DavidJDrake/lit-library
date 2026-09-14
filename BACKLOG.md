@@ -97,6 +97,84 @@ reader.
 
 **Effort:** M, and the first task is free.
 
+### 32. Add related public-domain works
+
+**Goal:** grow the fiction shelves along lines readers already follow, rather than one-off pulls.
+
+**Why:** the library holds H. P. Lovecraft, the Lovecraft circle (109 titles) and, from
+2026-09-13, Edgar Allan Poe — all from Project Gutenberg. Poe founded the detective story and
+sits between the Gothic novel and weird fiction, so each direction has obvious next authors.
+The Poe pull also deliberately left out material that belongs here rather than in his folder.
+
+Candidates, with rough counts of English text entries on Gutenberg (from the 2026-09-13
+catalogue; counts include separate editions and volumes, so the number of distinct works is
+lower):
+
+| Direction | Author | Entries | Start with |
+|---|---|---|---|
+| Detective fiction Poe founded | Arthur Conan Doyle | 84 | Sherlock Holmes — Dupin's direct descendant |
+| | Wilkie Collins | 39 | *The Moonstone*, *The Woman in White* |
+| | Anna Katharine Green | 41 | *The Leavenworth Case* |
+| Gothic, before Poe | Horace Walpole | 20 | *The Castle of Otranto* |
+| | Ann Radcliffe | 8 | *The Mysteries of Udolpho* |
+| | Mary Shelley | 25 | *Frankenstein* |
+| | Charles Brockden Brown | 8 | *Wieland* — the American Gothic Poe grew from |
+| Alongside and after Poe | Nathaniel Hawthorne | 99 | *Twice-Told Tales*, which Poe reviewed |
+| | Washington Irving | 35 | "The Legend of Sleepy Hollow" |
+| | Sheridan Le Fanu | 33 | *Carmilla*, *In a Glass Darkly* |
+| | Bram Stoker | 13 | *Dracula* |
+| | Robert Louis Stevenson | 91 | *Strange Case of Dr Jekyll and Mr Hyde* |
+
+Left out of the Poe pull, to decide here: 17 anthologies and periodicals crediting Poe among
+other writers (for example *The Lock and Key Library*, *Famous Modern Ghost Stories*, and
+eight 1836 issues of the *Southern Literary Messenger* he edited), and 17 translations —
+Baudelaire's French versions are literary works in their own right.
+
+- [ ] Write a reading list per direction in the shape of `docs/reading-lists/lovecraft-circle-gutenberg.md`, choosing titles rather than taking every entry
+- [ ] Decide on the Poe anthologies and translations
+- [ ] Add each batch with overrides for titles, first-publication years and descriptions, as the Lovecraft bundles did
+- [ ] Preview enrichment before each publish, and publish only from the main checkout (see epic 29)
+
+**Effort:** M per direction.
+
+### 33. Find other free sources
+
+**Goal:** a short, vetted list of places that legitimately offer free ebooks and magazines
+worth adding.
+
+**Why:** two sources are proven. Project Gutenberg, for public-domain books, publishes an
+offline catalogue at `https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv`, which drove
+the Poe pull. Raspberry Pi Official Magazine offers free back issues, 168 of which were added
+on 2026-09-13. But the shelves that most need filling — Tech & Programming, Security &
+Hacking — are exactly where public-domain sources have nothing recent.
+
+Leads to verify. None has been checked yet; licence and download terms must be confirmed for
+each before anything is added:
+
+| Lead | What it offers | Would fill |
+|---|---|---|
+| Standard Ebooks | Carefully produced editions of public-domain books | Fiction, better formatted than Gutenberg's |
+| Wikisource, Faded Page, HathiTrust public-domain full view, Internet Archive | More public-domain texts and scans | Fiction, history |
+| Raspberry Pi Press | Free titles beyond the magazine — other magazines and guides | Tech & Programming |
+| OpenStax, Open Textbook Library | Openly licensed textbooks | Tech & Programming, Other |
+| EbookFoundation's free-programming-books list | A curated index of free programming books | Tech & Programming |
+| PoC\|\|GTFO, Paged Out! | Free security and hacking zines | Security & Hacking |
+| Full Circle Magazine | Free Ubuntu magazine | Tech & Programming |
+| Baen Free Library | Science fiction released free by its publisher | Fiction |
+
+Criteria for each lead:
+- **Licence:** it permits sharing within a small private group.
+- **Format:** the files come as EPUB or PDF.
+- **Bulk download:** it's permitted, or a catalogue or API exists.
+- **Metadata:** it's good enough, or the batch can be pinned with overrides (see the enrichment hazard in epic 29).
+- **Fit:** it belongs in an existing category.
+
+- [ ] Verify each lead against the criteria and record the verdict here
+- [ ] Turn each accepted source into its own epic, as 32 does for public-domain fiction
+- [ ] Record rejected sources and why, so they aren't researched twice
+
+**Effort:** S to survey; each accepted source is its own piece of work.
+
 ## Product polish
 
 _(none queued)_
