@@ -25,6 +25,9 @@ function store(over: Partial<Store> = {}): Store {
     getOpdsTokenStatus: vi.fn().mockResolvedValue(undefined),
     setOpdsTokenHash: vi.fn().mockResolvedValue(undefined),
     clearOpdsToken: vi.fn().mockResolvedValue(undefined),
+    listWorkEdits: vi.fn().mockResolvedValue([{ editionId: "aaaaaaaaaaaaaaaa", workId: "bbbbbbbbbbbbbbbb", by: "a@x", at: NOW }]),
+    putWorkEdits: vi.fn().mockResolvedValue(undefined),
+    deleteWorkEdits: vi.fn().mockResolvedValue(undefined),
     ...over,
   };
 }
@@ -61,6 +64,7 @@ describe("GET /api/library", () => {
       suggestions: [{ id: "s1", name: "Cookbooks", bookId: "b1", suggestedBy: "z@x", createdAt: NOW }],
       readingStatuses: { b1: "reading" },
       downloaded: ["b1", "b7"],
+      workEdits: { aaaaaaaaaaaaaaaa: "bbbbbbbbbbbbbbbb" },
     });
   });
   it("passes the caller's own email to both the status and downloads lookups", async () => {
@@ -372,5 +376,71 @@ describe("DELETE /api/opds/token", () => {
   });
   it("401s a token with no email claim, same as any other route", async () => {
     expect(parse(await handle(event("DELETE", "/api/opds/token", undefined, {}), deps())).status).toBe(401);
+  });
+});
+
+const ADMIN = { email: "admin@x", "cognito:groups": ["admins"] };
+const A = "aaaaaaaaaaaaaaaa";
+const B = "bbbbbbbbbbbbbbbb";
+
+describe("work corrections", () => {
+  it("includes workEdits in the overlay", async () => {
+    const res = await handle(event("GET", "/api/library"), deps());
+    expect(JSON.parse((res as { body: string }).body).workEdits).toEqual({ [A]: B });
+  });
+
+  it("stores every edit in one call, stamped with the admin and time", async () => {
+    const s = store();
+    const res = await handle(event("PUT", "/api/works/edits", { edits: { [A]: B, [B]: B } }, ADMIN), deps(s));
+    expect((res as { statusCode: number }).statusCode).toBe(204);
+    expect(s.putWorkEdits).toHaveBeenCalledTimes(1);
+    expect(s.putWorkEdits).toHaveBeenCalledWith([
+      { editionId: A, workId: B, by: "admin@x", at: NOW },
+      { editionId: B, workId: B, by: "admin@x", at: NOW },
+    ]);
+  });
+
+  it("deletes the rows named in a reset", async () => {
+    const s = store();
+    const res = await handle(event("POST", "/api/works/edits/reset", { editionIds: [A, B] }, ADMIN), deps(s));
+    expect((res as { statusCode: number }).statusCode).toBe(204);
+    expect(s.deleteWorkEdits).toHaveBeenCalledWith([A, B]);
+  });
+
+  it.each([
+    ["no body", undefined],
+    ["edits not an object", { edits: [A] }],
+    ["empty edits", { edits: {} }],
+    ["bad edition id", { edits: { "not-hex": B } }],
+    ["bad work id", { edits: { [A]: "ZZZZZZZZZZZZZZZZ" } }],
+    ["too many", { edits: Object.fromEntries(Array.from({ length: 101 }, (_, i) => [i.toString(16).padStart(16, "0"), B])) }],
+  ])("rejects an invalid edit request (%s)", async (_name, body) => {
+    const s = store();
+    const res = await handle(event("PUT", "/api/works/edits", body, ADMIN), deps(s));
+    expect((res as { statusCode: number }).statusCode).toBe(400);
+    expect(s.putWorkEdits).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["no body", undefined],
+    ["not an array", { editionIds: A }],
+    ["empty", { editionIds: [] }],
+    ["duplicate", { editionIds: [A, A] }],
+    ["bad id", { editionIds: ["nope"] }],
+  ])("rejects an invalid reset request (%s)", async (_name, body) => {
+    const s = store();
+    const res = await handle(event("POST", "/api/works/edits/reset", body, ADMIN), deps(s));
+    expect((res as { statusCode: number }).statusCode).toBe(400);
+    expect(s.deleteWorkEdits).not.toHaveBeenCalled();
+  });
+
+  it("refuses non-admins", async () => {
+    const s = store();
+    const put = await handle(event("PUT", "/api/works/edits", { edits: { [A]: B } }), deps(s));
+    const reset = await handle(event("POST", "/api/works/edits/reset", { editionIds: [A] }), deps(s));
+    expect((put as { statusCode: number }).statusCode).toBe(403);
+    expect((reset as { statusCode: number }).statusCode).toBe(403);
+    expect(s.putWorkEdits).not.toHaveBeenCalled();
+    expect(s.deleteWorkEdits).not.toHaveBeenCalled();
   });
 });

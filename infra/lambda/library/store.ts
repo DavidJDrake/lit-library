@@ -2,7 +2,7 @@ import {
   DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { OPDS_READER_SK, opdsReaderPk, opdsTokenPk, OPDS_TOKEN_SK } from "../shared/opds-token";
-import type { BookCategory, Category, OpdsTokenStatus, ReadingStatus, ReadingStatusRow, Store, Suggestion } from "./index";
+import type { BookCategory, Category, OpdsTokenStatus, ReadingStatus, ReadingStatusRow, Store, Suggestion, WorkEdit } from "./index";
 
 // Per-reader rows share the library table with everything else, keyed by pk = USER#<email>
 // (lowercased, matching the Kindle settings row at the same pk) so one query returns both —
@@ -41,6 +41,9 @@ function toSuggestion(i: Item): Suggestion {
     ...(typeof i.resolvedBy === "string" ? { resolvedBy: i.resolvedBy } : {}),
     ...(typeof i.resolvedAt === "string" ? { resolvedAt: i.resolvedAt } : {}),
   };
+}
+function toWorkEdit(i: Item): WorkEdit {
+  return { editionId: String(i.sk), workId: String(i.workId), by: String(i.by), at: String(i.at) };
 }
 
 export class DynamoStore implements Store {
@@ -232,5 +235,21 @@ export class DynamoStore implements Store {
       { Delete: { TableName: this.table, Key: { pk: opdsTokenPk(hash), sk: OPDS_TOKEN_SK } } },
     ];
     await this.ddb.send(new TransactWriteCommand({ TransactItems }));
+  }
+
+  async listWorkEdits() { return (await this.queryAll("WORKEDIT")).map(toWorkEdit); }
+
+  async putWorkEdits(edits: WorkEdit[]) {
+    await this.ddb.send(new TransactWriteCommand({
+      TransactItems: edits.map((e) => ({
+        Put: { TableName: this.table, Item: { pk: "WORKEDIT", sk: e.editionId, workId: e.workId, by: e.by, at: e.at } },
+      })),
+    }));
+  }
+
+  async deleteWorkEdits(editionIds: string[]) {
+    await this.ddb.send(new TransactWriteCommand({
+      TransactItems: editionIds.map((id) => ({ Delete: { TableName: this.table, Key: { pk: "WORKEDIT", sk: id } } })),
+    }));
   }
 }

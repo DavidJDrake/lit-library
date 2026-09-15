@@ -54,9 +54,11 @@ export type Route =
   | { kind: "reject"; id: string }
   | { kind: "opdsTokenStatus" }
   | { kind: "opdsTokenGenerate" }
-  | { kind: "opdsTokenRevoke" };
+  | { kind: "opdsTokenRevoke" }
+  | { kind: "putWorkEdits" }
+  | { kind: "resetWorkEdits" };
 
-export const ADMIN_ROUTES: ReadonlySet<Route["kind"]> = new Set(["createCategory", "accept", "reject"]);
+export const ADMIN_ROUTES: ReadonlySet<Route["kind"]> = new Set(["createCategory", "accept", "reject", "putWorkEdits", "resetWorkEdits"]);
 
 const SEGMENT = "([^/]+)";
 const ROUTES: Array<[string, RegExp, (m: RegExpMatchArray) => Route]> = [
@@ -70,6 +72,8 @@ const ROUTES: Array<[string, RegExp, (m: RegExpMatchArray) => Route]> = [
   ["GET", /^\/api\/opds\/token$/, () => ({ kind: "opdsTokenStatus" })],
   ["POST", /^\/api\/opds\/token$/, () => ({ kind: "opdsTokenGenerate" })],
   ["DELETE", /^\/api\/opds\/token$/, () => ({ kind: "opdsTokenRevoke" })],
+  ["PUT", /^\/api\/works\/edits$/, () => ({ kind: "putWorkEdits" })],
+  ["POST", /^\/api\/works\/edits\/reset$/, () => ({ kind: "resetWorkEdits" })],
 ];
 
 export function matchRoute(method: string, path: string): Route | undefined {
@@ -86,4 +90,27 @@ export function matchRoute(method: string, path: string): Route | undefined {
     }
   }
   return undefined;
+}
+
+// An edition id is a catalog copy id: the first 16 hex characters of a SHA-1.
+export const EDITION_ID_RE = /^[0-9a-f]{16}$/;
+export const MAX_WORK_EDITS = 100; // one DynamoDB transaction holds at most 100 items
+
+export function parseWorkEdits(body: Record<string, unknown> | undefined): Record<string, string> | undefined {
+  const edits = body?.edits;
+  if (typeof edits !== "object" || edits === null || Array.isArray(edits)) return undefined;
+  const entries = Object.entries(edits);
+  if (entries.length === 0 || entries.length > MAX_WORK_EDITS) return undefined;
+  for (const [editionId, workId] of entries) {
+    if (!EDITION_ID_RE.test(editionId) || typeof workId !== "string" || !EDITION_ID_RE.test(workId)) return undefined;
+  }
+  return edits as Record<string, string>;
+}
+
+export function parseEditionIds(body: Record<string, unknown> | undefined): string[] | undefined {
+  const ids = body?.editionIds;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_WORK_EDITS) return undefined;
+  if (!ids.every((id) => typeof id === "string" && EDITION_ID_RE.test(id))) return undefined;
+  if (new Set(ids).size !== ids.length) return undefined;
+  return ids as string[];
 }

@@ -3,7 +3,7 @@ import type { NotifyFn } from "../notifications/fanout";
 import { logEvent } from "../shared/log";
 import { hashOpdsToken } from "../shared/opds-token";
 import type { DownloadsStore } from "./downloads";
-import { ADMIN_ROUTES, isAdmin, matchRoute, normalizeName, parseJsonBody, type Route } from "./lib";
+import { ADMIN_ROUTES, isAdmin, matchRoute, normalizeName, parseEditionIds, parseJsonBody, parseWorkEdits, type Route } from "./lib";
 import { callerEmail } from "../shared/caller";
 
 export interface Category { name: string; nameLower: string; createdBy: string; createdAt: string; source: "seed" | "admin" | "suggestion" }
@@ -23,6 +23,9 @@ export interface ReadingStatusRow { bookId: string; status: ReadingStatus; updat
 // interface needs to say "a feed link exists, made on <date>" without being able to
 // reveal or reconstruct it.
 export interface OpdsTokenStatus { createdAt: string }
+
+// An admin correction assigning an edition to a work (docs/superpowers/specs/2026-09-14-works-and-editions-design.md).
+export interface WorkEdit { editionId: string; workId: string; by: string; at: string }
 
 export interface Store {
   listCategories(): Promise<Category[]>;
@@ -53,6 +56,11 @@ export interface Store {
   setOpdsTokenHash(email: string, tokenHash: string, createdAt: string): Promise<void>;
   /** One transaction: deletes the descriptor and its lookup row. A no-op when there is none. */
   clearOpdsToken(email: string): Promise<void>;
+  listWorkEdits(): Promise<WorkEdit[]>;
+  /** One transaction: every row written, or none. */
+  putWorkEdits(edits: WorkEdit[]): Promise<void>;
+  /** One transaction; deleting a row that does not exist is not an error. */
+  deleteWorkEdits(editionIds: string[]): Promise<void>;
 }
 
 export interface Deps {
@@ -92,9 +100,9 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
   const at = deps.now().toISOString();
   switch (route.kind) {
     case "overlay": {
-      const [categories, books, pending, statuses, downloaded] = await Promise.all([
+      const [categories, books, pending, statuses, downloaded, workEdits] = await Promise.all([
         store.listCategories(), store.listBookCategories(), store.listPendingSuggestions(),
-        store.listReadingStatuses(email), deps.downloads.listDownloadedBookIds(email),
+        store.listReadingStatuses(email), deps.downloads.listDownloadedBookIds(email), store.listWorkEdits(),
       ]);
       return json(200, {
         categories: [...categories].sort((a, b) => a.name.localeCompare(b.name)).map((c) => ({ name: c.name, source: c.source })),
@@ -104,6 +112,7 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
         })),
         readingStatuses: Object.fromEntries(statuses.map((s) => [s.bookId, s.status])),
         downloaded,
+        workEdits: Object.fromEntries(workEdits.map((e) => [e.editionId, e.workId])),
       });
     }
     case "setBookCategory": {
@@ -203,6 +212,20 @@ async function dispatch(route: Route, event: APIGatewayProxyEventV2WithJWTAuthor
     case "opdsTokenRevoke": {
       await store.clearOpdsToken(email);
       logEvent("opds.token_revoked", { email }, deps.now);
+      return noContent();
+    }
+    case "putWorkEdits": {
+      const edits = parseWorkEdits(parseJsonBody(event.body));
+      if (!edits) return json(400, { error: "Invalid work edits" });
+      await store.putWorkEdits(Object.entries(edits).map(([editionId, workId]) => ({ editionId, workId, by: email, at })));
+      logEvent("works.edited", { by: email, count: Object.keys(edits).length }, deps.now);
+      return noContent();
+    }
+    case "resetWorkEdits": {
+      const editionIds = parseEditionIds(parseJsonBody(event.body));
+      if (!editionIds) return json(400, { error: "Invalid edition ids" });
+      await store.deleteWorkEdits(editionIds);
+      logEvent("works.reset", { by: email, count: editionIds.length }, deps.now);
       return noContent();
     }
   }
