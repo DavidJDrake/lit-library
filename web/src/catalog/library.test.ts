@@ -1,13 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  applyOverlay, createCategory, fetchOverlay, putWorkEdits, resetWorkEdits, resolveSuggestion, setBookCategory, setBookReadingStatus, suggestCategory, suggesterLabel, type Overlay,
+  createCategory, fetchOverlay, putWorkEdits, resetWorkEdits, resolveSuggestion, setBookCategory, setBookReadingStatus, suggestCategory, suggesterLabel, type Overlay,
 } from "./library";
-import type { Book } from "./types";
 
-const book = (id: string, category: string, over: Partial<Book> = {}): Book => ({
-  id, title: id, authors: [], description: null, category, subjects: [], publisher: null, bundle: "b", year: null,
-  formats: [], coverUrl: null, addedAt: "2026-01-01", ...over,
-});
 const overlay: Overlay = {
   categories: [{ name: "Fiction", source: "seed" }, { name: "Cookbooks", source: "admin" }],
   bookCategories: { a: "Cookbooks" },
@@ -41,34 +36,6 @@ describe("fetchOverlay", () => {
     await expect(fetchOverlay("/api", "tok", fetchWith(500, { error: "x" }))).rejects.toThrow("x");
     await expect(fetchOverlay("/api", "tok", fetchWith(200, "<html>", "text/html"))).rejects.toThrow(/non-JSON/);
     await expect(fetchOverlay("/api", "tok", fetchWith(200, { categories: "nope" }))).rejects.toThrow(/malformed/);
-  });
-});
-
-describe("applyOverlay", () => {
-  it("replaces categories from the map, keeps others, and preserves identity of untouched books", () => {
-    const a = book("a", "Fiction"), b = book("b", "Fiction");
-    const out = applyOverlay([a, b], overlay);
-    expect(out.map((x) => x.category)).toEqual(["Cookbooks", "Fiction"]);
-    expect(a.category).toBe("Fiction"); // input not mutated
-  });
-  it("merges the chosen reading status and the derived downloaded set, independently of each other", () => {
-    const a = book("a", "Fiction"); // in readingStatuses (reading), not in downloaded
-    const b = book("b", "Fiction"); // in downloaded, not in readingStatuses
-    const c = book("c", "Fiction"); // in neither
-    const out = applyOverlay([a, b, c], overlay);
-    expect(out[0]).toMatchObject({ readingStatus: "reading", downloaded: false });
-    expect(out[1]).toMatchObject({ readingStatus: null, downloaded: true });
-    expect(out[2]).toBe(c); // wholly untouched: identity preserved, exactly like category
-  });
-  it("shows both facts together for a book that is downloaded and also has a chosen status", () => {
-    const both: Overlay = { ...overlay, bookCategories: {}, readingStatuses: { a: "finished" }, downloaded: ["a"] };
-    const out = applyOverlay([book("a", "Fiction")], both);
-    expect(out[0]).toMatchObject({ readingStatus: "finished", downloaded: true });
-  });
-  it("preserves identity of a book untouched by category, status, or downloaded", () => {
-    const untouched: Overlay = { categories: [], bookCategories: {}, suggestions: [], readingStatuses: {}, downloaded: [] };
-    const c = book("c", "Fiction");
-    expect(applyOverlay([c], untouched)[0]).toBe(c);
   });
 });
 

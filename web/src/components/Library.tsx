@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
-  applyOverlay, createCategory, resolveSuggestion, setBookCategory, suggestCategory,
+  createCategory, resolveSuggestion, setBookCategory, suggestCategory,
 } from "../catalog/library";
 import { requestDownload, startDownload } from "../catalog/download";
 import { useLibraryData } from "../catalog/LibraryDataProvider";
@@ -9,6 +9,7 @@ import {
   searchBooks, searchFromView, sortBooks, sortFromSearch,
 } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type ReadingStatus, type SortKey } from "../catalog/types";
+import { groupWorks } from "../catalog/works";
 import type { KindleError } from "../kindle/api";
 import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
@@ -49,7 +50,9 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     if (overlayError) fail(`Category editing is unavailable right now (${overlayError})`);
   }, [overlayError, fail]);
 
-  const merged = useMemo(() => (books && overlay ? applyOverlay(books, overlay) : books), [books, overlay]);
+  // One card per work: copies grouped into editions and works, with the overlay's per-reader
+  // state and admin corrections applied (see catalog/works.ts).
+  const merged = useMemo(() => (books ? groupWorks(books, overlay) : null), [books, overlay]);
   const categoryNames = useMemo(() => overlay?.categories.map((c) => c.name) ?? [], [overlay]);
   const selected = useMemo(() => merged?.find((b) => b.id === selectedId) ?? null, [merged, selectedId]);
 

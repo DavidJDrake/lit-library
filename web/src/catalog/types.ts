@@ -41,7 +41,7 @@ export interface Book {
   coverUrl: string | null;
   addedAt: string;
   // Overlay-only, like `category`: absent (undefined) until the overlay has loaded, then
-  // merged in by applyOverlay. readingStatus is null when the reader has no status set;
+  // merged in by groupWorks. readingStatus is null when the reader has no status set;
   // downloaded is independent of it — a book can be downloaded and also want-to-read,
   // reading, finished, or none of those.
   readingStatus?: ReadingStatus | null;

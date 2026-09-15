@@ -6,7 +6,7 @@ export function facetValues(book: Book, key: FacetKey): string[] {
     case "category": return [book.category];
     case "format": return book.formats.map((f) => f.type);
     case "publisher": return book.publisher ? [book.publisher] : [];
-    case "bundle": return [book.bundle];
+    case "bundle": return book.bundles ?? [book.bundle];
     case "author": return book.authors;
     case "year": return book.year ? [String(book.year)] : [];
     // Two independent facts as one multi-value facet, exactly like an author or format
@@ -24,7 +24,11 @@ export function applyFilters(books: Book[], filters: Filters): Book[] {
 
 export function buildSearchIndex(books: Book[]): Fuse<Book> {
   return new Fuse(books, {
-    keys: [{ name: "title", weight: 2 }, { name: "authors", weight: 1 }, { name: "description", weight: 1 }],
+    keys: [
+      { name: "title", weight: 2 }, { name: "editions.title", weight: 2 },
+      { name: "authors", weight: 1 }, { name: "editions.authors", weight: 1 },
+      { name: "description", weight: 1 },
+    ],
     threshold: 0.35,
     ignoreLocation: true,
     minMatchCharLength: 2,

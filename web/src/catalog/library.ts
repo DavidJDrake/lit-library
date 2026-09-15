@@ -1,5 +1,5 @@
 import { apiCall } from "./apiCall";
-import type { Book, ReadingStatus } from "./types";
+import type { ReadingStatus } from "./types";
 
 export interface Suggestion { id: string; name: string; bookId?: string; suggestedBy: string; createdAt: string }
 export interface Overlay {
@@ -28,24 +28,6 @@ export async function fetchOverlay(apiUrl: string, idToken: string, fetchFn: typ
     throw new Error("Library overlay is malformed");
   }
   return { ...(body as Overlay), workEdits: body.workEdits ?? {} };
-}
-
-// Merges every per-reader field the overlay carries onto the catalog's books, the one
-// place that happens — filtering, the card and the dialog all read the merged result
-// rather than combining catalog and overlay data themselves. Preserves reference identity
-// for a book nothing changed about, matching the existing category behaviour.
-export function applyOverlay(books: Book[], overlay: Overlay): Book[] {
-  const downloadedIds = new Set(overlay.downloaded);
-  return books.map((b) => {
-    const category = overlay.bookCategories[b.id];
-    const categoryChanged = Boolean(category) && category !== b.category;
-    const readingStatus = overlay.readingStatuses[b.id] ?? null;
-    const statusChanged = readingStatus !== (b.readingStatus ?? null);
-    const downloaded = downloadedIds.has(b.id);
-    const downloadedChanged = downloaded !== Boolean(b.downloaded);
-    if (!categoryChanged && !statusChanged && !downloadedChanged) return b;
-    return { ...b, ...(categoryChanged ? { category } : {}), readingStatus, downloaded };
-  });
 }
 
 export async function setBookCategory(apiUrl: string, idToken: string, bookId: string, category: string, fetchFn: typeof fetch = fetch): Promise<void> {

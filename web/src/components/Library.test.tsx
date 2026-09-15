@@ -551,3 +551,23 @@ describe("Library", () => {
     expect(screen.getAllByRole("button", { name: /Book Number \d+/ })).toHaveLength(60);
   });
 });
+
+describe("work cards", () => {
+  it("shows copies of one edition as a single card and counts cards", async () => {
+    const dup: Catalog = {
+      generatedAt: "t",
+      books: [
+        { ...catalog.books[0], id: "1", editionId: "1", workId: "1", bundle: "Hacking" },
+        { ...catalog.books[0], id: "9", editionId: "1", workId: "1", bundle: "Security Bundle", addedAt: "2026-09-13" },
+        catalog.books[1],
+      ],
+    };
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(dup) });
+    expect(await screen.findByText("2 books")).toBeInTheDocument();
+    // Scoped to the card's title element: a card without a cover image also renders its
+    // title as the cover placeholder (BookCard.tsx), so an unscoped query would double-count
+    // a single deduplicated card.
+    expect(screen.getAllByText("Attacking Network Protocols", { selector: ".title" })).toHaveLength(1);
+    expect(screen.getByText("Security Bundle")).toBeInTheDocument();
+  });
+});
