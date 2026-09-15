@@ -103,19 +103,47 @@ def test_skips_a_book_item_missing_category_and_warns(tmp_path):
     assert "merged 1 book categories, 0 site categories" in proc.stdout
 
 
-def test_warns_about_and_drops_comments_below_the_header(tmp_path):
+def test_keeps_comments_order_and_untouched_entries(tmp_path):
     cfg, scan_file, overrides = setup(tmp_path)
-    text = overrides.read_text()
     overrides.write_text(
-        text.replace("bbbb:\n  year: 1999\n", "bbbb:\n  year: 1999\n  # pinned manually, don't touch\n")
+        HEADER
+        + "zzzz:\n  year: 1999\n"
+        + "\n# --- A section note that must survive ---\n"
+        + "aaaa:\n  title: Keep Me\n  category: Fiction\n"
+        + "bbbb:\n  description: 'first line\n\n    after a blank line'\n  year: 1999\n"
     )
-    before = overrides.read_text()
+    run(cfg, scan_file)
+    text = overrides.read_text()
+    assert text.startswith(HEADER)
+    assert "# --- A section note that must survive ---" in text
+    assert text.index("zzzz:") < text.index("# --- A section note") < text.index("aaaa:") < text.index("bbbb:")
+    assert "bbbb:\n  description: 'first line\n\n    after a blank line'\n  year: 1999\n" in text
+    data = yaml.safe_load(text)
+    assert data["aaaa"]["category"] == "Cookbooks"
+    assert data["zzzz"]["category"] == "Fiction"
 
-    dry = run_proc(cfg, scan_file, "--dry-run")
-    assert overrides.read_text() == before  # dry-run changes nothing
-    assert "warning: 1 comment line(s) below the header will be dropped" in dry.stderr
-    assert "# pinned manually, don't touch" in dry.stderr
 
-    real = run_proc(cfg, scan_file)
-    assert "warning: 1 comment line(s) below the header will be dropped" in real.stderr
-    assert "# pinned manually, don't touch" not in overrides.read_text()
+def test_folds_work_corrections_and_removes_stale_work_keys(tmp_path):
+    cfg, scan_file, overrides = setup(tmp_path)
+    overrides.write_text(HEADER + "aaaa:\n  title: Keep Me\n  work: old\nbbbb:\n  work: gone\n")
+    items = json.loads(scan_file.read_text())["Items"] + [
+        {"pk": s("WORKEDIT"), "sk": s("aaaa"), "workId": s("cccc"), "by": s("u@x"), "at": s("t")},
+        {"pk": s("WORKEDIT"), "sk": s("dddd"), "workId": s("dddd"), "by": s("u@x"), "at": s("t")},
+    ]
+    scan_file.write_text(json.dumps(scan(items)))
+    out = run(cfg, scan_file)
+    data = yaml.safe_load(overrides.read_text())
+    assert data["aaaa"]["work"] == "cccc"
+    assert data["aaaa"]["title"] == "Keep Me"
+    assert "bbbb" not in data
+    assert data["dddd"] == {"work": "dddd"}
+    assert "2 work corrections" in out
+
+
+def test_unchanged_file_is_not_rewritten(tmp_path):
+    cfg, scan_file, overrides = setup(tmp_path)
+    run(cfg, scan_file)
+    first = overrides.read_text()
+    out = run(cfg, scan_file)
+    assert overrides.read_text() == first
+    assert "already up to date" in out
