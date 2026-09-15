@@ -181,6 +181,56 @@ from the repo root: it indexes any new bundles and publishes the updated
 catalog in one step, printing how many books were newly added and
 confirming the CloudFront invalidation for `catalog.json`.
 
+## Works and editions
+
+A card is now a **work**, not a copy: every edition of a title by the same author shares one
+card with an edition picker, however many bundles it arrived in. Grouping runs in the indexer
+and is automatic and conservative:
+
+- Two copies are the **same edition** when a file is byte-identical, they share an ISBN, or
+  they're one bundle's formats of the same title.
+- Two editions are the **same work** when the title matches ignoring edition markers ("Second
+  Edition", "2nd ed.", and the like) and they share at least one author. Subtitles are never
+  stripped — stripping them would have merged six different Dune novels into one card.
+- A copy with no authors only joins a work through the file or ISBN rules above.
+
+Every catalog entry keeps its existing `id` and gains `editionId`/`workId`. Nothing that reads
+ids by id — reading statuses, download history, category edits — needs a migration.
+
+**Grouping report.** Preview how the library would group before publishing:
+
+```bash
+cd indexer && .venv/bin/python -m ebook_indexer grouping-report --config ../config.yaml
+```
+
+It's read-only apart from `metadata/hashes.json` (see below). It writes `out/grouping-report.md`,
+listing every card that groups more than one copy (with the rule that linked each one), every
+category that would settle to a value some copy didn't have, and every same-title pair the rules
+keep apart, with why.
+
+**Hash cache.** The first publish after this change hashes the whole library once, into
+`metadata/hashes.json` (gitignored, like `publish-state.json`). Later publishes hash only files
+that are new or have changed size or modification time.
+
+**Admin corrections.** Signed-in admins can merge, split and reset cards from the book dialog —
+this is the only supported way to correct a grouping; don't hand-edit `overrides.yaml`. Corrections
+are stored as `WORKEDIT` rows in the library table and apply live on the site immediately.
+`scripts/pull-edits.py` folds them into `work:` keys on the affected editions in `overrides.yaml`,
+and removes a `work:` key once its correction row is gone, so the next publish groups exactly as
+the site does. `pull-edits.py` still preserves comments and entry order when it writes.
+
+A merged or split (managed) edition stops attracting newly published books that only match it
+through title and author — it still joins an identical file or shared ISBN, but the title-and-author
+rule leaves it alone. Reset the card to make it automatic again.
+
+Corrections are made through `PUT /api/works/edits` and `POST /api/works/edits/reset`, both
+admin-only.
+
+**Known limitation.** A work's `workId` is its earliest-added copy's id. Deleting that copy (for
+example with `prune --delete`) moves the `workId` to the next-earliest copy, and any state stored
+against the old id — reading status, category, downloads — stops attaching. This is documented,
+not engineered around; deleting books is rare.
+
 ## Deploying the web app
 
 `scripts/deploy-web.sh` builds `web/` and syncs it to the site bucket (it never touches

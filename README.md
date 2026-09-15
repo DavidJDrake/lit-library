@@ -47,6 +47,8 @@ be online for the site to work.
   EPUB/PDF metadata, groups EPUB+PDF pairs into one book, enriches titles
   via Open Library / Google Books (cached on disk), derives categories, and
   renders WebP cover thumbnails. Manual corrections go in an `overrides.yaml`.
+- **One card per book.** Copies bought in several bundles, a book's EPUB and PDF, and different
+  editions of a title share a card with an edition picker; admins can merge and split cards.
 
 ## Architecture
 
