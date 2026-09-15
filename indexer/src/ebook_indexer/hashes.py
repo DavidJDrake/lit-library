@@ -2,7 +2,8 @@
 
 Hashing the whole library (about 95 GB) on every publish would be far too slow, so a
 file is re-read only when it is new or its size or mtime changed. The cache lives at
-metadata/hashes.json (gitignored) and is rebuilt if unreadable.
+metadata/hashes.json (gitignored) and is rebuilt if unreadable. It is checkpointed every
+`checkpoint_every` newly hashed files, so an interrupted first run keeps its progress.
 """
 import hashlib
 from pathlib import Path
@@ -10,11 +11,13 @@ from pathlib import Path
 from .jsonio import read_json_or, write_json_atomic
 
 _CHUNK = 1 << 20
+CHECKPOINT_EVERY = 200
 
 
 class HashCache:
-    def __init__(self, path: Path | None):
+    def __init__(self, path: Path | None, checkpoint_every: int = CHECKPOINT_EVERY):
         self.path = path
+        self.checkpoint_every = checkpoint_every
         self.hashed = 0
         self.warnings: list[str] = []
         self._entries: dict[str, dict] = {}
@@ -48,10 +51,14 @@ class HashCache:
             return None
         self.hashed += 1
         self._entries[rel_path] = {"size": st.st_size, "mtime": st.st_mtime, "sha256": digest.hexdigest()}
+        if self.hashed % self.checkpoint_every == 0:
+            self.save(prune=False)
         return self._entries[rel_path]["sha256"]
 
-    def save(self) -> None:
+    def save(self, prune: bool = True) -> None:
+        """Write the cache. Pruning drops entries for files not seen this run, so only prune
+        after a complete scan of the library."""
         if self.path is None:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        write_json_atomic(self.path, {k: v for k, v in sorted(self._entries.items()) if k in self._seen})
+        write_json_atomic(self.path, {k: v for k, v in sorted(self._entries.items()) if not prune or k in self._seen})

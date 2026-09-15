@@ -146,6 +146,39 @@ def test_catalog_carries_work_links_on_canonical_entries_only(tmp_path, make_epu
     assert "workLinks" not in by_title["The Black Company"][0]
 
 
+def test_an_interrupted_run_keeps_the_hashes_it_computed(tmp_path, make_epub, make_pdf, monkeypatch):
+    import ebook_indexer.pipeline as pipeline
+    root = make_library(tmp_path, make_epub, make_pdf)
+    real_extract, calls = pipeline._extract, []
+
+    def extract_then_fail(primary):
+        calls.append(primary)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return real_extract(primary)
+
+    monkeypatch.setattr(pipeline, "_extract", extract_then_fail)
+    cache = tmp_path / "hashes.json"
+    try:
+        build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json",
+                    hash_cache_path=cache)
+    except KeyboardInterrupt:
+        pass
+    assert cache.exists() and len(json.loads(cache.read_text())) >= 1
+
+
+def test_a_limited_run_does_not_prune_the_hash_cache(tmp_path, make_epub, make_pdf):
+    root = make_library(tmp_path, make_epub, make_pdf)
+    cache = tmp_path / "hashes.json"
+    kwargs = dict(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json",
+                  hash_cache_path=cache)
+    build_books(**kwargs)
+    full = set(json.loads(cache.read_text()))
+    assert len(full) == 3
+    build_books(**kwargs, limit=1)
+    assert set(json.loads(cache.read_text())) == full
+
+
 def test_write_added_false_leaves_added_json_untouched(tmp_path, make_epub, make_pdf):
     root = make_library(tmp_path, make_epub, make_pdf)
     added = tmp_path / "added.json"

@@ -55,43 +55,50 @@ def build_books(root: Path, overrides_path: Path,
     covers: dict[str, bytes] = {}
     isbns: dict[str, str | None] = {}
     file_hashes: dict[str, frozenset[str]] = {}
-    for bid, files in sorted(groups.items(), key=lambda kv: kv[1][0].rel_path):
-        if limit is not None and len(books) >= limit:
-            break
-        primary = files[0]  # epub-first ordering from group_files
-        meta = _extract(primary)
-        stem = PurePosixPath(primary.rel_path).stem
-        fallback_title = prettify(stem)
-        if enricher is not None:
-            enricher.enrich(meta, fallback_title)
-        book = Book(
-            id=bid,
-            title=meta.title or fallback_title,
-            authors=meta.authors,
-            description=meta.description,
-            category=derive_category(primary.bundle, meta.subjects,
-                                     [f.format for f in files], meta.archive_kind),
-            subjects=meta.subjects,
-            publisher=meta.publisher or _publisher_from_bundle(primary.bundle),
-            bundle=primary.bundle,
-            year=meta.year,
-            formats=[BookFormat(type=f.format, size=f.size,
-                                s3_key=f"books/{f.rel_path}", rel_path=f.rel_path)
-                     for f in files],
-            cover_url=None,  # set by catalog.write_outputs when a cover exists
-            added_at=added.get(bid, today),
-        )
-        apply_overrides(book, overrides)
-        isbns[bid] = meta.isbn
-        file_hashes[bid] = frozenset(
-            h for f in files if (h := hash_cache.sha256(f.path, f.rel_path)) is not None
-        )
-        if with_covers and meta.cover:
-            thumb = thumbnail_webp(meta.cover)
-            if thumb:
-                covers[bid] = thumb
-        added.setdefault(bid, today)
-        books.append(book)
+    # Saved however the scan ends, so an interrupted run keeps the files it hashed; entries for
+    # unseen files are dropped only after a complete, unlimited scan.
+    complete = False
+    try:
+        for bid, files in sorted(groups.items(), key=lambda kv: kv[1][0].rel_path):
+            if limit is not None and len(books) >= limit:
+                break
+            primary = files[0]  # epub-first ordering from group_files
+            meta = _extract(primary)
+            stem = PurePosixPath(primary.rel_path).stem
+            fallback_title = prettify(stem)
+            if enricher is not None:
+                enricher.enrich(meta, fallback_title)
+            book = Book(
+                id=bid,
+                title=meta.title or fallback_title,
+                authors=meta.authors,
+                description=meta.description,
+                category=derive_category(primary.bundle, meta.subjects,
+                                         [f.format for f in files], meta.archive_kind),
+                subjects=meta.subjects,
+                publisher=meta.publisher or _publisher_from_bundle(primary.bundle),
+                bundle=primary.bundle,
+                year=meta.year,
+                formats=[BookFormat(type=f.format, size=f.size,
+                                    s3_key=f"books/{f.rel_path}", rel_path=f.rel_path)
+                         for f in files],
+                cover_url=None,  # set by catalog.write_outputs when a cover exists
+                added_at=added.get(bid, today),
+            )
+            apply_overrides(book, overrides)
+            isbns[bid] = meta.isbn
+            file_hashes[bid] = frozenset(
+                h for f in files if (h := hash_cache.sha256(f.path, f.rel_path)) is not None
+            )
+            if with_covers and meta.cover:
+                thumb = thumbnail_webp(meta.cover)
+                if thumb:
+                    covers[bid] = thumb
+            added.setdefault(bid, today)
+            books.append(book)
+        complete = limit is None
+    finally:
+        hash_cache.save(prune=complete)
 
     # Grouping reads titles and authors after overrides, so a corrected title groups correctly.
     work_overrides = {k: str(v["work"]) for k, v in overrides.items() if isinstance(v, dict) and v.get("work")}
@@ -111,7 +118,6 @@ def build_books(root: Path, overrides_path: Path,
         print(f"warning: {warning}", file=sys.stderr)
     if hash_cache.hashed:
         print(f"hashed {hash_cache.hashed} new or changed file(s)")
-    hash_cache.save()
     if on_grouped is not None:
         on_grouped(grouping, changes)
     if write_added:

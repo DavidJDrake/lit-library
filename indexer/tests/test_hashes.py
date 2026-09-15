@@ -86,3 +86,35 @@ def test_in_memory_cache_never_writes(tmp_path):
     c.sha256(f, "B/book.epub")
     c.save()
     assert list(tmp_path.iterdir()) == [f]
+
+
+def test_save_without_pruning_keeps_entries_not_seen_this_run(tmp_path):
+    cache_path = tmp_path / "hashes.json"
+    a, b = tmp_path / "a.epub", tmp_path / "b.epub"
+    a.write_bytes(b"a")
+    b.write_bytes(b"b")
+    c = HashCache(cache_path)
+    c.sha256(a, "B/a.epub")
+    c.sha256(b, "B/b.epub")
+    c.save()
+    c2 = HashCache(cache_path)
+    c2.sha256(a, "B/a.epub")
+    c2.save(prune=False)
+    assert set(json.loads(cache_path.read_text())) == {"B/a.epub", "B/b.epub"}
+
+
+def test_checkpoints_every_n_newly_hashed_files_without_pruning(tmp_path):
+    cache_path = tmp_path / "hashes.json"
+    old = tmp_path / "old.epub"
+    old.write_bytes(b"old")
+    first = HashCache(cache_path)
+    first.sha256(old, "B/old.epub")
+    first.save()
+    files = [tmp_path / f"{i}.epub" for i in range(3)]
+    for i, f in enumerate(files):
+        f.write_bytes(bytes([i]))
+    c = HashCache(cache_path, checkpoint_every=2)
+    c.sha256(files[0], "B/0.epub")
+    assert set(json.loads(cache_path.read_text())) == {"B/old.epub"}
+    c.sha256(files[1], "B/1.epub")
+    assert set(json.loads(cache_path.read_text())) == {"B/old.epub", "B/0.epub", "B/1.epub"}
