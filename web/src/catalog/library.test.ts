@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  applyOverlay, createCategory, fetchOverlay, resolveSuggestion, setBookCategory, setBookReadingStatus, suggestCategory, suggesterLabel, type Overlay,
+  applyOverlay, createCategory, fetchOverlay, putWorkEdits, resetWorkEdits, resolveSuggestion, setBookCategory, setBookReadingStatus, suggestCategory, suggesterLabel, type Overlay,
 } from "./library";
 import type { Book } from "./types";
 
@@ -14,6 +14,7 @@ const overlay: Overlay = {
   suggestions: [],
   readingStatuses: { a: "reading" },
   downloaded: ["b"],
+  workEdits: {},
 };
 
 function fetchWith(status: number, body?: unknown, contentType = "application/json") {
@@ -112,6 +113,39 @@ describe("mutations", () => {
     expect(call(g).url).toBe("/api/suggestions/s1/accept");
     expect(call(g).init.method).toBe("POST");
     await expect(resolveSuggestion("/api", "tok", "s1", "reject", fetchWith(403, { error: "Admin only" }))).rejects.toThrow("Admin only");
+  });
+});
+
+describe("work corrections API", () => {
+  const ok204 = () => vi.fn(async () => ({ ok: true, status: 204, headers: new Headers() })) as unknown as typeof fetch;
+
+  it("PUTs edits", async () => {
+    const f = ok204();
+    await putWorkEdits("https://api", "tok", { aaaaaaaaaaaaaaaa: "bbbbbbbbbbbbbbbb" }, f);
+    expect(f).toHaveBeenCalledWith("https://api/works/edits", expect.objectContaining({
+      method: "PUT", body: JSON.stringify({ edits: { aaaaaaaaaaaaaaaa: "bbbbbbbbbbbbbbbb" } }),
+    }));
+  });
+
+  it("POSTs a reset", async () => {
+    const f = ok204();
+    await resetWorkEdits("https://api", "tok", ["aaaaaaaaaaaaaaaa"], f);
+    expect(f).toHaveBeenCalledWith("https://api/works/edits/reset", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ editionIds: ["aaaaaaaaaaaaaaaa"] }),
+    }));
+  });
+
+  const overlayRes = (body: object) => vi.fn(async () => ({
+    ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => body,
+  })) as unknown as typeof fetch;
+  const base = { categories: [], bookCategories: {}, suggestions: [], readingStatuses: {}, downloaded: [] };
+
+  it("defaults workEdits to empty when an older API omits it", async () => {
+    expect((await fetchOverlay("https://api", "tok", overlayRes(base))).workEdits).toEqual({});
+  });
+
+  it("rejects a malformed workEdits", async () => {
+    await expect(fetchOverlay("https://api", "tok", overlayRes({ ...base, workEdits: ["x"] }))).rejects.toThrow("malformed");
   });
 });
 

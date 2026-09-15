@@ -110,6 +110,37 @@ function toWork(workId: string, byEdition: Map<string, Book[]>, overlay: WorkOve
   };
 }
 
+export interface EditionRef { id: string; addedAt: string }
+
+// Merge card X into card W: every edition of X is assigned to W.
+export function mergeEdits(fromEditionIds: string[], intoWorkId: string): Record<string, string> {
+  return Object.fromEntries(fromEditionIds.map((id) => [id, intoWorkId]));
+}
+
+// Split edition S out of card C. The remainder gets explicit rows too: without them, a split of
+// the card's earliest edition would do nothing (the rest still resolve to it through their
+// catalog workId), and a split of an edition that was the only automatic link between two
+// others would come apart differently at the next publish.
+export function splitEdits(cardId: string, cardEditions: EditionRef[], editionId: string): Record<string, string> {
+  const rest = cardEditions.filter((e) => e.id !== editionId);
+  if (rest.length === 0) return {};
+  const remainderId = editionId !== cardId ? cardId : [...rest].sort(byAddedThenId)[0].id;
+  const rows: Record<string, string> = { [editionId]: editionId };
+  if (editionId === cardId) rows[remainderId] = remainderId;
+  for (const e of rest) if (e.id !== remainderId) rows[e.id] = remainderId;
+  return rows;
+}
+
+// Reset card C: the rows of C's editions and of every edition sharing an automatic work with
+// one of them. Clearing whole automatic groups keeps the site and the folded overrides in step.
+export function resetEditionIds(entries: CatalogEntryRef[], cardEditionIds: string[], workEdits: Record<string, string>): string[] {
+  const catalogWork = new Map(entries.map((e) => [editionOf(e), catalogWorkOf(e)]));
+  const autos = new Set(cardEditionIds.map((id) => catalogWork.get(id) ?? id));
+  const drop = new Set(cardEditionIds);
+  for (const [edition, work] of catalogWork) if (autos.has(work)) drop.add(edition);
+  return [...drop].filter((id) => id in workEdits).sort();
+}
+
 export function groupWorks(entries: Book[], overlay: WorkOverlay | null): Book[] {
   const workOf = effectiveWorkIds(entries, overlay?.workEdits ?? {});
   const downloaded = new Set(overlay?.downloaded ?? []);

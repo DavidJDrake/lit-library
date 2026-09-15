@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { Book } from "./types";
-import { effectiveWorkIds, editionMarker, groupWorks, type WorkOverlay } from "./works";
+import { effectiveWorkIds, editionMarker, groupWorks, mergeEdits, resetEditionIds, splitEdits, type WorkOverlay } from "./works";
 
 interface FixtureStep { op: Record<string, string>; rows: Record<string, string>; cards: string[][] }
 interface FixtureCase { editions: string[]; links: string[][]; catalogWorkId: Record<string, string>; steps: FixtureStep[] }
@@ -118,6 +118,54 @@ describe("groupWorks", () => {
   it("treats entries from an older catalog as their own cards", () => {
     const old = [copy("x", { editionId: undefined, workId: undefined }), copy("y", { editionId: undefined, workId: undefined })];
     expect(groupWorks(old, null).map((w) => w.id)).toEqual(["x", "y"]);
+  });
+});
+
+describe("correction row builders", () => {
+  it("merge assigns every edition of the source card to the target", () => {
+    expect(mergeEdits(["x", "y"], "w")).toEqual({ x: "w", y: "w" });
+  });
+
+  it("split of a later edition writes only that edition", () => {
+    const eds = [{ id: "a", addedAt: "1" }, { id: "b", addedAt: "2" }, { id: "c", addedAt: "3" }];
+    expect(splitEdits("a", eds, "b")).toEqual({ b: "b", c: "a" });
+  });
+
+  it("split of the card's earliest edition moves the remainder to the next-earliest", () => {
+    const eds = [{ id: "a", addedAt: "1" }, { id: "b", addedAt: "2" }, { id: "c", addedAt: "3" }];
+    expect(splitEdits("a", eds, "a")).toEqual({ a: "a", b: "b", c: "b" });
+  });
+
+  it("split of a card's only edition writes nothing", () => {
+    expect(splitEdits("a", [{ id: "a", addedAt: "1" }], "a")).toEqual({});
+  });
+
+  it("reset returns the rows of the card's editions and of their automatic groups", () => {
+    const entries = [{ id: "a", editionId: "a", workId: "a" }, { id: "b", editionId: "b", workId: "a" }, { id: "z", editionId: "z", workId: "z" }];
+    expect(resetEditionIds(entries, ["b"], { a: "a", b: "b", z: "z" })).toEqual(["a", "b"]);
+  });
+
+  it("replays every operation in the shared fixture to the recorded rows", () => {
+    for (const [n, c] of fixture.cases.entries()) {
+      const entries = c.editions.map((e) => ({ id: e, editionId: e, workId: c.catalogWorkId[e] }));
+      const added = (e: string) => String(c.editions.indexOf(e)).padStart(4, "0");
+      let rows: Record<string, string> = {};
+      for (const [s, step] of c.steps.entries()) {
+        const work = effectiveWorkIds(entries, rows);
+        const cardEditions = (card: string) => c.editions.filter((e) => work.get(e) === card);
+        const op = step.op;
+        if (op.kind === "merge") {
+          rows = { ...rows, ...mergeEdits(cardEditions(op.from), op.into) };
+        } else if (op.kind === "split") {
+          const card = work.get(op.edition)!;
+          rows = { ...rows, ...splitEdits(card, cardEditions(card).map((id) => ({ id, addedAt: added(id) })), op.edition) };
+        } else {
+          const drop = new Set(resetEditionIds(entries, cardEditions(op.card), rows));
+          rows = Object.fromEntries(Object.entries(rows).filter(([e]) => !drop.has(e)));
+        }
+        expect(rows, `case ${n} step ${s}`).toEqual(step.rows);
+      }
+    }
   });
 });
 

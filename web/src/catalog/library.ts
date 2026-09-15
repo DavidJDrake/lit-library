@@ -9,6 +9,8 @@ export interface Overlay {
   readingStatuses: Record<string, ReadingStatus>;
   /** Book ids the reader has downloaded — derived, never written through this overlay. */
   downloaded: string[];
+  /** Admin work corrections, editionId -> workId. Present after fetchOverlay (empty if the API predates it). */
+  workEdits?: Record<string, string>;
 }
 
 export async function fetchOverlay(apiUrl: string, idToken: string, fetchFn: typeof fetch = fetch): Promise<Overlay> {
@@ -22,7 +24,10 @@ export async function fetchOverlay(apiUrl: string, idToken: string, fetchFn: typ
   ) {
     throw new Error("Library overlay is malformed");
   }
-  return body as Overlay;
+  if (body.workEdits !== undefined && (typeof body.workEdits !== "object" || body.workEdits === null || Array.isArray(body.workEdits))) {
+    throw new Error("Library overlay is malformed");
+  }
+  return { ...(body as Overlay), workEdits: body.workEdits ?? {} };
 }
 
 // Merges every per-reader field the overlay carries onto the catalog's books, the one
@@ -68,6 +73,14 @@ export async function createCategory(apiUrl: string, idToken: string, name: stri
 
 export async function resolveSuggestion(apiUrl: string, idToken: string, id: string, action: "accept" | "reject", fetchFn: typeof fetch = fetch): Promise<void> {
   await apiCall(apiUrl, idToken, `/suggestions/${encodeURIComponent(id)}/${action}`, { method: "POST" }, 204, fetchFn);
+}
+
+export async function putWorkEdits(apiUrl: string, idToken: string, edits: Record<string, string>, fetchFn: typeof fetch = fetch): Promise<void> {
+  await apiCall(apiUrl, idToken, "/works/edits", { method: "PUT", body: JSON.stringify({ edits }) }, 204, fetchFn);
+}
+
+export async function resetWorkEdits(apiUrl: string, idToken: string, editionIds: string[], fetchFn: typeof fetch = fetch): Promise<void> {
+  await apiCall(apiUrl, idToken, "/works/edits/reset", { method: "POST", body: JSON.stringify({ editionIds }) }, 204, fetchFn);
 }
 
 export function suggesterLabel(email: string): string {
