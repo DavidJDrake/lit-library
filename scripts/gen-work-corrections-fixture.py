@@ -2,18 +2,29 @@
 """Generate test-fixtures/work-corrections.json: the reference behaviour of admin work
 corrections, shared by the indexer's tests and the site's tests.
 
-Each case is a small library of editions, listed in added order, with automatic
-title-and-author links between some of them, and a sequence of merge, split and reset
-operations. After every operation the case records the correction rows
-(editionId -> workId) and the cards those rows must produce.
+The site and a publish group works with one model (see "Applying corrections on the
+site" in docs/superpowers/specs/2026-09-14-works-and-editions-design.md):
+  * map each correction row's key and target through copy id -> edition id; a row whose
+    key is unknown is ignored, and a row whose target is unknown leaves its edition
+    managed but joined to nothing; when several rows map to one edition, the row keyed
+    by the edition id wins, otherwise the smallest key;
+  * managed editions are those with a row;
+  * union along every automatic title-and-author link whose ends are both unmanaged;
+  * union each managed edition with its target;
+  * a card's id is its earliest-added edition.
+The indexer implements this in group_copies (rows folded into `work` overrides); the
+site implements it in groupWorks over the catalog's `workLinks` and the overlay's
+`workEdits`.
 
-Two mechanisms apply rows, and they must always agree:
-  * the site follows ids: an edition's row, otherwise its catalog workId, repeatedly;
-  * a publish folds each row into a managed `work` override and groups with union-find,
-    where a managed edition takes no automatic links and joins its row's target.
-This script refuses to write a fixture in which they ever disagree, or in which
-resetting every corrected card fails to restore automatic grouping. See the spec's
-"Why this model" section (docs/superpowers/specs/2026-09-14-works-and-editions-design.md).
+Each case is a small library of editions in added order, some with a second
+(non-canonical) copy, and automatic links between some editions, including editions
+that have not arrived yet. Its steps interleave publishes, which may add editions, with
+merge, split and reset operations made on the site and occasional stale rows (keyed by
+or naming a copy id, or an id no longer in the library). A publish records the catalog
+`workId` of every entry, which carries the rows of that moment. Every step records the
+rows and the cards, with their ids. The script refuses to write a fixture in which an
+operation does not do what it was asked, or in which resetting every corrected card
+fails to restore automatic grouping.
 
 Usage: scripts/gen-work-corrections-fixture.py [--out PATH] [--cases N] [--seed N]
        scripts/gen-work-corrections-fixture.py --explain-bridge
@@ -26,10 +37,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LETTERS = "abcdefghij"
+UNKNOWN = "z"
 
 
-def components(editions, links, managed, explicit):
-    parent = {e: e for e in editions}
+class Library:
+    """The editions present after some publish: `editions` in added order, `copies` mapping a
+    non-canonical copy id to its edition, and the automatic links between present editions."""
+
+    def __init__(self, editions, copies, links):
+        self.editions = list(editions)
+        present = set(self.editions)
+        self.copies = {c: e for c, e in copies.items() if e in present}
+        self.links = [tuple(link) for link in links if link[0] in present and link[1] in present]
+        self.edition_of = {e: e for e in self.editions} | self.copies
+
+    def added(self, edition):
+        return self.editions.index(edition)
+
+
+def _union_find(items):
+    parent = {i: i for i in items}
 
     def find(x):
         while parent[x] != x:
@@ -37,136 +64,193 @@ def components(editions, links, managed, explicit):
             x = parent[x]
         return x
 
-    for a, b in links:
-        if a in managed or b in managed:
+    def union(a, b):
+        parent[find(a)] = find(b)
+
+    return find, union
+
+
+def managed_targets(lib, rows):
+    """edition -> target edition (None when the target is unknown), for every managed edition."""
+    chosen = {}
+    for key in sorted(rows):
+        edition = lib.edition_of.get(key)
+        if edition is None:
             continue
-        parent[find(a)] = find(b)
-    for a, b in explicit:
-        parent[find(a)] = find(b)
+        if edition not in chosen or key == edition:
+            chosen[edition] = key
+    return {e: lib.edition_of.get(rows[k]) for e, k in chosen.items()}
+
+
+def cards(lib, rows):
+    """card id -> sorted edition ids."""
+    managed = managed_targets(lib, rows)
+    find, union = _union_find(lib.editions)
+    for a, b in lib.links:
+        if a not in managed and b not in managed:
+            union(a, b)
+    for e, target in managed.items():
+        if target is not None:
+            union(e, target)
     groups = {}
-    for e in editions:
+    for e in lib.editions:
         groups.setdefault(find(e), []).append(e)
-    return groups.values()
+    return {min(g, key=lib.added): sorted(g) for g in groups.values()}
 
 
-def catalog_work_ids(editions, links):
-    out = {}
-    for comp in components(editions, links, set(), []):
-        first = min(comp, key=editions.index)
-        for e in comp:
-            out[e] = first
-    return out
+def card_of(lib, rows):
+    return {e: cid for cid, members in cards(lib, rows).items() for e in members}
 
 
-def effective(editions, catalog, rows):
-    out = {}
-    for e in editions:
-        w, seen, cycle = rows.get(e, catalog[e]), {e}, False
-        while True:
-            nxt = rows[w] if w in rows else catalog[w]
-            if nxt == w:
-                break
-            if nxt in seen:
-                cycle = True
-                break
-            seen.add(w)
-            w = nxt
-        out[e] = catalog[e] if cycle else w
-    return out
+def automatic_scope(lib, editions):
+    """Every edition in the automatic components (links only, ignoring rows) of `editions`."""
+    auto = card_of(lib, {})
+    wanted = {auto[e] for e in editions}
+    return {e for e in lib.editions if auto[e] in wanted}
 
 
-def as_cards(groups):
-    return sorted(sorted(g) for g in groups)
+def reset_keys(lib, rows, card_editions):
+    scope = automatic_scope(lib, card_editions)
+    return sorted(k for k in rows if lib.edition_of.get(k) in scope)
 
 
-def site_cards(editions, catalog, rows):
-    by_card = {}
-    for e, w in effective(editions, catalog, rows).items():
-        by_card.setdefault(w, []).append(e)
-    return as_cards(by_card.values())
-
-
-def publish_cards(editions, links, rows):
-    explicit = [(e, w) for e, w in rows.items() if w != e]
-    return as_cards(components(editions, links, set(rows), explicit))
-
-
-def op_merge(editions, catalog, rows, source, target):
-    eff = effective(editions, catalog, rows)
+def op_merge(lib, rows, source, target):
     new = dict(rows)
-    for e in editions:
-        if eff[e] == source:
-            new[e] = target
+    for e in cards(lib, rows)[source]:
+        new[e] = target
     return new
 
 
-def op_split(editions, catalog, rows, edition):
-    eff = effective(editions, catalog, rows)
-    card = eff[edition]
-    rest = [e for e in editions if eff[e] == card and e != edition]
+def op_split(lib, rows, edition):
+    card = card_of(lib, rows)[edition]
+    rest = [e for e in cards(lib, rows)[card] if e != edition]
     if not rest:
         return dict(rows)
-    remainder = card if edition != card else min(rest, key=editions.index)
+    remainder = card if edition != card else min(rest, key=lib.added)
     new = dict(rows)
     new[edition] = edition
-    if edition == card:
-        new[remainder] = remainder
     for e in rest:
-        if e != remainder:
-            new[e] = remainder
+        new[e] = remainder
     return new
 
 
-def op_reset(editions, catalog, rows, card):
-    eff = effective(editions, catalog, rows)
-    members = {e for e in editions if eff[e] == card}
-    autos = {catalog[e] for e in members}
-    drop = members | {e for e in editions if catalog[e] in autos}
-    return {e: w for e, w in rows.items() if e not in drop}
+def op_reset(lib, rows, card):
+    drop = set(reset_keys(lib, rows, cards(lib, rows)[card]))
+    return {k: w for k, w in rows.items() if k not in drop}
+
+
+def catalog_work_ids(lib, rows):
+    of = card_of(lib, rows)
+    return {entry: of[e] for entry, e in sorted(lib.edition_of.items())}
+
+
+def _membership(groups):
+    return sorted(tuple(sorted(g)) for g in groups)
+
+
+def check_intent(lib, before_rows, after_rows, op):
+    """Raise when an operation did not produce the cards the admin asked for."""
+    before, after = cards(lib, before_rows), cards(lib, after_rows)
+    after_of = card_of(lib, after_rows)
+    kind = op["kind"]
+    if kind == "merge":
+        joined = sorted(before[op["from"]] + before[op["into"]])
+        others = [m for cid, m in before.items() if cid not in (op["from"], op["into"])]
+        ok = after[after_of[op["into"]]] == joined and _membership(after.values()) == _membership(others + [joined])
+    elif kind == "split":
+        s = op["edition"]
+        card = card_of(lib, before_rows)[s]
+        rest = [e for e in before[card] if e != s]
+        others = [m for cid, m in before.items() if cid != card]
+        ok = (after_rows == before_rows if not rest
+              else after[after_of[s]] == [s] and _membership(after.values()) == _membership(others + [[s], rest]))
+    elif kind == "reset":
+        members = before[op["card"]]
+        scope = automatic_scope(lib, members)
+        auto, auto_of = cards(lib, {}), card_of(lib, {})
+        ok = (not any(lib.edition_of.get(k) in scope for k in after_rows)
+              and all(set(auto[auto_of[e]]) <= set(after[after_of[e]]) for e in members))
+    else:
+        ok = True
+    if not ok:
+        raise SystemExit(f"{kind} did not do what was asked: {lib.editions} {lib.links} {lib.copies} "
+                         f"{op} rows {before_rows} -> {after_rows}: {before} -> {after}")
+
+
+def restores_automatic_grouping(lib, rows):
+    rows = dict(rows)
+    for _ in range(50):
+        pending = sorted(k for k in rows if k in lib.edition_of)
+        if not pending:
+            break
+        rows = op_reset(lib, rows, card_of(lib, rows)[lib.edition_of[pending[0]]])
+    return cards(lib, rows) == cards(lib, {})
 
 
 def make_case(rng):
-    n = rng.randint(2, 10)
-    editions = list(LETTERS[:n])
-    links = [[a, b] for i, a in enumerate(editions) for b in editions[i + 1:] if rng.random() < 0.3]
-    catalog = catalog_work_ids(editions, links)
-    rows, steps = {}, []
-    for _ in range(rng.randint(1, 8)):
-        cards = sorted(set(effective(editions, catalog, rows).values()))
+    total = rng.randint(2, len(LETTERS))
+    everything = list(LETTERS[:total])
+    links = [[a, b] for i, a in enumerate(everything) for b in everything[i + 1:] if rng.random() < 0.3]
+    copies = {e.upper(): e for e in everything if rng.random() < 0.25}
+    present = rng.randint(2, total)
+    lib = Library(everything[:present], copies, links)
+    rows = {}
+    steps = [{"op": {"kind": "publish"}, "library": present, "catalogWorkId": catalog_work_ids(lib, rows),
+              "rows": {}, "cards": cards(lib, rows)}]
+    for _ in range(rng.randint(2, 8)):
         roll = rng.random()
-        if roll < 0.35 and len(cards) > 1:
-            source, target = rng.sample(cards, 2)
+        current = sorted(cards(lib, rows), key=lib.added)
+        if roll < 0.2:
+            present = min(total, present + rng.choice([0, 1, 1, 2]))
+            lib = Library(everything[:present], copies, links)
+            op = {"kind": "publish"}
+        elif roll < 0.45 and len(current) > 1:
+            source, target = rng.sample(current, 2)
             op = {"kind": "merge", "from": source, "into": target}
-            rows = op_merge(editions, catalog, rows, source, target)
         elif roll < 0.7:
-            edition = rng.choice(editions)
-            op = {"kind": "split", "edition": edition}
-            rows = op_split(editions, catalog, rows, edition)
+            op = {"kind": "split", "edition": rng.choice(lib.editions)}
+        elif roll < 0.92:
+            op = {"kind": "reset", "card": rng.choice(current)}
         else:
-            card = rng.choice(cards)
-            op = {"kind": "reset", "card": card}
-            rows = op_reset(editions, catalog, rows, card)
-        site, publish = site_cards(editions, catalog, rows), publish_cards(editions, links, rows)
-        if site != publish:
-            raise SystemExit(f"model disagreement: {editions} {links} {rows}: site {site} publish {publish}")
-        steps.append({"op": op, "rows": dict(sorted(rows.items())), "cards": site})
-    restored, guard = dict(rows), 0
-    while restored and guard < 50:
-        first = next(iter(restored))
-        restored = op_reset(editions, catalog, restored, effective(editions, catalog, restored)[first])
-        guard += 1
-    if restored or site_cards(editions, catalog, {}) != publish_cards(editions, links, {}):
-        raise SystemExit(f"reset did not restore automatic grouping: {editions} {links}")
-    return {"editions": editions, "links": links, "catalogWorkId": catalog, "steps": steps}
+            ids = sorted(lib.edition_of) + [UNKNOWN]
+            op = {"kind": "stale", "key": rng.choice(ids), "target": rng.choice(ids)}
+        before = rows
+        if op["kind"] == "merge":
+            rows = op_merge(lib, rows, op["from"], op["into"])
+        elif op["kind"] == "split":
+            rows = op_split(lib, rows, op["edition"])
+        elif op["kind"] == "reset":
+            rows = op_reset(lib, rows, op["card"])
+        elif op["kind"] == "stale":
+            rows = {**rows, op["key"]: op["target"]}
+        check_intent(lib, before, rows, op)
+        step = {"op": op, "library": present, "rows": dict(sorted(rows.items())), "cards": cards(lib, rows)}
+        if op["kind"] == "publish":
+            step["catalogWorkId"] = catalog_work_ids(lib, rows)
+        steps.append(step)
+    if not restores_automatic_grouping(lib, rows):
+        raise SystemExit(f"reset did not restore automatic grouping: {lib.editions} {lib.links} {rows}")
+    return {"editions": everything, "copies": dict(sorted(copies.items())), "links": links, "steps": steps}
+
+
+def _arrives_linked_to_managed(case, prev, step):
+    if step["op"]["kind"] != "publish" or step["library"] == prev["library"]:
+        return False
+    lib = Library(case["editions"][:step["library"]], case["copies"], case["links"])
+    arrived = set(case["editions"][prev["library"]:step["library"]])
+    managed = set(managed_targets(lib, step["rows"]))
+    return any({a, b} & arrived and {a, b} & managed for a, b in lib.links)
 
 
 def generate(cases, seed):
     rng = random.Random(seed)
     made = [make_case(rng) for _ in range(cases)]
     kinds = {s["op"]["kind"] for c in made for s in c["steps"]}
-    if kinds != {"merge", "split", "reset"}:
+    if kinds != {"publish", "merge", "split", "reset", "stale"}:
         raise SystemExit(f"fixture does not exercise every operation: {sorted(kinds)}")
-    return {"version": 1, "cases": made}
+    if not any(_arrives_linked_to_managed(c, prev, step) for c in made for prev, step in zip(c["steps"], c["steps"][1:])):
+        raise SystemExit("fixture has no publish adding an edition linked to a managed edition")
+    return {"version": 2, "cases": made}
 
 
 def main(argv):
@@ -178,10 +262,9 @@ def main(argv):
     args = ap.parse_args(argv[1:])
 
     if args.explain_bridge:
-        editions, links = ["a", "b", "c"], [["a", "b"], ["b", "c"]]
-        catalog = catalog_work_ids(editions, links)
-        rows = op_split(editions, catalog, {}, "b")
-        print(json.dumps({"rows": dict(sorted(rows.items())), "cards": site_cards(editions, catalog, rows)}))
+        lib = Library(["a", "b", "c"], {}, [["a", "b"], ["b", "c"]])
+        rows = op_split(lib, {}, "b")
+        print(json.dumps({"rows": dict(sorted(rows.items())), "cards": cards(lib, rows)}, sort_keys=True))
         return 0
 
     out = Path(args.out)

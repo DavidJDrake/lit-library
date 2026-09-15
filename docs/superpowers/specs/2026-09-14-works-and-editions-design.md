@@ -1,7 +1,7 @@
 # Works and Editions — Design Spec
 
 **Date:** 2026-09-14
-**Status:** Approved design, pending implementation plan
+**Status:** Implemented; amended 2026-09-15 after the final review (see Amendment)
 **Backlog:** epic #30 (group duplicate editions), extended with admin corrections
 **Builds on:** `2026-09-04-user-categories-design.md` (overlay pattern, `admins` group,
 `pull-edits.py`), `2026-09-05-notifications-design.md` (`books_added`), the OPDS feed
@@ -14,6 +14,17 @@ so the catalog repeats itself: the same book bought in three bundles is three ca
 EPUB and PDF sometimes land on separate cards, and a new edition of a book sits unconnected to
 the old one. Publishing the Edgar Allan Poe bundle would add five more repeats, because
 *The Works of Edgar Allan Poe* volumes 1-5 already arrived with the Lovecraft-circle bundle.
+
+## Amendment (2026-09-15, from the final review)
+
+The final branch review found that the site's original way of applying corrections (following
+correction rows over the catalog `workId`) disagreed with the next publish once a publish had
+carried corrections, because the published `workId` already includes them. The review recommended,
+and this amendment adopts, **one grouping model run by both sides**: the catalog carries each
+edition's automatic work links (`workLinks`), and the site runs the indexer's union-find over them
+and the correction rows. The sections changed are "Ids and catalog shape", "Hash cache", "Override
+key", "Cards", "Per-card state" (clearing a status), "Applying corrections on the site",
+"Operations", "Why this model", "Error handling" and "Testing".
 
 This spec makes a card represent a **work**: every edition of a title by the same author,
 however many bundles its files arrived in. Grouping is automatic and conservative, and admins
@@ -95,6 +106,14 @@ Every catalog entry keeps its current `id`. Two fields are added:
 - **`workId`** — the `editionId` of the work's earliest-added edition, where an edition's added
   date is that of its earliest copy (ties: smallest `editionId`).
 
+- **`workLinks`** — only on an edition's canonical entry (the entry whose `id` is its
+  `editionId`), and only when non-empty: the sorted edition ids of every other edition linked to
+  this one by the title-and-author rule. The links are computed **ignoring overrides**, so a
+  managed edition still lists its automatic links; the field is symmetric (if `b` lists `a`, `a`
+  lists `b`). Every linked pair is listed, not just enough links to connect each work, because
+  removing a managed edition's links must leave the rest connected exactly as the indexer's
+  union-find does. Non-canonical copies and editions with no links omit the field.
+
 An ungrouped copy has `editionId == workId == id`.
 
 **Stability.** Because the canonical copy is the earliest-added, a copy that arrives later joins
@@ -120,8 +139,11 @@ categories and the site uses it to present the card, so both apply this one defi
 `metadata/hashes.json`, gitignored like `publish-state.json`, maps a copy's relative file path to
 `{size, mtime, sha256}`. A file is re-hashed only when its size or modification time changed or it
 has no entry. A missing or unreadable cache is rebuilt with a warning. Entries for files that no
-longer exist are dropped when the cache is written. The first run hashes the whole library once
-(about 95 GB); later runs hash only new or changed files.
+longer exist are dropped when the cache is written after a complete scan; a run limited with
+`--limit`, or one that stops early, drops nothing. The cache is written even when a run fails or is
+interrupted, and is checkpointed every 200 newly hashed files, so an interrupted first run keeps its
+progress. The first run hashes the whole library once (about 95 GB); later runs hash only new or
+changed files.
 
 ### Grouping step
 
@@ -137,7 +159,10 @@ One new key in `overrides.yaml`, keyed by an **edition id**:
   links: the title-and-author rule ignores it in both directions. If `<id>` is the edition's own id,
   the edition is its own work; otherwise it joins the work containing `<id>`. Edition-level links
   (identical files, ISBN) are unaffected. A target id not present in the library is ignored with a
-  warning, leaving the edition as its own work.
+  warning, leaving the edition managed and joined to nothing. An override (or correction row) keyed
+  by, or naming, a non-canonical copy id applies to that copy's edition. When several `work` keys
+  apply to one edition, the key that is the edition id wins, otherwise the smallest key. A key
+  naming no copy at all is ignored with a warning.
 
 `work` keys are owned by the app's admin corrections: `pull-edits.py` writes them from correction
 rows and removes any `work` key that has no row (see Folding corrections back). Corrections are
@@ -176,13 +201,14 @@ settles to a value some copy did not have; and every same-title pair kept apart,
 
 The site loads `catalog.json` and the overlay as today, then:
 
-1. **Reassigns work ids from admin corrections** (see Admin corrections) and resolves chains.
-2. **Groups entries into works** by `workId`, and editions within each work by `editionId`.
+1. **Works out each entry's work** from the catalog's `workLinks` and the admin corrections (see
+   Applying corrections on the site). Until the overlay has loaded, it uses the catalog `workId`.
+2. **Groups entries into works** by that work id, and editions within each work by `editionId`.
 3. **Presents each work as a book-shaped object** so the card, search, facets, sort and windowed
    grid keep working, with an added `editions` list.
 
-A catalog without `editionId`/`workId` (an old catalog with a new site) is treated as every entry
-being its own edition and work, which is today's behaviour.
+A catalog without `editionId`/`workId`/`workLinks` (an old catalog with a new site) is treated as
+every entry being its own edition and work with no automatic links, which is today's behaviour.
 
 A card shows its **display edition** (defined above).
 
@@ -227,6 +253,9 @@ because every copy keeps its id and its catalog entry.
 - **Write:** stored against the `workId` through the existing endpoint. Rows stored against other
   copies are left in place; they never override a `workId` row. If an edition is split off, the
   part keeping the `workId` keeps the status, and the split-off card resolves from its own copies.
+- **Clear:** choosing "No status" deletes the status of the `workId` and of every copy of the work
+  that has one, so the card shows no status afterwards. Deleting only the `workId` row would let the
+  read order find a status on another copy.
 
 Existing statuses therefore appear on the right card with no migration.
 
@@ -251,7 +280,9 @@ A correction is a row assigning an edition to a work: `editionId → workId`. Me
 are operations in the site that compute a set of rows to write or delete; the server stores rows
 and knows nothing of the operations. Corrections act on editions, never on individual copies.
 
-The **automatic work** of an edition is its catalog `workId`, before any correction.
+The **automatic work** of an edition is its connected component over the automatic work links
+(`workLinks`) alone, ignoring every correction row. It is not the catalog `workId`, which a publish
+computes with the folded corrections.
 
 ### Storage
 
@@ -260,28 +291,49 @@ One row per corrected edition in the library table: `pk = WORKEDIT`, `sk = <edit
 
 ### Applying corrections on the site
 
-For each catalog entry, the effective work id is computed by starting from `workEdits[editionId]` if
-present, otherwise the catalog `workId`, then repeatedly moving from the current id `w` to
-`workEdits[w]` if `w` has a row, otherwise to the catalog `workId` of `w`, until the id stops
-changing. If a cycle is detected, the entry uses its catalog `workId`, with a console warning.
+The site groups with the indexer's own model, so a publish of the folded rows gives exactly the
+cards the site shows, card ids included. Given the catalog's editions (an edition's added date is
+that of its canonical copy), its `workLinks`, and the overlay's `workEdits`:
+
+1. **Map rows to editions.** Each row's key and its target are mapped through copy id → edition
+   id, so a row keyed by, or naming, a non-canonical copy applies to that copy's edition. A row
+   whose key is no catalog entry is ignored, with a console warning. When several rows map to one
+   edition, the row keyed by the edition id wins, otherwise the smallest key.
+2. **Managed editions** are those that have a row after mapping.
+3. **Union along every automatic work link whose two ends are both unmanaged.**
+4. **Union each managed edition with its mapped target.** A target that is the edition itself joins
+   nothing; a target that is no catalog entry joins nothing, with a console warning (the edition
+   stays managed).
+5. **A card's id** is the earliest-added edition of its component (ties: smallest edition id).
+
+Before the overlay loads, the site groups by the catalog `workId`, which the last publish computed
+with the same model and the rows folded at that time.
+
+Union-find has no cycles to guard against: rows `a → b` and `b → a` simply put `a` and `b` on one card.
 
 ### Operations
 
-A card's editions are those whose effective work id is the card's id. Every edition an operation
-writes a row for becomes managed.
+A card's editions are those grouped onto it as above. Every edition an operation writes a row for
+becomes managed.
 
-- **Merge card X into card W** — write `e → W` for every edition `e` of X.
+- **Merge card X into card W** — write `e → W` for every edition `e` of X. W's editions keep their
+  rows and links, and X's editions only join W, so the result is exactly X and W together. The
+  merged card's id is its earliest edition, which may be one of X's.
 - **Split edition S out of card C** — let the remainder be C's other editions. If the remainder is
   empty, do nothing. Let R be C if S is not C, otherwise the earliest-added edition of the
-  remainder. Write `S → S`; if S is C, also write `R → R`; and write `e → R` for every other edition
-  `e` of the remainder.
-- **Reset card C to automatic grouping** — delete the rows of C's editions and of every edition whose
-  automatic work (catalog `workId`) is the automatic work of any edition of C.
+  remainder. Write `S → S`, and `e → R` for every edition `e` of the remainder, R included.
+- **Reset card C to automatic grouping** — the scope is every edition in the automatic work (links
+  only, ignoring rows) of any edition of C. Delete every row whose mapped key lies in the scope.
+  Afterwards every edition in the scope is unmanaged, so each of C's editions is at least on one card
+  with its whole automatic work. The **Reset** button shows when any row's mapped key lies in the
+  scope of the card's editions, so after a reset it reflects whether any such row remains (for
+  example a row on an edition outside the scope that still points into it).
 
 Writing explicit rows for the whole remainder, not only for S, is what keeps a split correct when S
 was the only automatic link joining two other editions (A matches S and S matches B, but A does not
-match B). Making every touched edition managed is what keeps a later merge from reviving automatic
-links that an earlier split removed. Both cases were found by testing the rules, as recorded below.
+match B). Writing `R → R` too is what keeps a split correct when R already had a row pointing at S.
+Making every touched edition managed is what keeps a later merge from reviving automatic links that
+an earlier split removed.
 
 **A managed edition is frozen.** A new copy arriving later will not join it through the
 title-and-author rule, though it still joins through identical files or ISBN, and still joins any
@@ -289,13 +341,27 @@ unmanaged edition it matches. Resetting the card makes its editions automatic ag
 
 ### Why this model
 
-The site applies corrections by following ids; a publish applies the folded `work` keys through the
-indexer's union-find. The two must always produce the same cards. During design, a simulation of both
-over 20,000 randomly generated libraries and 109,872 random merge, split and reset operations found
-two defects in earlier versions of these rules (the bridge case and the split-then-merge case above),
-and none in this version, where the site and a publish agreed after every operation. Resetting every
-corrected card restored automatic grouping in all 5,000 of the histories tested for it. The testing
-section requires the same property as a permanent test.
+The first version of this design had the site follow correction rows over the catalog `workId` and
+relied on a publish reproducing the result. That held only while the catalog `workId` was the
+automatic grouping. After `pull-edits.py` and a publish, the catalog `workId` already includes the
+corrections while the rows stay in DynamoDB, and the indexer names a merged work after its earliest
+edition rather than the merge target. The final review showed the site and the next publish then
+disagreeing: a merge into a card whose id had moved formed a cycle and appeared to do nothing, and a
+reset deleted rows while the card stayed merged until the next publish. Over 20,000 histories with
+publishes interleaved it counted thousands of mismatched resets and hundreds of mismatched merges
+and splits. Resolving over an automatic-only work id fixed a static library but still disagreed
+whenever a newly published edition linked to a managed one.
+
+Running the same union-find on both sides removes the disagreement by construction: the site and a
+publish compute the same function of the same inputs (editions, automatic links, rows). What remains
+to verify is that each operation's rows produce the card the admin asked for under that model. A
+simulation of 20,000 random histories, interleaving publishes that add editions (including editions
+linked to managed ones) with merge, split, reset and stale rows keyed by or naming copy ids or
+unknown ids, found one defect in the split rule (the remainder's own row pointing at S, fixed by
+writing `R → R`), and none after it: every operation did what was asked, the model's cards equalled
+the real indexer's cards with the rows folded, ids included, after every step, and resetting every
+corrected card restored automatic grouping. The testing section requires the same property as a
+permanent test.
 
 ### API
 
@@ -320,9 +386,14 @@ Shown only when the ID token's `cognito:groups` contains `admins`:
   choose the target.
 - **Split into its own card** beside each edition in the picker, when the work has more than one
   edition.
-- **Reset to automatic grouping** in the dialog, when any edition of the card has a correction row.
+- **Reset to automatic grouping** in the dialog, when any row lies in the card's reset scope (see
+  Operations).
 
-Each operation reloads the overlay, so the grid regroups immediately.
+Each operation reloads the overlay, so the grid regroups immediately. While an operation runs the
+dialog's controls are disabled. If it fails, an error toast shows and nothing else changes: the
+dialog stays on its card and the merge picker stays open. After a successful merge the dialog shows
+the card now holding the merge target; after a split or reset it shows the card now holding the
+edition it was showing, so a card whose id changed does not close the dialog.
 
 ### Folding corrections back
 
@@ -357,8 +428,8 @@ an edition's contents. Acquisition URLs keep carrying an existing copy id.
 | Hash cache missing or corrupt | Rebuilt, with a warning |
 | A scanned file unreadable during hashing | That file contributes no hash; warning; the book is still indexed |
 | `work` names an unknown id | The edition stays its own work, with a warning |
-| Admin correction names an unknown id | The edition shows as its own card, as it would after a publish |
-| Cycle in `workEdits` | Edits on the cycle ignored; catalog `workId` used; console warning |
+| Admin correction keyed by an unknown id | Row ignored, console warning; a publish ignores the folded key the same way |
+| Admin correction naming an unknown target | The edition shows as a managed card of its own, as it would after a publish; console warning |
 | Invalid correction or reset request | 400 with a message |
 | Non-admin correction or reset | 403 |
 | DynamoDB failure on a correction | 500, as for other library routes |
@@ -370,14 +441,15 @@ an edition's contents. Acquisition URLs keep carrying an existing copy id.
 |---|---|
 | Indexer grouping | Identical bytes; shared ISBN including ISBN-10 vs ISBN-13; one bundle's EPUB and PDF pairing; edition-marker removal; name splitting and "Last, First" inversion; chained links. Must stay apart: the six Dune titles, the two *Happiness* books, same-title copies with no authors and different files. |
 | Indexer ids | `editionId`/`workId` choose the earliest-added copy; a later copy joining leaves both unchanged; ties break on smallest id. |
-| Indexer overrides | `work` to another id joins that work; `work` to itself isolates; a managed edition takes no automatic links in either direction but keeps edition links; unknown target ignored. |
+| Indexer overrides | `work` to another id joins that work; `work` to itself isolates; a managed edition takes no automatic links in either direction but keeps edition links; unknown target ignored; keys and targets naming a non-canonical copy apply to its edition; the edition-id key wins over a copy-id key. |
+| Indexer catalog | `workLinks` on canonical entries only, symmetric, listing every automatic pair and ignoring overrides; omitted when empty. |
 | Indexer category | Override on any copy wins with the stated preference; otherwise the display edition's category. |
-| Hash cache | Reuses unchanged entries; re-hashes on size or mtime change; rebuilds when corrupt; drops vanished files. |
+| Hash cache | Reuses unchanged entries; re-hashes on size or mtime change; rebuilds when corrupt; drops vanished files after a complete scan only; saved when a run fails; checkpointed during a run. |
 | Grouping report | Writes the report; writes no catalog, covers, `added.json` or enrichment cache entries; never touches the network. |
 | Site grouping | Groups by work; display edition choice; format union; bundle facet lists a work under each bundle; counts count works; search across copies; "recently added" by edition date; old catalog without fields behaves as today. |
-| Site corrections | `workEdits` resolution including chains through untouched ids and the cycle guard. Merge, split of a later edition, split of the earliest edition and the bridge case each write the stated rows and give the expected cards; reset restores automatic grouping. Admin controls hidden for non-admins. |
-| Site state | Reading status and category read order; writes target `workId`; downloaded across copies. |
-| Correction consistency | A shared, generated fixture of randomised libraries and operation sequences, each step recording the rows and the resulting cards. The indexer's tests assert that grouping with the folded `work` keys gives those cards; the site's tests assert that resolving `workEdits` gives the same cards. The generator also asserts that resetting every corrected card restores automatic grouping. This pins the property the design was verified against, across both languages. |
+| Site corrections | Grouping over `workLinks` and `workEdits`: managed editions skip links, rows keyed by or naming copy ids, unknown keys and targets, catalog `workId` before the overlay loads. Merge, split of a later edition, split of the earliest edition and the bridge case each write the stated rows and give the expected cards; reset deletes the rows in scope. A failed operation leaves the dialog and merge picker as they were; operations disable the controls while running; after an operation the dialog shows the card now holding the edition it was showing. Admin controls hidden for non-admins. |
+| Site state | Reading status and category read order; writes target `workId`; clearing a status removes it from every copy that has one; downloaded across copies. |
+| Correction consistency | A shared, generated fixture (`scripts/gen-work-corrections-fixture.py`, the reference model) of randomised libraries with non-canonical copies, and step sequences that interleave publishes (some adding editions, including editions linked to managed ones) with merges, splits, resets and stale rows. Each step records the rows and the resulting cards with their ids; each publish records the catalog `workId` of every entry. The indexer's tests assert that grouping with the folded `work` keys gives those cards and ids. The site's tests rebuild the catalog the site would see (entries present at the last publish, `workLinks`, and that publish's `workId`), assert that grouping with the rows gives the same cards and ids, that grouping without an overlay gives the recorded catalog `workId`, and that the row builders reproduce the recorded rows. The generator refuses a fixture in which an operation does not do what was asked or resetting every corrected card fails to restore automatic grouping. |
 | Card layout | The editions chip leaves card height unchanged. |
 | Library Lambda | Write and reset: success, validation failures, 403 for non-admins, single transaction for writes; overlay includes `workEdits`. Routes asserted against the real JWT authorizer, as existing routes are. |
 | Download Lambda | OPDS lists one publication per edition; acquisition uses the most recently added copy per format. |
