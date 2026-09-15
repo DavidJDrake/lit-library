@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import subprocess
 import sys
@@ -6,6 +7,17 @@ from pathlib import Path
 import yaml
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "pull-edits.py"
+
+
+def _load_module():
+    """pull-edits.py has a hyphen in its name, so it can't be imported normally."""
+    spec = importlib.util.spec_from_file_location("pull_edits", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+pull_edits = _load_module()
 
 HEADER = "# Manual metadata overrides. Keyed by book id.\n# Keep this comment.\n"
 
@@ -147,3 +159,21 @@ def test_unchanged_file_is_not_rewritten(tmp_path):
     out = run(cfg, scan_file)
     assert overrides.read_text() == first
     assert "already up to date" in out
+
+
+def test_rewrite_is_a_noop_for_an_unquoted_numeric_top_level_key():
+    text = "aaaa:\n  year: 1\n1234567890123:\n  year: 2\nbbbb:\n  year: 3\n"
+    # As main() does since the fix: normalise every key to str before calling rewrite.
+    merged = {str(k): v for k, v in yaml.safe_load(text).items()}
+    assert pull_edits.rewrite(text, merged) == text
+
+
+def test_rewrite_changes_only_the_numeric_entry_in_place():
+    text = "aaaa:\n  year: 1\n1234567890123:\n  year: 2\nbbbb:\n  year: 3\n"
+    merged = {str(k): v for k, v in yaml.safe_load(text).items()}
+    merged["1234567890123"] = {"year": 9}
+    out = pull_edits.rewrite(text, merged)
+    # The changed entry is re-rendered, and yaml.safe_dump quotes a digit-only string key
+    # so a later read doesn't parse it back into an int (which would reintroduce the bug).
+    assert out == "aaaa:\n  year: 1\n'1234567890123':\n  year: 9\nbbbb:\n  year: 3\n"
+    assert out.index("aaaa:") < out.index("1234567890123") < out.index("bbbb:")

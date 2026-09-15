@@ -103,7 +103,10 @@ def render_entry(key: str, value) -> str:
 
 
 def rewrite(text: str, merged: dict) -> str:
-    parsed = yaml.safe_load(text) or {}
+    # yaml.safe_load turns an unquoted all-digit top-level key (e.g. a hex book id that
+    # happens to be all digits) into an int; top_level_chunks always returns it as the str
+    # it appears as in the file, so normalise here to keep the two comparable.
+    parsed = {str(k): v for k, v in (yaml.safe_load(text) or {}).items()}
     out: list[str] = []
     present: set[str] = set()
     for key, chunk in top_level_chunks(text):
@@ -177,7 +180,9 @@ def main(argv: list[str]) -> int:
 
     overrides_path = cfg.metadata_dir / "overrides.yaml"
     text = overrides_path.read_text() if overrides_path.exists() else ""
-    existing = yaml.safe_load(text) or {}
+    # Normalise keys to str: an unquoted all-digit top-level key parses as an int otherwise,
+    # which would no longer match the corresponding str key elsewhere (see rewrite()).
+    existing = {str(k): v for k, v in (yaml.safe_load(text) or {}).items()}
     merged, site_categories, books, work_rows = merge(existing, items)
 
     catalog_path = cfg.output_dir / "catalog.json"
