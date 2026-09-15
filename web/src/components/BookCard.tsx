@@ -14,6 +14,9 @@ export default function BookCard({ book, onOpen }: Props) {
             every row matches it. */}
         {book.readingStatus && <span className="status-chip" data-status={book.readingStatus}>{STATUS_LABELS[book.readingStatus]}</span>}
         {book.downloaded && <span className="downloaded-chip" title="Downloaded — detected automatically from your download history">Downloaded</span>}
+        {book.editions && book.editions.length > 1 && (
+          <span className="editions-chip">{book.editions.length} editions</span>
+        )}
       </span>
       <span className="meta">
         <span className="title">{book.title}</span>

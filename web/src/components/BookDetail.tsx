@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatSize } from "../catalog/search";
-import { READING_STATUSES, type Book, type ReadingStatus } from "../catalog/types";
+import { READING_STATUSES, type Book, type Edition, type EditionFormat, type ReadingStatus } from "../catalog/types";
+import { editionMarker } from "../catalog/works";
 import type { KindleDevice } from "../kindle/api";
 import { KINDLE_MAX_BYTES, kindleFormat } from "../kindle/limits";
 import KindleDeviceForm from "./KindleDeviceForm";
@@ -14,14 +15,14 @@ interface KindleDialogProps {
   defaultDeviceId: string | null;
   loadFailed?: boolean;
   sender: string;
-  onSend(book: Book, format?: "epub" | "pdf", deviceId?: string): Promise<void>;
+  onSend(copyId: string, format?: "epub" | "pdf", deviceId?: string): Promise<void>;
   onSaveDevice(label: string, address: string): Promise<void>;
 }
 
 interface Props {
   book: Book | null;
   onClose: () => void;
-  onDownload: (book: Book, format: string) => Promise<void>;
+  onDownload: (copyId: string, format: string) => Promise<void>;
   categories: string[];
   onChangeCategory: (book: Book, category: string) => Promise<void>;
   onSuggest: (name: string, bookId: string) => Promise<void>;
@@ -32,6 +33,15 @@ interface Props {
 export const SUGGEST_OPTION = "__suggest__";
 const NO_STATUS = "";
 
+function editionLabel(e: Edition): string {
+  return [
+    e.year ? String(e.year) : "Undated",
+    editionMarker(e.title),
+    e.formats.map((f) => f.type.toUpperCase()).join("/"),
+    e.downloaded ? "downloaded" : null,
+  ].filter(Boolean).join(" · ");
+}
+
 export default function BookDetail({ book, onClose, onDownload, categories, onChangeCategory, onSuggest, onChangeStatus, kindle }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
@@ -39,25 +49,40 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
   const [kindleState, setKindleState] = useState<
     { kind: "idle" } | { kind: "sending" } | { kind: "form"; format: "epub" | "pdf" }
   >({ kind: "idle" });
+  const [editionId, setEditionId] = useState<string | null>(null);
 
+  // Keyed on the id, not the object: work cards are rebuilt whenever the overlay changes (a
+  // status set anywhere in the library), and that must not reset this dialog's edition choice
+  // or close a half-filled Kindle form.
   useEffect(() => {
     setBusy(false);
     setSuggesting(false);
     setKindleState({ kind: "idle" });
+    setEditionId(book?.editions?.[0]?.id ?? null);
     const el = ref.current;
     if (!el) return;
     if (book && !el.open) el.showModal();
     if (!book && el.open) el.close();
-  }, [book]);
+  }, [book?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!book) return <dialog ref={ref} className="detail" onClose={onClose} />;
 
-  const meta = [book.publisher, book.year ? String(book.year) : null].filter(Boolean).join(" · ");
+  const editions = book.editions ?? [];
+  const edition = editions.find((e) => e.id === editionId) ?? editions[0];
+  const view = edition
+    ? { title: edition.title, authors: edition.authors, publisher: edition.publisher, year: edition.year,
+        description: edition.description, coverUrl: edition.coverUrl, formats: edition.formats }
+    : { title: book.title, authors: book.authors, publisher: book.publisher, year: book.year,
+        description: book.description, coverUrl: book.coverUrl,
+        formats: book.formats.map((f): EditionFormat => ({ ...f, copyId: book.id })) };
+  const meta = [view.publisher, view.year ? String(view.year) : null].filter(Boolean).join(" · ");
+  const bundles = book.bundles ?? [book.bundle];
+  const copyIdFor = (format: string) => view.formats.find((f) => f.type === format)?.copyId ?? book.id;
 
   async function download(format: string) {
     setBusy(true);
     try {
-      await onDownload(book!, format);
+      await onDownload(copyIdFor(format), format);
     } finally {
       setBusy(false);
     }
@@ -73,7 +98,7 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
     if (noneKnown) { setKindleState({ kind: "form", format }); return; }
     setKindleState({ kind: "sending" });
     try {
-      await kindle.onSend(book!, format, deviceId);
+      await kindle.onSend(copyIdFor(format), format, deviceId);
       setKindleState({ kind: "idle" });
     } catch (e) {
       setKindleState((e as { code?: string }).code === "no_address" ? { kind: "form", format } : { kind: "idle" });
@@ -105,13 +130,13 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
       onClick={(e) => { if (e.target === ref.current) onClose(); }}>
       <button className="close" aria-label="Close" onClick={onClose}>×</button>
       <div className="detail-body">
-        <div className="cover">{book.coverUrl && <img src={book.coverUrl} alt="" />}</div>
+        <div className="cover">{view.coverUrl && <img src={view.coverUrl} alt="" />}</div>
         <div>
-          <h2>{book.title}</h2>
-          {book.authors.length > 0 && <p className="meta">{book.authors.join(", ")}</p>}
+          <h2>{view.title}</h2>
+          {view.authors.length > 0 && <p className="meta">{view.authors.join(", ")}</p>}
           {meta && <p className="meta">{meta}</p>}
           {categories.length === 0 ? (
-            <p className="meta">{book.category} · {book.bundle}</p>
+            <p className="meta">{book.category}</p>
           ) : (
             <p className="meta category-row">
               <select aria-label="Category" value={suggesting ? SUGGEST_OPTION : book.category} disabled={busy}
@@ -120,11 +145,19 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                 <option value={SUGGEST_OPTION}>Suggest a new category…</option>
               </select>
-              {" · "}{book.bundle}
             </p>
           )}
           {suggesting && (
             <SuggestForm label="New category name" onSubmit={(name) => onSuggest(name, book!.id)} onCancel={() => setSuggesting(false)} />
+          )}
+          <p className="meta">In: {bundles.join(", ")}</p>
+          {editions.length > 1 && edition && (
+            <p className="meta edition-row">
+              <select aria-label="Edition" value={edition.id} disabled={busy}
+                onChange={(e) => setEditionId(e.target.value)}>
+                {editions.map((e) => <option key={e.id} value={e.id}>{editionLabel(e)}</option>)}
+              </select>
+            </p>
           )}
           <p className="meta status-row">
             <select aria-label="Reading status" value={book.readingStatus ?? NO_STATUS} disabled={busy}
@@ -139,18 +172,19 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
               <span className="downloaded-tag" title="Detected automatically from your download history">Downloaded (auto)</span>
             )}
           </p>
-          {book.description && <div className="desc">{book.description}</div>}
+          {view.description && <div className="desc">{view.description}</div>}
           <div className="downloads">
-            {book.formats.map((f) => (
+            {view.formats.map((f) => (
               <button key={f.type} className="btn" disabled={busy} onClick={() => void download(f.type)}>
                 Download {f.type.toUpperCase()} ({formatSize(f.size)})
               </button>
             ))}
           </div>
           {kindle && (() => {
-            const primary = kindleFormat(book);
+            const kindleBook = { ...book, formats: view.formats };
+            const primary = kindleFormat(kindleBook);
             if (!primary) return null;
-            const pdf = primary.type === "epub" ? kindleFormat(book, "pdf") : undefined;
+            const pdf = primary.type === "epub" ? kindleFormat(kindleBook, "pdf") : undefined;
             const tooLarge = primary.size > KINDLE_MAX_BYTES;
             const sending = kindleState.kind === "sending";
             const devices = kindle.devices ?? [];
@@ -162,7 +196,7 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
                       const format = kindleState.format;
                       await kindle.onSaveDevice(label, address);
                       setKindleState({ kind: "sending" });
-                      try { await kindle.onSend(book!, format, undefined); } finally { setKindleState({ kind: "idle" }); }
+                      try { await kindle.onSend(copyIdFor(format), format, undefined); } finally { setKindleState({ kind: "idle" }); }
                     }}
                     onCancel={() => setKindleState({ kind: "idle" })} />
                 ) : (

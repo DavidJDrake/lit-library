@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { Book } from "../catalog/types";
+import type { Book, Edition } from "../catalog/types";
 import type { KindleDevice } from "../kindle/api";
 import BookDetail from "./BookDetail";
 
@@ -33,7 +33,7 @@ describe("BookDetail", () => {
     const onDownload = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
     render(<BookDetail book={book} onClose={() => {}} onDownload={onDownload} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     await userEvent.click(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" }));
-    expect(onDownload).toHaveBeenCalledWith(book, "epub");
+    expect(onDownload).toHaveBeenCalledWith("1", "epub");
     expect(screen.getByRole("button", { name: /Download PDF/ })).toBeDisabled();
     resolve();
     await waitFor(() => expect(screen.getByRole("button", { name: /Download PDF/ })).toBeEnabled());
@@ -58,7 +58,8 @@ describe("BookDetail", () => {
   it("renders the category as text when no categories are available", () => {
     render(<BookDetail book={book} onClose={() => {}} onDownload={async () => {}} categories={[]} onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
     expect(screen.queryByRole("combobox", { name: "Category" })).toBeNull();
-    expect(screen.getByText(/Security & Hacking · Hacking by No Starch Press/)).toBeInTheDocument();
+    expect(screen.getByText("Security & Hacking")).toBeInTheDocument();
+    expect(screen.getByText("In: Hacking by No Starch Press")).toBeInTheDocument();
   });
   it("moves the book via the category select", async () => {
     const onChangeCategory = vi.fn().mockResolvedValue(undefined);
@@ -113,12 +114,12 @@ describe("BookDetail", () => {
     k.onSend = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
-    expect(k.onSend).toHaveBeenCalledWith(book, "epub", "a1");
+    expect(k.onSend).toHaveBeenCalledWith("1", "epub", "a1");
     expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
     resolve();
     await waitFor(() => expect(screen.getByRole("button", { name: "Send to Kindle" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "Send PDF to Kindle" }));
-    expect(k.onSend).toHaveBeenLastCalledWith(book, "pdf", "a1");
+    expect(k.onSend).toHaveBeenLastCalledWith("1", "pdf", "a1");
   });
   it("disables the button with a tooltip when the file is too large", () => {
     const huge = { ...book, formats: [{ type: "epub", size: 29 * 1024 * 1024, s3Key: "a" }] };
@@ -144,7 +145,7 @@ describe("BookDetail", () => {
     k.onSend = vi.fn().mockRejectedValue(Object.assign(new Error("no_address"), { code: "no_address" }));
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getByRole("button", { name: "Send to Kindle" }));
-    expect(k.onSend).toHaveBeenCalledWith(book, "epub", "a1");
+    expect(k.onSend).toHaveBeenCalledWith("1", "epub", "a1");
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Your Kindle email" })).toBeInTheDocument());
   });
   it("returns to idle (not the form) when a send rejects for a reason other than no_address", async () => {
@@ -162,9 +163,9 @@ describe("BookDetail", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Scribe");
     await userEvent.type(screen.getByRole("textbox", { name: "Your Kindle email" }), "jay_abc@kindle.com");
     await userEvent.click(screen.getByRole("button", { name: "Save and send" }));
-    await waitFor(() => expect(k.onSend).toHaveBeenCalledWith(book, "pdf", undefined));
+    await waitFor(() => expect(k.onSend).toHaveBeenCalledWith("1", "pdf", undefined));
     expect(k.onSaveDevice).toHaveBeenCalledWith("Scribe", "jay_abc@kindle.com");
-    expect(k.onSend).not.toHaveBeenCalledWith(book, "epub", undefined);
+    expect(k.onSend).not.toHaveBeenCalledWith("1", "epub", undefined);
   });
   it("passes the chosen device through to onSend", async () => {
     const devices: KindleDevice[] = [
@@ -176,7 +177,7 @@ describe("BookDetail", () => {
     render(<BookDetail book={book} {...base} kindle={k} />);
     await userEvent.click(screen.getAllByRole("button", { name: "Choose a device" })[0]);
     await userEvent.click(screen.getByRole("menuitemradio", { name: "Phone" }));
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith(book, "epub", "b2"));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("1", "epub", "b2"));
   });
   it("reopens the form when the server says the device list is empty", async () => {
     const onSend = vi.fn(async () => { throw Object.assign(new Error("no"), { code: "no_address" }); });
@@ -229,6 +230,64 @@ describe("BookDetail", () => {
     it("does not show the downloaded indicator when the book has not been downloaded", () => {
       render(<BookDetail book={book} {...base} />);
       expect(screen.queryByText(/Downloaded/)).toBeNull();
+    });
+  });
+
+  describe("editions", () => {
+    const edition = (id: string, over: Partial<Edition> = {}): Edition => ({
+      id, title: "Learning DevOps", authors: ["Mikael Krief"], description: `About ${id}`, publisher: "Packt", year: 2019,
+      coverUrl: null, subjects: [], category: "Tech & Programming", bundles: ["B"], copyIds: [id], addedAt: "2026-01-01",
+      downloaded: false, formats: [{ type: "epub", size: 1024 * 1024, s3Key: `k-${id}`, copyId: id }], ...over,
+    });
+    const work: Book = {
+      ...book, id: "old", title: "Learning DevOps - Second Edition", year: 2022, bundles: ["CICD Mastery", "Devops Bundle"],
+      editions: [
+        edition("new", { title: "Learning DevOps - Second Edition", year: 2022, description: "About new",
+          formats: [{ type: "epub", size: 2 * 1024 * 1024, s3Key: "k-new", copyId: "copy-new" }] }),
+        edition("old", { downloaded: true }),
+      ],
+    };
+    const renderWork = (b: Book, onDownload = vi.fn(async () => {})) => render(
+      <BookDetail book={b} onClose={() => {}} onDownload={onDownload} categories={[]}
+        onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />,
+    );
+
+    it("lists editions newest first and switches details and downloads to the chosen edition", async () => {
+      const onDownload = vi.fn(async () => {});
+      renderWork(work, onDownload);
+      const picker = screen.getByRole("combobox", { name: "Edition" });
+      expect(within(picker).getAllByRole("option").map((o) => o.textContent)).toEqual([
+        "2022 · Second Edition · EPUB", "2019 · EPUB · downloaded",
+      ]);
+      expect(screen.getByText("About new")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Download EPUB (2.0 MB)" }));
+      expect(onDownload).toHaveBeenCalledWith("copy-new", "epub");
+      await userEvent.selectOptions(picker, "old");
+      expect(screen.getByRole("heading", { name: "Learning DevOps" })).toBeInTheDocument();
+      expect(screen.getByText("About old")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Download EPUB (1.0 MB)" }));
+      expect(onDownload).toHaveBeenLastCalledWith("old", "epub");
+    });
+
+    it("lists every bundle the work appears in", () => {
+      renderWork(work);
+      expect(screen.getByText("In: CICD Mastery, Devops Bundle")).toBeInTheDocument();
+    });
+
+    it("keeps the chosen edition when the same work re-renders as a new object", async () => {
+      const { rerender } = renderWork(work);
+      await userEvent.selectOptions(screen.getByRole("combobox", { name: "Edition" }), "old");
+      rerender(<BookDetail book={{ ...work }} onClose={() => {}} onDownload={async () => {}} categories={[]}
+        onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
+      expect(screen.getByRole("combobox", { name: "Edition" })).toHaveValue("old");
+    });
+
+    it("shows no edition picker for a book with one edition, and downloads by its own id", async () => {
+      const onDownload = vi.fn(async () => {});
+      renderWork(book, onDownload);
+      expect(screen.queryByRole("combobox", { name: "Edition" })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Download EPUB (12.3 MB)" }));
+      expect(onDownload).toHaveBeenCalledWith("1", "epub");
     });
   });
 });

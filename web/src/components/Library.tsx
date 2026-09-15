@@ -128,10 +128,10 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     });
   }, []);
 
-  const download = useCallback(async (book: Book, format: string) => {
+  const download = useCallback(async (copyId: string, format: string) => {
     try {
       const token = await getIdToken();
-      const ticket = await requestDownload(apiUrl, token, book.id, format, fetchFn);
+      const ticket = await requestDownload(apiUrl, token, copyId, format, fetchFn);
       startDownload(ticket.url, navigate);
     } catch (e) {
       fail((e as Error).message);
@@ -179,9 +179,9 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
 
   const kindleForDialog = useMemo(() => kindle && {
     devices: kindle.devices, defaultDeviceId: kindle.defaultDeviceId, sender: kindle.sender, loadFailed: kindle.loadFailed,
-    onSend: async (book: Book, format?: "epub" | "pdf", deviceId?: string) => {
+    onSend: async (copyId: string, format?: "epub" | "pdf", deviceId?: string) => {
       try {
-        const r = await kindle.send(book.id, format, deviceId);
+        const r = await kindle.send(copyId, format, deviceId);
         ok(`Sent to ${r.deviceLabel || r.sentTo} — it usually arrives within a couple of minutes`);
       } catch (e) {
         // no_address is handled by the dialog reopening the inline form, not a toast; every
