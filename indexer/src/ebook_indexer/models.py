@@ -46,3 +46,5 @@ class Book:
     formats: list[BookFormat]
     cover_url: str | None
     added_at: str
+    edition_id: str = ""
+    work_id: str = ""

@@ -9,6 +9,9 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from .categorize import valid_categories
+from .models import Book
+
 # Only explicit edition markers. Subtitles are deliberately never removed: stripping
 # text after a colon merged six different Dune novels into one work.
 _ORDINAL = r"\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth"
@@ -188,3 +191,41 @@ def group_copies(copies: list[CopyRecord], work_overrides: dict[str, str] | None
             work_of_edition[m] = canonical
     work_id = {cid: work_of_edition[edition_id[cid]] for cid in ids}
     return Grouping(edition_id, work_id, links, frozenset(managed), warnings)
+
+
+def display_edition(edition_ids: Iterable[str], canonical: dict[str, Book]) -> str:
+    # Stable sorts, applied last-priority first: smallest id, then latest added, then highest year.
+    ordered = sorted(set(edition_ids))
+    ordered.sort(key=lambda e: canonical[e].added_at, reverse=True)
+    ordered.sort(key=lambda e: canonical[e].year if canonical[e].year is not None else float("-inf"), reverse=True)
+    return ordered[0]
+
+
+@dataclass(frozen=True)
+class CategoryChange:
+    work_id: str
+    before: frozenset[str]
+    after: str
+
+
+def settle_categories(books: list[Book], overrides: dict) -> list[CategoryChange]:
+    """Give every copy of a work one category. Category is a shelf, which belongs to the work."""
+    valid = valid_categories(overrides)
+    by_work: dict[str, list[Book]] = defaultdict(list)
+    for b in books:
+        by_work[b.work_id].append(b)
+    changes = []
+    for work_id, members in by_work.items():
+        before = frozenset(b.category for b in members)
+        overridden = [b for b in members
+                      if isinstance(overrides.get(b.id), dict) and overrides[b.id].get("category") in valid]
+        if overridden:
+            category = min(overridden, key=lambda b: (b.id != work_id, b.added_at, b.id)).category
+        else:
+            canonical = {b.edition_id: b for b in members if b.id == b.edition_id}
+            category = canonical[display_edition(canonical, canonical)].category
+        for b in members:
+            b.category = category
+        if len(before) > 1 or category not in before:
+            changes.append(CategoryChange(work_id, before, category))
+    return sorted(changes, key=lambda c: c.work_id)
