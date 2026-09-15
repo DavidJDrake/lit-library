@@ -1,4 +1,6 @@
 import re
+import sys
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path, PurePosixPath
 
@@ -9,9 +11,11 @@ from .extract_archive import classify_archive
 from .extract_epub import extract_epub
 from .extract_pdf import extract_pdf
 from .group import group_files
+from .hashes import HashCache
 from .jsonio import read_json_or, write_json_atomic
 from .models import Book, BookFormat, ExtractedMeta, ScannedFile
 from .scan import scan_library
+from .works import CategoryChange, CopyRecord, Grouping, group_copies, settle_categories
 
 
 def prettify(stem: str) -> str:
@@ -37,14 +41,20 @@ def _publisher_from_bundle(bundle: str) -> str | None:
 
 def build_books(root: Path, overrides_path: Path,
                 added_path: Path, enricher: Enricher | None = None,
-                limit: int | None = None) -> tuple[list[Book], dict[str, bytes]]:
+                limit: int | None = None, hash_cache_path: Path | None = None,
+                write_added: bool = True, with_covers: bool = True,
+                on_grouped: Callable[[Grouping, list[CategoryChange]], None] | None = None,
+                ) -> tuple[list[Book], dict[str, bytes]]:
     groups = group_files(scan_library(root))
     overrides = load_overrides(overrides_path)
     added = read_json_or(added_path, {})
     today = date.today().isoformat()
+    hash_cache = HashCache(hash_cache_path)
 
     books: list[Book] = []
     covers: dict[str, bytes] = {}
+    isbns: dict[str, str | None] = {}
+    file_hashes: dict[str, frozenset[str]] = {}
     for bid, files in sorted(groups.items(), key=lambda kv: kv[1][0].rel_path):
         if limit is not None and len(books) >= limit:
             break
@@ -72,12 +82,37 @@ def build_books(root: Path, overrides_path: Path,
             added_at=added.get(bid, today),
         )
         apply_overrides(book, overrides)
-        if meta.cover:
+        isbns[bid] = meta.isbn
+        file_hashes[bid] = frozenset(
+            h for f in files if (h := hash_cache.sha256(f.path, f.rel_path)) is not None
+        )
+        if with_covers and meta.cover:
             thumb = thumbnail_webp(meta.cover)
             if thumb:
                 covers[bid] = thumb
         added.setdefault(bid, today)
         books.append(book)
 
-    write_json_atomic(added_path, added)
+    # Grouping reads titles and authors after overrides, so a corrected title groups correctly.
+    work_overrides = {k: str(v["work"]) for k, v in overrides.items() if isinstance(v, dict) and v.get("work")}
+    grouping = group_copies([
+        CopyRecord(id=b.id, bundle=b.bundle, title=b.title, authors=tuple(b.authors),
+                   formats=frozenset(f.type for f in b.formats), file_hashes=file_hashes[b.id],
+                   isbn=isbns[b.id], added_at=b.added_at)
+        for b in books
+    ], work_overrides)
+    for b in books:
+        b.edition_id = grouping.edition_id[b.id]
+        b.work_id = grouping.work_id[b.id]
+    changes = settle_categories(books, overrides)
+
+    for warning in [*hash_cache.warnings, *grouping.warnings]:
+        print(f"warning: {warning}", file=sys.stderr)
+    if hash_cache.hashed:
+        print(f"hashed {hash_cache.hashed} new or changed file(s)")
+    hash_cache.save()
+    if on_grouped is not None:
+        on_grouped(grouping, changes)
+    if write_added:
+        write_json_atomic(added_path, added)
     return books, covers

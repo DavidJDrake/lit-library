@@ -75,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
             added_path=cfg.metadata_dir / "added.json",
             enricher=enricher,
             limit=args.limit,
+            hash_cache_path=cfg.metadata_dir / "hashes.json",
         )
         catalog_path = write_outputs(books, covers, cfg.output_dir)
         n_covers = sum(1 for b in books if b.cover_url)

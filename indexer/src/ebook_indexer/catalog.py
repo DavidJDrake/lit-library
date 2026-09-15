@@ -20,6 +20,8 @@ def write_outputs(books: list[Book], covers_by_id: dict[str, bytes],
         "books": [
             {
                 "id": b.id,
+                "editionId": b.edition_id or b.id,
+                "workId": b.work_id or b.id,
                 "title": b.title,
                 "authors": b.authors,
                 "description": b.description,

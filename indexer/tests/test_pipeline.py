@@ -80,3 +80,67 @@ def test_write_outputs_produces_catalog_and_covers(tmp_path, make_epub, make_pdf
 def test_prettify():
     assert prettify("attacking_network_protocols") == "Attacking Network Protocols"
     assert prettify("Already Nice Name") == "Already Nice Name"
+
+
+def test_identical_copies_in_two_bundles_share_an_edition_and_work(tmp_path, make_epub):
+    root = tmp_path / "library"
+    src = make_epub(dest=root / "Bundle One" / "EPUB" / "the_black_company.epub",
+                    title="The Black Company", authors=("Glen Cook",), with_cover=False)
+    dest = root / "Bundle Two" / "EPUB" / "the_black_company.epub"
+    dest.parent.mkdir(parents=True)
+    dest.write_bytes(src.read_bytes())
+    books, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml",
+                           added_path=tmp_path / "added.json", hash_cache_path=tmp_path / "hashes.json")
+    assert len(books) == 2
+    assert len({b.edition_id for b in books}) == 1
+    assert len({b.work_id for b in books}) == 1
+    assert (tmp_path / "hashes.json").exists()
+    data = json.loads(write_outputs(books, {}, tmp_path / "out").read_text())
+    assert {e["workId"] for e in data["books"]} == {books[0].work_id}
+    assert list(data["books"][0])[:3] == ["id", "editionId", "workId"]
+
+
+def test_categories_settle_across_a_work(tmp_path, make_epub):
+    root = tmp_path / "library"
+    make_epub(dest=root / "Hacking by No Starch Press" / "EPUB" / "linux_basics.epub",
+              title="Linux Basics", authors=("Ann Author",), date="2019-01-01", isbn="9780306406157",
+              description="first", with_cover=False)
+    make_epub(dest=root / "Python Programming Bundle" / "EPUB" / "linux_basics.epub",
+              title="Linux Basics", authors=("Ann Author",), date="2024-01-01", isbn="9781593277505",
+              description="second", with_cover=False)
+    captured = {}
+    books, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json",
+                           on_grouped=lambda g, c: captured.update(grouping=g, changes=c))
+    assert len({b.work_id for b in books}) == 1
+    assert len({b.edition_id for b in books}) == 2
+    assert {b.category for b in books} == {"Tech & Programming"}
+    assert [c.before for c in captured["changes"]] == [frozenset({"Security & Hacking", "Tech & Programming"})]
+
+
+def test_write_added_false_leaves_added_json_untouched(tmp_path, make_epub, make_pdf):
+    root = make_library(tmp_path, make_epub, make_pdf)
+    added = tmp_path / "added.json"
+    added.write_text("{}")
+    build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=added, write_added=False)
+    assert added.read_text() == "{}"
+
+
+def test_with_covers_false_skips_thumbnails(tmp_path, make_epub, make_pdf):
+    root = make_library(tmp_path, make_epub, make_pdf)
+    _, covers = build_books(root=root, overrides_path=tmp_path / "overrides.yaml",
+                            added_path=tmp_path / "added.json", with_covers=False)
+    assert covers == {}
+
+
+def test_work_override_in_overrides_yaml_is_honoured(tmp_path, make_epub):
+    root = tmp_path / "library"
+    make_epub(dest=root / "One" / "EPUB" / "t.epub", title="Title", authors=("Ann Author",), isbn="9780306406157",
+              description="1", with_cover=False)
+    make_epub(dest=root / "Two" / "EPUB" / "t.epub", title="Title", authors=("Ann Author",), isbn="9781593277505",
+              description="2", with_cover=False)
+    first, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json")
+    assert len({b.work_id for b in first}) == 1
+    later = max(first, key=lambda b: b.id)
+    (tmp_path / "overrides.yaml").write_text(f"{later.id}:\n  work: {later.id}\n")
+    second, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json")
+    assert len({b.work_id for b in second}) == 2
