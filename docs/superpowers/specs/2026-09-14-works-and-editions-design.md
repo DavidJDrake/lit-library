@@ -139,8 +139,10 @@ One new key in `overrides.yaml`, keyed by an **edition id**:
   (identical files, ISBN) are unaffected. A target id not present in the library is ignored with a
   warning, leaving the edition as its own work.
 
-`work` is written by `pull-edits.py` from admin corrections (see Admin corrections), and can be set
-by hand.
+`work` keys are owned by the app's admin corrections: `pull-edits.py` writes them from correction
+rows and removes any `work` key that has no row (see Folding corrections back). Corrections are
+therefore made in the app, not by editing the file; a hand-written `work` key would be removed by the
+next fold.
 
 ### Category settling
 
@@ -211,9 +213,10 @@ A card shows its **display edition** (defined above).
 - **"Recently added"** uses the work's latest edition added date. A new edition moves the card; a
   further copy of an existing edition does not.
 
-### Notification links
+### Notification titles
 
-A notification that names a copy id opens that copy's work, with that copy's edition selected.
+Notifications show a book's title by looking it up by copy id. That lookup keeps working unchanged,
+because every copy keeps its id and its catalog entry.
 
 ## Per-card state
 
@@ -387,15 +390,16 @@ broken page. Deploys and publishes are run by the user; the permission classifie
 agents.
 
 1. Merge the implementation.
-2. Run the grouping report against the real library (read-only) and review it. Correct anything wrong
-   with `work` keys in `overrides.yaml`.
+2. Run the grouping report against the real library (read-only) and review it, noting any grouping to
+   correct.
 3. Deploy infrastructure (library and download Lambdas).
 4. Publish from the main checkout. The first publish hashes the whole library once.
 5. Deploy the web app.
 6. Verify live: the card count matches the report; existing reading statuses show on the right cards;
-   merge, both kinds of split and reset work and survive a reload; a download from a merged card works; OPDS lists
-   each edition once.
-7. Run `pull-edits.py` after any in-app corrections so `overrides.yaml` keeps up.
+   merge, both kinds of split and reset work and survive a reload; a download from a merged card works;
+   OPDS lists each edition once.
+7. Make the corrections noted in step 2 in the app, run `pull-edits.py`, and publish, so
+   `overrides.yaml` carries them.
 8. Publish the Edgar Allan Poe bundle; its five *Works* volumes join the existing cards.
 
 ## Out of scope
