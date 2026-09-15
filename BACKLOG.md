@@ -81,6 +81,13 @@ titles, so browsing shows the same cover repeatedly and search results pad out.
 
 **Closed by:** spec and plan `2026-09-14-works-and-editions`.
 
+**Follow-ups (from the final review, not blocking):**
+
+- [ ] Split writes a row for the remainder's first edition only when it already has one, so a split card still takes in new matching editions (verified correct by simulation; today the remainder is frozen until Reset)
+- [ ] After splitting off a later edition, keep the dialog on the remainder card rather than the split-off one
+- [ ] A way to delete correction rows whose edition no longer exists (they show as `orphan:` on every `pull-edits.py` run)
+- [ ] Hash cache: a failed save in `build_books`'s `finally` should not hide the scan's original error
+
 **Effort:** M. Worth doing while only one reader has status rows to migrate.
 
 ### 31. Give the other readers a reason to come back
