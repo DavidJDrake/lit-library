@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
-  createCategory, resolveSuggestion, setBookCategory, suggestCategory,
+  createCategory, putWorkEdits, resetWorkEdits, resolveSuggestion, setBookCategory, suggestCategory,
 } from "../catalog/library";
 import { requestDownload, startDownload } from "../catalog/download";
 import { useLibraryData } from "../catalog/LibraryDataProvider";
@@ -9,7 +9,7 @@ import {
   searchBooks, searchFromView, sortBooks, sortFromSearch,
 } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type ReadingStatus, type SortKey } from "../catalog/types";
-import { groupWorks } from "../catalog/works";
+import { groupWorks, mergeEdits, resetEditionIds, splitEdits } from "../catalog/works";
 import type { KindleError } from "../kindle/api";
 import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
@@ -177,6 +177,31 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     return mutate((t) => resolveSuggestion(apiUrl, t, id, action, fetchFn), `${action === "accept" ? "Accepted" : "Rejected"} '${name}'`);
   }, [mutate, apiUrl, fetchFn, overlay]);
 
+  const mergeInto = useCallback(async (card: Book, target: Book) => {
+    await mutate((t) => putWorkEdits(apiUrl, t, mergeEdits((card.editions ?? []).map((e) => e.id), target.id), fetchFn),
+      `Merged into ${target.title}`);
+    setSelectedId(target.id);
+  }, [mutate, apiUrl, fetchFn]);
+  const splitEdition = useCallback(async (card: Book, editionId: string) => {
+    const rows = splitEdits(card.id, (card.editions ?? []).map((e) => ({ id: e.id, addedAt: e.addedAt })), editionId);
+    if (Object.keys(rows).length === 0) return;
+    await mutate((t) => putWorkEdits(apiUrl, t, rows, fetchFn), "Split into its own card");
+  }, [mutate, apiUrl, fetchFn]);
+  const resetCard = useCallback(async (card: Book) => {
+    const ids = resetEditionIds(books ?? [], (card.editions ?? []).map((e) => e.id), overlay?.workEdits ?? {});
+    if (ids.length === 0) return;
+    await mutate((t) => resetWorkEdits(apiUrl, t, ids, fetchFn), "Reset to automatic grouping");
+  }, [mutate, apiUrl, fetchFn, books, overlay]);
+  const canReset = useMemo(
+    () => Boolean(selected && books)
+      && resetEditionIds(books!, (selected!.editions ?? []).map((e) => e.id), overlay?.workEdits ?? {}).length > 0,
+    [selected, books, overlay],
+  );
+  const adminForDialog = useMemo(
+    () => (isAdmin && merged ? { works: merged, canReset, onMerge: mergeInto, onSplit: splitEdition, onReset: resetCard } : undefined),
+    [isAdmin, merged, canReset, mergeInto, splitEdition, resetCard],
+  );
+
   const kindleForDialog = useMemo(() => kindle && {
     devices: kindle.devices, defaultDeviceId: kindle.defaultDeviceId, sender: kindle.sender, loadFailed: kindle.loadFailed,
     onSend: async (copyId: string, format?: "epub" | "pdf", deviceId?: string) => {
@@ -242,7 +267,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
       </section>
       <BookDetail book={selected} onClose={() => setSelectedId(null)} onDownload={download}
         categories={categoryNames} onChangeCategory={changeCategory} onSuggest={(name, bookId) => suggest(name, bookId)}
-        onChangeStatus={changeStatus} kindle={kindleForDialog} />
+        onChangeStatus={changeStatus} kindle={kindleForDialog} admin={adminForDialog} />
       <Toast message={toast?.message} variant={toast?.variant} onDismiss={dismissToast} />
     </div>
   );

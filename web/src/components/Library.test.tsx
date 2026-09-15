@@ -571,3 +571,26 @@ describe("work cards", () => {
     expect(screen.getByText("Security Bundle")).toBeInTheDocument();
   });
 });
+
+describe("admin work corrections", () => {
+  it("lets an admin merge one card into another", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /works/edits$": () => ({ ok: true, status: 204, headers: new Headers() }),
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, isAdmin: true });
+    await userEvent.click(await screen.findByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Merge into…" }));
+    await userEvent.type(within(dialog).getByRole("searchbox", { name: "Find the card to merge into" }), "Black");
+    await userEvent.click(within(dialog).getByRole("button", { name: /The Black Company/ }));
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledWith("https://api/works/edits", expect.objectContaining({
+      method: "PUT", body: JSON.stringify({ edits: { "1": "2" } }),
+    })));
+  });
+
+  it("shows no correction controls to readers who are not admins", async () => {
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
+    await userEvent.click(await screen.findByRole("button", { name: /Attacking Network Protocols/ }));
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Merge into…" })).toBeNull();
+  });
+});

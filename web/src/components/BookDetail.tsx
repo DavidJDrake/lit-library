@@ -7,6 +7,7 @@ import { KINDLE_MAX_BYTES, kindleFormat } from "../kindle/limits";
 import KindleDeviceForm from "./KindleDeviceForm";
 import SendToKindleButton from "./SendToKindleButton";
 import SuggestForm from "./SuggestForm";
+import WorkAdminControls from "./WorkAdminControls";
 
 const STATUS_LABELS: Record<ReadingStatus, string> = { "want to read": "Want to read", reading: "Reading", finished: "Finished" };
 
@@ -28,6 +29,13 @@ interface Props {
   onSuggest: (name: string, bookId: string) => Promise<void>;
   onChangeStatus: (book: Book, status: ReadingStatus | null) => Promise<void>;
   kindle?: KindleDialogProps;
+  admin?: {
+    works: Book[];
+    canReset: boolean;
+    onMerge(card: Book, target: Book): Promise<void>;
+    onSplit(card: Book, editionId: string): Promise<void>;
+    onReset(card: Book): Promise<void>;
+  };
 }
 
 export const SUGGEST_OPTION = "__suggest__";
@@ -42,7 +50,7 @@ function editionLabel(e: Edition): string {
   ].filter(Boolean).join(" · ");
 }
 
-export default function BookDetail({ book, onClose, onDownload, categories, onChangeCategory, onSuggest, onChangeStatus, kindle }: Props) {
+export default function BookDetail({ book, onClose, onDownload, categories, onChangeCategory, onSuggest, onChangeStatus, kindle, admin }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -216,6 +224,13 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
               </div>
             );
           })()}
+          {admin && (
+            <WorkAdminControls card={book} works={admin.works} selectedEditionId={edition?.id ?? null}
+              canReset={admin.canReset} busy={busy}
+              onMerge={(target) => admin.onMerge(book!, target)}
+              onSplit={(id) => admin.onSplit(book!, id)}
+              onReset={() => admin.onReset(book!)} />
+          )}
         </div>
       </div>
     </dialog>
