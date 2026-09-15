@@ -2,7 +2,7 @@ export interface CatalogFormat { type: string; size: number; s3Key: string }
 // authors is optional here even though the real catalog.json always includes it (see
 // indexer/src/ebook_indexer/catalog.py): callers that only need id/title/formats — the
 // existing download flow — should not have to fabricate it.
-export interface CatalogBook { id: string; title: string; authors?: string[]; formats: CatalogFormat[] }
+export interface CatalogBook { id: string; editionId?: string; addedAt?: string; title: string; authors?: string[]; formats: CatalogFormat[] }
 export interface Catalog { books: CatalogBook[] }
 export interface DownloadRequest { bookId: string; format: string }
 

@@ -59,3 +59,45 @@ describe("buildOpdsFeed", () => {
     expect(feed.publications).toEqual([]);
   });
 });
+
+describe("buildOpdsFeed with editions", () => {
+  it("lists one publication per edition, linking each format to its most recently added copy", () => {
+    const catalog: Catalog = {
+      books: [
+        { id: "old", editionId: "old", addedAt: "2026-09-04", title: "The Works, Volume 1", authors: ["Edgar Allan Poe"],
+          formats: [{ type: "epub", size: 1, s3Key: "k-old-epub" }, { type: "pdf", size: 2, s3Key: "k-old-pdf" }] },
+        { id: "new", editionId: "old", addedAt: "2026-09-13", title: "The Works, Volume 1", authors: ["Edgar Allan Poe"],
+          formats: [{ type: "epub", size: 1, s3Key: "k-new-epub" }] },
+        { id: "solo", editionId: "solo", addedAt: "2026-09-13", title: "Eureka", formats: [{ type: "epub", size: 3, s3Key: "k" }] },
+      ],
+    };
+    const feed = buildOpdsFeed(catalog, "Lit Library", links);
+    expect(feed.publications).toHaveLength(2);
+    expect(feed.publications[0].metadata.title).toBe("The Works, Volume 1");
+    expect(feed.publications[0].links).toEqual([
+      { rel: "http://opds-spec.org/acquisition", href: "/api/opds/download/new/epub?token=tok", type: "application/epub+zip" },
+      { rel: "http://opds-spec.org/acquisition", href: "/api/opds/download/old/pdf?token=tok", type: "application/pdf" },
+    ]);
+    expect(feed.publications[1].metadata.title).toBe("Eureka");
+  });
+
+  it("breaks a copy tie on the smallest id", () => {
+    const catalog: Catalog = {
+      books: [
+        { id: "b", editionId: "a", addedAt: "2026-09-13", title: "T", formats: [{ type: "epub", size: 1, s3Key: "kb" }] },
+        { id: "a", editionId: "a", addedAt: "2026-09-13", title: "T", formats: [{ type: "epub", size: 1, s3Key: "ka" }] },
+      ],
+    };
+    expect(buildOpdsFeed(catalog, "L", links).publications[0].links[0].href).toBe("/api/opds/download/a/epub?token=tok");
+  });
+
+  it("treats entries without editionId as editions of their own", () => {
+    const catalog: Catalog = {
+      books: [
+        { id: "x", title: "Same", formats: [{ type: "epub", size: 1, s3Key: "kx" }] },
+        { id: "y", title: "Same", formats: [{ type: "epub", size: 1, s3Key: "ky" }] },
+      ],
+    };
+    expect(buildOpdsFeed(catalog, "L", links).publications).toHaveLength(2);
+  });
+});
