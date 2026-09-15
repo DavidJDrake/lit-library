@@ -234,3 +234,19 @@ def test_no_api_key_omits_key_param(tmp_path):
     meta = ExtractedMeta(authors=["A. Writer"])
     e.enrich(meta, fallback_title="Mystery Novel")
     assert not any("key=" in u for u in fetcher.calls)
+
+
+def test_offline_enricher_never_fetches_sleeps_or_writes_on_a_cache_miss(tmp_path):
+    from ebook_indexer.enrich import Enricher
+    from ebook_indexer.models import ExtractedMeta
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("offline enrichment touched the network")
+
+    sleeps = []
+    enricher = Enricher(tmp_path / "cache", fetch_json=boom, fetch_bytes=boom, sleep=sleeps.append, offline=True)
+    meta = ExtractedMeta()
+    enricher.enrich(meta, "Some Title")
+    assert meta.title is None
+    assert sleeps == []
+    assert list((tmp_path / "cache").iterdir()) == []

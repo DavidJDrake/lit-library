@@ -6,6 +6,7 @@ from pathlib import Path
 from .catalog import write_outputs
 from .config import load_config
 from .enrich import Enricher
+from .grouping_report import render_report
 from .pipeline import build_books
 from .publish import delete_book_objects, find_orphan_books, invalidate_catalog, publish_site, sync_books
 from .scan import scan_library
@@ -54,6 +55,13 @@ def main(argv: list[str] | None = None) -> int:
     p_prune.add_argument("--config", required=True, type=Path)
     p_prune.add_argument("--delete", action="store_true",
                          help="actually delete; without it, prune only reports")
+
+    p_report = sub.add_parser(
+        "grouping-report",
+        help="preview how copies group into cards; read-only apart from the hash cache "
+             "(writes <output_dir>/grouping-report.md)",
+    )
+    p_report.add_argument("--config", required=True, type=Path)
 
     args = parser.parse_args(argv)
     cfg = load_config(args.config)
@@ -128,6 +136,26 @@ def main(argv: list[str] | None = None) -> int:
         n = delete_book_objects(s3, cfg.books_bucket, orphans,
                                 cfg.metadata_dir / "publish-state.json")
         print(f"\ndeleted {n} orphaned file(s)")
+        return 0
+
+    if args.command == "grouping-report":
+        captured: dict = {}
+        books, _ = build_books(
+            root=cfg.library_root,
+            overrides_path=cfg.metadata_dir / "overrides.yaml",
+            added_path=cfg.metadata_dir / "added.json",
+            enricher=Enricher(cfg.metadata_dir / "cache", offline=True),
+            hash_cache_path=cfg.metadata_dir / "hashes.json",
+            write_added=False,
+            with_covers=False,
+            on_grouped=lambda grouping, changes: captured.update(grouping=grouping, changes=changes),
+        )
+        cfg.output_dir.mkdir(parents=True, exist_ok=True)
+        path = cfg.output_dir / "grouping-report.md"
+        path.write_text(render_report(books, captured["grouping"], captured["changes"]))
+        editions = len({b.edition_id for b in books})
+        works = len({b.work_id for b in books})
+        print(f"{len(books)} copies -> {editions} editions -> {works} cards; wrote {path}")
         return 0
 
     return 1
