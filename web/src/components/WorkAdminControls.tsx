@@ -8,7 +8,8 @@ interface Props {
   selectedEditionId: string | null;
   canReset: boolean;
   busy: boolean;
-  onMerge(target: Book): Promise<void>;
+  // Resolves to whether the merge was saved; the picker stays open when it was not.
+  onMerge(target: Book): Promise<boolean>;
   onSplit(editionId: string): Promise<void>;
   onReset(): Promise<void>;
 }
@@ -41,7 +42,7 @@ export default function WorkAdminControls({ card, works, selectedEditionId, canR
             {candidates.map((w) => (
               <li key={w.id}>
                 <button className="btn" disabled={busy}
-                  onClick={() => void onMerge(w).then(() => { setPicking(false); setQuery(""); })}>
+                  onClick={() => void onMerge(w).then((merged) => { if (merged) { setPicking(false); setQuery(""); } })}>
                   {w.title}{w.authors[0] ? ` — ${w.authors[0]}` : ""}{w.year ? ` (${w.year})` : ""}
                 </button>
               </li>

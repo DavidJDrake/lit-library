@@ -32,9 +32,10 @@ interface Props {
   admin?: {
     works: Book[];
     canReset: boolean;
-    onMerge(card: Book, target: Book): Promise<void>;
+    // Resolves to whether the merge was saved.
+    onMerge(card: Book, target: Book): Promise<boolean>;
     onSplit(card: Book, editionId: string): Promise<void>;
-    onReset(card: Book): Promise<void>;
+    onReset(card: Book, shownEditionId: string | null): Promise<void>;
   };
 }
 
@@ -61,12 +62,13 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
 
   // Keyed on the id, not the object: work cards are rebuilt whenever the overlay changes (a
   // status set anywhere in the library), and that must not reset this dialog's edition choice
-  // or close a half-filled Kindle form.
+  // or close a half-filled Kindle form. A new card keeps the chosen edition when it holds it, as
+  // after an admin correction regroups the card under another id.
   useEffect(() => {
     setBusy(false);
     setSuggesting(false);
     setKindleState({ kind: "idle" });
-    setEditionId(book?.editions?.[0]?.id ?? null);
+    setEditionId((chosen) => (book?.editions?.some((e) => e.id === chosen) ? chosen : book?.editions?.[0]?.id ?? null));
     const el = ref.current;
     if (!el) return;
     if (book && !el.open) el.showModal();
@@ -119,6 +121,15 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
     setBusy(true);
     try {
       await onChangeCategory(book!, value);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function whileBusy<T>(run: () => Promise<T>): Promise<T> {
+    setBusy(true);
+    try {
+      return await run();
     } finally {
       setBusy(false);
     }
@@ -227,9 +238,9 @@ export default function BookDetail({ book, onClose, onDownload, categories, onCh
           {admin && (
             <WorkAdminControls card={book} works={admin.works} selectedEditionId={edition?.id ?? null}
               canReset={admin.canReset} busy={busy}
-              onMerge={(target) => admin.onMerge(book!, target)}
-              onSplit={(id) => admin.onSplit(book!, id)}
-              onReset={() => admin.onReset(book!)} />
+              onMerge={(target) => whileBusy(() => admin.onMerge(book!, target))}
+              onSplit={(id) => whileBusy(() => admin.onSplit(book!, id))}
+              onReset={() => whileBusy(() => admin.onReset(book!, edition?.id ?? null))} />
           )}
         </div>
       </div>

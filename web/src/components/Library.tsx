@@ -54,7 +54,12 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
   // state and admin corrections applied (see catalog/works.ts).
   const merged = useMemo(() => (books ? groupWorks(books, overlay) : null), [books, overlay]);
   const categoryNames = useMemo(() => overlay?.categories.map((c) => c.name) ?? [], [overlay]);
-  const selected = useMemo(() => merged?.find((b) => b.id === selectedId) ?? null, [merged, selectedId]);
+  // selectedId is an edition id (a card's id is one of its editions): the dialog shows the card
+  // holding it, so a correction that regroups the card under another id keeps the dialog open.
+  const selected = useMemo(
+    () => merged?.find((b) => b.id === selectedId) ?? merged?.find((b) => b.editions?.some((e) => e.id === selectedId)) ?? null,
+    [merged, selectedId],
+  );
 
   const deferredQuery = useDeferredValue(query);
 
@@ -140,12 +145,13 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
 
   // Every mutation re-fetches the overlay rather than patching local state: one
   // code path, and the server's view always wins (which is also the "revert" on failure).
-  const mutate = useCallback(async (run: (token: string) => Promise<void>, success: string) => {
+  // Resolves to whether the write itself succeeded.
+  const mutate = useCallback(async (run: (token: string) => Promise<void>, success: string): Promise<boolean> => {
     try {
       await run(await getIdToken());
     } catch (e) {
       fail((e as Error).message);
-      return;
+      return false;
     }
     ok(success);
     onChanged?.();
@@ -154,43 +160,59 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     } catch (e) {
       fail(`Saved, but the list could not refresh (${(e as Error).message})`);
     }
+    return true;
   }, [getIdToken, refreshOverlay, fail, ok, onChanged]);
 
-  const changeCategory = useCallback((book: Book, category: string) =>
-    mutate((t) => setBookCategory(apiUrl, t, book.id, category, fetchFn), `Moved to ${category}`), [mutate, apiUrl, fetchFn]);
+  const changeCategory = useCallback(async (book: Book, category: string) => {
+    await mutate((t) => setBookCategory(apiUrl, t, book.id, category, fetchFn), `Moved to ${category}`);
+  }, [mutate, apiUrl, fetchFn]);
   // Optimistic, unlike changeCategory above: setReadingStatus (from LibraryDataProvider)
   // already patches the overlay locally and reverts only this book on failure, so there is
   // no refreshOverlay round trip here — just surface a failure as a toast.
+  // A card reads its status from any copy of the work, so clearing it deletes the status of every
+  // copy that has one; setting writes the work id only, which the read order prefers.
   const changeStatus = useCallback(async (book: Book, status: ReadingStatus | null) => {
+    const held = status === null
+      ? [...new Set([book.id, ...(book.editions ?? []).flatMap((e) => e.copyIds)])].filter((id) => overlay?.readingStatuses[id] !== undefined)
+      : [];
     try {
-      await setReadingStatus(book.id, status);
+      await Promise.all((held.length > 0 ? held : [book.id]).map((id) => setReadingStatus(id, status)));
     } catch (e) {
       fail((e as Error).message);
     }
-  }, [setReadingStatus, fail]);
-  const suggest = useCallback((name: string, bookId?: string) =>
-    mutate((t) => suggestCategory(apiUrl, t, name, bookId, fetchFn), `Suggested '${name}' — waiting for approval`), [mutate, apiUrl, fetchFn]);
-  const addCategory = useCallback((name: string) =>
-    mutate((t) => createCategory(apiUrl, t, name, fetchFn), `Added category '${name}'`), [mutate, apiUrl, fetchFn]);
-  const resolve = useCallback((id: string, action: "accept" | "reject") => {
+  }, [setReadingStatus, fail, overlay]);
+  const suggest = useCallback(async (name: string, bookId?: string) => {
+    await mutate((t) => suggestCategory(apiUrl, t, name, bookId, fetchFn), `Suggested '${name}' — waiting for approval`);
+  }, [mutate, apiUrl, fetchFn]);
+  const addCategory = useCallback(async (name: string) => {
+    await mutate((t) => createCategory(apiUrl, t, name, fetchFn), `Added category '${name}'`);
+  }, [mutate, apiUrl, fetchFn]);
+  const resolve = useCallback(async (id: string, action: "accept" | "reject") => {
     const name = overlay?.suggestions.find((s) => s.id === id)?.name ?? "suggestion";
-    return mutate((t) => resolveSuggestion(apiUrl, t, id, action, fetchFn), `${action === "accept" ? "Accepted" : "Rejected"} '${name}'`);
+    await mutate((t) => resolveSuggestion(apiUrl, t, id, action, fetchFn), `${action === "accept" ? "Accepted" : "Rejected"} '${name}'`);
   }, [mutate, apiUrl, fetchFn, overlay]);
 
+  // After a correction the dialog follows an edition, not a card id, since the card holding it
+  // may now be named after a different edition: the target after a merge, and the edition the
+  // dialog was showing after a split or reset. A failed write leaves the dialog where it was.
   const mergeInto = useCallback(async (card: Book, target: Book) => {
-    await mutate((t) => putWorkEdits(apiUrl, t, mergeEdits((card.editions ?? []).map((e) => e.id), target.id), fetchFn),
+    const merged = await mutate(
+      (t) => putWorkEdits(apiUrl, t, mergeEdits((card.editions ?? []).map((e) => e.id), target.id), fetchFn),
       `Merged into ${target.title}`);
-    setSelectedId(target.id);
+    if (merged) setSelectedId(target.id);
+    return merged;
   }, [mutate, apiUrl, fetchFn]);
   const splitEdition = useCallback(async (card: Book, editionId: string) => {
     const rows = splitEdits(card.id, (card.editions ?? []).map((e) => ({ id: e.id, addedAt: e.addedAt })), editionId);
     if (Object.keys(rows).length === 0) return;
-    await mutate((t) => putWorkEdits(apiUrl, t, rows, fetchFn), "Split into its own card");
+    if (await mutate((t) => putWorkEdits(apiUrl, t, rows, fetchFn), "Split into its own card")) setSelectedId(editionId);
   }, [mutate, apiUrl, fetchFn]);
-  const resetCard = useCallback(async (card: Book) => {
+  const resetCard = useCallback(async (card: Book, shownEditionId: string | null) => {
     const ids = resetEditionIds(books ?? [], (card.editions ?? []).map((e) => e.id), overlay?.workEdits ?? {});
     if (ids.length === 0) return;
-    await mutate((t) => resetWorkEdits(apiUrl, t, ids, fetchFn), "Reset to automatic grouping");
+    if (await mutate((t) => resetWorkEdits(apiUrl, t, ids, fetchFn), "Reset to automatic grouping")) {
+      setSelectedId(shownEditionId ?? card.id);
+    }
   }, [mutate, apiUrl, fetchFn, books, overlay]);
   const canReset = useMemo(
     () => Boolean(selected && books)

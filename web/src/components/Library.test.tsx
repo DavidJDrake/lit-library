@@ -572,6 +572,32 @@ describe("work cards", () => {
   });
 });
 
+describe("reading status on a work card", () => {
+  it("clears a status stored against another copy of the card, so the card shows none", async () => {
+    const dup: Catalog = {
+      generatedAt: "t",
+      books: [
+        { ...catalog.books[0], id: "a", editionId: "a", workId: "a" },
+        { ...catalog.books[0], id: "b", editionId: "a", workId: "a", bundle: "Security Bundle", addedAt: "2026-09-13" },
+      ],
+    };
+    const puts: string[] = [];
+    const jsonRes = (body: unknown) => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => body });
+    const fetchFn = fetchFor(dup, undefined, {
+      "GET /library$": () => jsonRes({ ...overlay, readingStatuses: { b: "reading" } }),
+      "PUT /books/.*/status$": (u) => { puts.push(u); return { ok: true, status: 204, headers: new Headers() }; },
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
+    await userEvent.click(await screen.findByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    const select = within(dialog).getByRole("combobox", { name: "Reading status" });
+    await waitFor(() => expect(select).toHaveValue("reading"));
+    await userEvent.selectOptions(select, "No status");
+    await waitFor(() => expect(puts).toEqual(["https://api/books/b/status"]));
+    expect(within(dialog).getByRole("combobox", { name: "Reading status" })).toHaveValue("");
+  });
+});
+
 describe("admin work corrections", () => {
   it("lets an admin merge one card into another", async () => {
     const fetchFn = fetchFor(catalog, undefined, {
@@ -586,6 +612,66 @@ describe("admin work corrections", () => {
     await waitFor(() => expect(fetchFn).toHaveBeenCalledWith("https://api/works/edits", expect.objectContaining({
       method: "PUT", body: JSON.stringify({ edits: { "1": "2" } }),
     })));
+  });
+
+  it("toasts a failed merge and leaves the dialog on its card with the picker open", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "PUT /works/edits$": () => ({ ok: false, status: 500, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ error: "boom" }) }),
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, isAdmin: true });
+    await userEvent.click(await screen.findByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Merge into…" }));
+    await userEvent.type(within(dialog).getByRole("searchbox", { name: "Find the card to merge into" }), "Black");
+    await userEvent.click(within(dialog).getByRole("button", { name: /The Black Company/ }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("boom"));
+    expect(within(dialog).getByRole("heading", { name: "Attacking Network Protocols" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("searchbox", { name: "Find the card to merge into" })).toBeInTheDocument();
+  });
+
+  it("after a merge names the card after an edition of the source, the dialog shows the merged card", async () => {
+    let workEdits: Record<string, string> = {};
+    const jsonRes = (body: unknown) => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => body });
+    const fetchFn = fetchFor(catalog, undefined, {
+      "GET /library$": () => jsonRes({ ...overlay, workEdits }),
+      "PUT /works/edits$": (_u, init) => { workEdits = JSON.parse(String(init!.body)).edits; return { ok: true, status: 204, headers: new Headers() }; },
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, isAdmin: true });
+    // Book 1 was added before book 2, so merging 1 into 2 gives a card whose id is 1.
+    await userEvent.click(await screen.findByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Merge into…" }));
+    await userEvent.type(within(dialog).getByRole("searchbox", { name: "Find the card to merge into" }), "Black");
+    await userEvent.click(within(dialog).getByRole("button", { name: /The Black Company/ }));
+    await waitFor(() => expect(within(dialog).getByRole("combobox", { name: "Edition" })).toBeInTheDocument());
+    expect(dialog).toHaveAttribute("open");
+    expect(screen.getByText("1 book")).toBeInTheDocument();
+  });
+
+  it("after a reset regroups the card under another id, the dialog shows the card holding the edition it was showing", async () => {
+    const linked: Catalog = {
+      generatedAt: "t",
+      books: [
+        { ...catalog.books[0], id: "1", editionId: "1", workId: "1", workLinks: ["3"] },
+        { ...catalog.books[0], id: "3", editionId: "3", workId: "3", workLinks: ["1"], title: "Attacking Network Protocols - Second Edition",
+          year: 2022, addedAt: "2026-04-01" },
+      ],
+    };
+    let workEdits: Record<string, string> = { "3": "3" };
+    const jsonRes = (body: unknown) => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => body });
+    const fetchFn = fetchFor(linked, undefined, {
+      "GET /library$": () => jsonRes({ ...overlay, workEdits }),
+      "POST /works/edits/reset$": () => { workEdits = {}; return { ok: true, status: 204, headers: new Headers() }; },
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, isAdmin: true });
+    expect(await screen.findByText("2 books")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Second Edition/ }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reset to automatic grouping" }));
+    await waitFor(() => expect(screen.getByText("1 book")).toBeInTheDocument());
+    expect(dialog).toHaveAttribute("open");
+    expect(within(dialog).getByRole("combobox", { name: "Edition" })).toHaveValue("3");
+    expect(within(dialog).queryByRole("button", { name: "Reset to automatic grouping" })).toBeNull();
   });
 
   it("shows no correction controls to readers who are not admins", async () => {

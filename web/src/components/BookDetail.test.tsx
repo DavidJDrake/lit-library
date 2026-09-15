@@ -282,6 +282,35 @@ describe("BookDetail", () => {
       expect(screen.getByRole("combobox", { name: "Edition" })).toHaveValue("old");
     });
 
+    it("disables the dialog while an admin operation runs, acting on the edition shown", async () => {
+      let finish!: () => void;
+      const admin = {
+        works: [work], canReset: true, onMerge: vi.fn(async () => true),
+        onSplit: vi.fn(() => new Promise<void>((r) => { finish = r; })), onReset: vi.fn(async () => {}),
+      };
+      render(<BookDetail book={work} onClose={() => {}} onDownload={async () => {}} categories={[]}
+        onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} admin={admin} />);
+      await userEvent.selectOptions(screen.getByRole("combobox", { name: "Edition" }), "old");
+      await userEvent.click(screen.getByRole("button", { name: "Split this edition into its own card" }));
+      expect(admin.onSplit).toHaveBeenCalledWith(work, "old");
+      expect(screen.getByRole("button", { name: "Split this edition into its own card" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Reset to automatic grouping" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Merge into…" })).toBeDisabled();
+      finish();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Reset to automatic grouping" })).toBeEnabled());
+      await userEvent.click(screen.getByRole("button", { name: "Reset to automatic grouping" }));
+      expect(admin.onReset).toHaveBeenCalledWith(work, "old");
+    });
+
+    it("keeps the shown edition when the dialog moves to another card that holds it", async () => {
+      const { rerender } = renderWork(work);
+      await userEvent.selectOptions(screen.getByRole("combobox", { name: "Edition" }), "old");
+      const regrouped = { ...work, id: "earlier", editions: [...work.editions!, edition("earlier", { year: 2010 })] };
+      rerender(<BookDetail book={regrouped} onClose={() => {}} onDownload={async () => {}} categories={[]}
+        onChangeCategory={async () => {}} onSuggest={async () => {}} onChangeStatus={async () => {}} />);
+      expect(screen.getByRole("combobox", { name: "Edition" })).toHaveValue("old");
+    });
+
     it("shows no edition picker for a book with one edition, and downloads by its own id", async () => {
       const onDownload = vi.fn(async () => {});
       renderWork(book, onDownload);
