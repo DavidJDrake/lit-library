@@ -50,6 +50,9 @@ export interface Book {
   // entry is its own edition and work. A work card sets both to its own id.
   editionId?: string;
   workId?: string;
+  // From catalog.json, on an edition's canonical entry only: the other editions linked to it by
+  // title and author, ignoring corrections. Absent when there are none, or in older catalogs.
+  workLinks?: string[];
   // Set only on work cards built by groupWorks: every bundle containing a copy, and the
   // editions, newest first.
   bundles?: string[];
