@@ -357,11 +357,11 @@ an edition's contents. Acquisition URLs keep carrying an existing copy id.
 | Hash cache missing or corrupt | Rebuilt, with a warning |
 | A scanned file unreadable during hashing | That file contributes no hash; warning; the book is still indexed |
 | `work` names an unknown id | The edition stays its own work, with a warning |
-| Admin correction names an unknown id | No effect on the site |
+| Admin correction names an unknown id | The edition shows as its own card, as it would after a publish |
 | Cycle in `workEdits` | Edits on the cycle ignored; catalog `workId` used; console warning |
 | Invalid correction or reset request | 400 with a message |
 | Non-admin correction or reset | 403 |
-| DynamoDB failure on a correction | 502, as for other library routes |
+| DynamoDB failure on a correction | 500, as for other library routes |
 | Catalog without the new fields | Each entry treated as its own edition and work |
 
 ## Testing
