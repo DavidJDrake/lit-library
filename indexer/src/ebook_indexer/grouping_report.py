@@ -52,7 +52,9 @@ def render_report(books: list[Book], grouping: Grouping, changes: list[CategoryC
     canonical = [b for b in books if b.id == b.edition_id]
     by_title: dict[str, list[Book]] = defaultdict(list)
     for b in canonical:
-        by_title[edition_title_key(b.title)].append(b)
+        key = edition_title_key(b.title)
+        if key:
+            by_title[key].append(b)
     kept = 0
     for _key, editions in sorted(by_title.items()):
         if len({b.work_id for b in editions}) < 2:

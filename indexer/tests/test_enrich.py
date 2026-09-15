@@ -250,3 +250,28 @@ def test_offline_enricher_never_fetches_sleeps_or_writes_on_a_cache_miss(tmp_pat
     assert meta.title is None
     assert sleeps == []
     assert list((tmp_path / "cache").iterdir()) == []
+
+
+def test_offline_enricher_applies_cached_fields_but_never_fetches_the_cover_on_a_hit(tmp_path):
+    import hashlib
+    import json
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    fallback_title = "Some Title"
+    key = f"{fallback_title}|"  # ExtractedMeta() has no isbn or authors
+    cache_file = cache_dir / (hashlib.sha1(key.encode()).hexdigest() + ".json")
+    cache_file.write_text(json.dumps({
+        "found": True,
+        "title": "Cached Title",
+        "cover_url": "https://example.invalid/cover.jpg",
+    }))
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("offline enrichment touched the network")
+
+    enricher = Enricher(cache_dir, fetch_json=boom, fetch_bytes=boom, sleep=lambda s: None, offline=True)
+    meta = ExtractedMeta()
+    enricher.enrich(meta, fallback_title)  # must not raise
+    assert meta.cover is None
+    assert meta.title == "Cached Title"

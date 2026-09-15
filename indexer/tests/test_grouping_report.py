@@ -67,3 +67,17 @@ def test_cli_writes_the_report_and_nothing_else(tmp_path, make_epub, monkeypatch
     cache = tmp_path / "metadata" / "cache"
     assert not cache.exists() or list(cache.iterdir()) == []
     assert json.loads((tmp_path / "metadata" / "hashes.json").read_text())
+
+
+def test_titles_that_normalise_to_empty_are_not_treated_as_a_same_title_collision():
+    books = [
+        book("d1", "...", "d1", "d1", authors=("Ann Author",)),
+        book("d2", "###", "d2", "d2", authors=("Bea Author",)),
+    ]
+    grouping = Grouping(edition_id={b.id: b.edition_id for b in books}, work_id={b.id: b.work_id for b in books},
+                        links=[], managed=frozenset(), warnings=[])
+    text = render_report(books, grouping, [])
+    after = text.split("## Same titles kept apart", 1)[1]
+    assert "None." in after
+    assert "..." not in after
+    assert "###" not in after

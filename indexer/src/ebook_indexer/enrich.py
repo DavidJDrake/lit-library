@@ -126,7 +126,7 @@ class Enricher:
             meta.publisher = data["publisher"]
         if not meta.year and data.get("year"):
             meta.year = data["year"]
-        if meta.cover is None and data.get("cover_url"):
+        if meta.cover is None and data.get("cover_url") and not self.offline:
             meta.cover = self.fetch_bytes(data["cover_url"])
 
     def clear_failed_cache(self) -> int:
