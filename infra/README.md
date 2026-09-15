@@ -194,8 +194,10 @@ and is automatic and conservative:
   stripped — stripping them would have merged six different Dune novels into one card.
 - A copy with no authors only joins a work through the file or ISBN rules above.
 
-Every catalog entry keeps its existing `id` and gains `editionId`/`workId`. Nothing that reads
-ids by id — reading statuses, download history, category edits — needs a migration.
+Every catalog entry keeps its existing `id` and gains `editionId`/`workId`; an edition's
+canonical entry also carries `workLinks`, the other editions the title-and-author rule links it to
+(ignoring corrections). Nothing that reads ids by id — reading statuses, download history, category
+edits — needs a migration.
 
 **Grouping report.** Preview how the library would group before publishing:
 
@@ -210,14 +212,20 @@ keep apart, with why.
 
 **Hash cache.** The first publish after this change hashes the whole library once, into
 `metadata/hashes.json` (gitignored, like `publish-state.json`). Later publishes hash only files
-that are new or have changed size or modification time.
+that are new or have changed size or modification time. The cache is checkpointed every 200 newly
+hashed files and saved even if a run fails or is interrupted, so an interrupted first run picks up
+where it stopped; `index --limit` never drops cache entries.
 
 **Admin corrections.** Signed-in admins can merge, split and reset cards from the book dialog —
 this is the only supported way to correct a grouping; don't hand-edit `overrides.yaml`. Corrections
-are stored as `WORKEDIT` rows in the library table and apply live on the site immediately.
-`scripts/pull-edits.py` folds them into `work:` keys on the affected editions in `overrides.yaml`,
-and removes a `work:` key once its correction row is gone, so the next publish groups exactly as
-the site does. `pull-edits.py` still preserves comments and entry order when it writes.
+are stored as `WORKEDIT` rows in the library table and apply live on the site immediately: the site
+groups the catalog's `workLinks` and the correction rows with the same union-find the indexer runs, so
+its cards, card ids included, are the cards the next publish would produce. Corrections reach
+`overrides.yaml`, and the published catalog, only when you run `scripts/pull-edits.py` and then
+publish. `pull-edits.py` folds each row into a `work:` key in `overrides.yaml` and removes a `work:`
+key once its correction row is gone; it still preserves comments and entry order when it writes. Until
+then they live only in DynamoDB: the site applies them once its overlay loads, but the catalog, and
+anything reading it without the overlay, does not carry them.
 
 A merged or split (managed) edition stops attracting newly published books that only match it
 through title and author — it still joins an identical file or shared ISBN, but the title-and-author
