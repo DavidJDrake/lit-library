@@ -7,7 +7,7 @@ are the same title by the same author, shown as one card.
 import re
 from collections import defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .categorize import valid_categories
 from .models import Book
@@ -81,6 +81,9 @@ class Grouping:
     links: list[Link]
     managed: frozenset[str]
     warnings: list[str]
+    # Edition id -> sorted ids of every other edition linked by title and author, ignoring
+    # overrides. Editions with no such link are absent. The site groups over these.
+    work_links: dict[str, list[str]] = field(default_factory=dict)
 
 
 class _UnionFind:
@@ -145,13 +148,18 @@ def group_copies(copies: list[CopyRecord], work_overrides: dict[str, str] | None
             edition_id[m] = canonical
     editions = sorted(set(edition_id.values()), key=lambda e: (added_at[e], e))
 
-    # Managed editions: an override on any copy applies to that copy's edition.
+    # Managed editions: an override on any copy applies to that copy's edition. When several
+    # apply to one edition, the key that is the edition id wins, otherwise the smallest key.
     managed: dict[str, str] = {}
-    for key, target in work_overrides.items():
+    chosen_key: dict[str, str] = {}
+    for key in sorted(work_overrides):
         if key not in edition_id:
             warnings.append(f"work override on unknown id {key}; ignored")
             continue
-        managed[edition_id[key]] = target
+        e = edition_id[key]
+        if e not in chosen_key or key == e:
+            chosen_key[e] = key
+            managed[e] = work_overrides[key]
 
     # Works: same edition-insensitive title plus a shared author, skipping managed editions.
     works_uf = _UnionFind(editions)
@@ -163,14 +171,18 @@ def group_copies(copies: list[CopyRecord], work_overrides: dict[str, str] | None
         authors[e] |= author_keys(c.authors)
     by_title: dict[str, list[str]] = defaultdict(list)
     for e in editions:
-        if e not in managed:
-            for t in titles[e]:
-                if t:
-                    by_title[t].append(e)
+        for t in titles[e]:
+            if t:
+                by_title[t].append(e)
+    work_links: dict[str, set[str]] = defaultdict(set)
     for members in by_title.values():
         for i, a in enumerate(members):
             for b in members[i + 1:]:
-                if authors[a] & authors[b] and works_uf.union(a, b):
+                if not authors[a] & authors[b]:
+                    continue
+                work_links[a].add(b)
+                work_links[b].add(a)
+                if a not in managed and b not in managed and works_uf.union(a, b):
                     links.append(Link(a, b, "title and author"))
     for e, target in managed.items():
         if target == e:
@@ -190,7 +202,8 @@ def group_copies(copies: list[CopyRecord], work_overrides: dict[str, str] | None
         for m in members:
             work_of_edition[m] = canonical
     work_id = {cid: work_of_edition[edition_id[cid]] for cid in ids}
-    return Grouping(edition_id, work_id, links, frozenset(managed), warnings)
+    return Grouping(edition_id, work_id, links, frozenset(managed), warnings,
+                    {e: sorted(linked) for e, linked in sorted(work_links.items())})
 
 
 def display_edition(edition_ids: Iterable[str], canonical: dict[str, Book]) -> str:

@@ -48,3 +48,5 @@ class Book:
     added_at: str
     edition_id: str = ""
     work_id: str = ""
+    # On an edition's canonical copy only: the other editions linked to it by title and author.
+    work_links: list[str] = field(default_factory=list)

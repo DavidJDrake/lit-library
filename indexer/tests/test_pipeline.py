@@ -117,6 +117,35 @@ def test_categories_settle_across_a_work(tmp_path, make_epub):
     assert [c.before for c in captured["changes"]] == [frozenset({"Security & Hacking", "Tech & Programming"})]
 
 
+def test_catalog_carries_work_links_on_canonical_entries_only(tmp_path, make_epub):
+    root = tmp_path / "library"
+    first = make_epub(dest=root / "Hacking by No Starch Press" / "EPUB" / "linux_basics.epub",
+                      title="Linux Basics", authors=("Ann Author",), isbn="9780306406157", with_cover=False)
+    make_epub(dest=root / "Python Programming Bundle" / "EPUB" / "linux_basics.epub",
+              title="Linux Basics", authors=("Ann Author",), isbn="9781593277505", with_cover=False)
+    copy = root / "Security Bundle" / "EPUB" / "linux_basics.epub"
+    copy.parent.mkdir(parents=True)
+    copy.write_bytes(first.read_bytes())
+    make_epub(dest=root / "Glen Cook" / "EPUB" / "the_black_company.epub",
+              title="The Black Company", authors=("Glen Cook",), isbn="9780812521399", with_cover=False)
+    (tmp_path / "overrides.yaml").write_text("")
+    books, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml",
+                           added_path=tmp_path / "added.json", hash_cache_path=tmp_path / "hashes.json")
+    data = json.loads(write_outputs(books, {}, tmp_path / "out").read_text())
+    by_title = {}
+    for entry in data["books"]:
+        by_title.setdefault(entry["title"], []).append(entry)
+    linux = by_title["Linux Basics"]
+    editions = sorted({e["editionId"] for e in linux})
+    assert len(linux) == 3 and len(editions) == 2
+    for entry in linux:
+        if entry["id"] == entry["editionId"]:
+            assert entry["workLinks"] == [e for e in editions if e != entry["id"]]
+        else:
+            assert "workLinks" not in entry
+    assert "workLinks" not in by_title["The Black Company"][0]
+
+
 def test_write_added_false_leaves_added_json_untouched(tmp_path, make_epub, make_pdf):
     root = make_library(tmp_path, make_epub, make_pdf)
     added = tmp_path / "added.json"

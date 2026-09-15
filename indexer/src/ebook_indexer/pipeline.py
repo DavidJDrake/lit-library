@@ -104,6 +104,7 @@ def build_books(root: Path, overrides_path: Path,
     for b in books:
         b.edition_id = grouping.edition_id[b.id]
         b.work_id = grouping.work_id[b.id]
+        b.work_links = grouping.work_links.get(b.id, []) if b.id == b.edition_id else []
     changes = settle_categories(books, overrides)
 
     for warning in [*hash_cache.warnings, *grouping.warnings]:

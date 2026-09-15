@@ -145,26 +145,85 @@ def test_work_override_naming_an_unknown_id_is_ignored_with_a_warning():
     assert any("zzzz" in w for w in g.warnings)
 
 
-def test_shared_fixture_folded_overrides_give_the_recorded_cards():
+def test_work_override_keyed_by_a_non_canonical_copy_applies_to_its_edition():
+    g = group_copies([
+        copy("a", bundle="X", title="One", added="2026-01-01"),
+        copy("b", bundle="Y", title="Two", added="2026-01-02"),
+        copy("b2", bundle="Z", title="Two", hashes={"h-b"}, added="2026-01-03"),
+    ], {"b2": "a"})
+    assert g.managed == frozenset({"b"})
+    assert g.work_id == {"a": "a", "b": "a", "b2": "a"}
+
+
+def test_work_override_naming_a_non_canonical_copy_joins_that_copys_work():
+    g = group_copies([
+        copy("a", bundle="X", title="One", added="2026-01-01"),
+        copy("a2", bundle="Z", title="One", hashes={"h-a"}, added="2026-01-03"),
+        copy("b", bundle="Y", title="Two", added="2026-01-02"),
+    ], {"b": "a2"})
+    assert g.work_id["b"] == "a"
+
+
+def test_the_edition_id_override_wins_over_a_copy_id_override_whatever_their_order():
+    records = [
+        copy("a", bundle="X", title="One", added="2026-01-01"),
+        copy("b", bundle="Y", title="Two", added="2026-01-02"),
+        copy("c", bundle="W", title="Three", added="2026-01-03"),
+        copy("c2", bundle="Z", title="Three", hashes={"h-c"}, added="2026-01-04"),
+    ]
+    for overrides in ({"c": "a", "c2": "b"}, {"c2": "b", "c": "a"}):
+        assert group_copies(records, overrides).work_id["c"] == "a"
+
+
+def test_among_copy_id_overrides_for_one_edition_the_smallest_key_wins():
+    records = [
+        copy("a", bundle="X", title="One", added="2026-01-01"),
+        copy("b", bundle="Y", title="Two", added="2026-01-02"),
+        copy("c", bundle="W", title="Three", added="2026-01-03"),
+        copy("c2", bundle="Z", title="Three", hashes={"h-c"}, added="2026-01-04"),
+        copy("c3", bundle="V", title="Three", hashes={"h-c"}, added="2026-01-05"),
+    ]
+    for overrides in ({"c3": "b", "c2": "a"}, {"c2": "a", "c3": "b"}):
+        assert group_copies(records, overrides).work_id["c"] == "a"
+
+
+def test_work_links_list_every_automatic_pair_symmetrically_and_ignore_overrides():
+    g = group_copies([
+        copy("a", bundle="X", title="T", added="2026-01-01"),
+        copy("b", bundle="Y", title="T", added="2026-01-02"),
+        copy("c", bundle="Z", title="T (2nd edition)", added="2026-01-03"),
+        copy("c2", bundle="V", title="T", hashes={"h-c"}, added="2026-01-04"),
+        copy("d", bundle="W", title="Other", added="2026-01-05"),
+    ], {"b": "b"})
+    assert g.work_links == {"a": ["b", "c"], "b": ["a", "c"], "c": ["a", "b"]}
+    assert cards(g) == [["a", "c", "c2"], ["b"], ["d"]]
+
+
+def test_shared_fixture_folded_overrides_give_the_recorded_cards_and_ids():
     data = json.loads(FIXTURE.read_text())
     for n, case in enumerate(data["cases"]):
-        editions = case["editions"]
         links = {frozenset(pair) for pair in case["links"]}
-        records = []
-        for i, e in enumerate(editions):
-            # Every edition shares one title; an author is shared exactly when two editions are linked.
-            authors = tuple(f"Author {min(x, y)} {max(x, y)}" for x, y in (tuple(p) for p in links) if e in (x, y))
-            records.append(CopyRecord(id=e, bundle=f"bundle-{e}", title="Same Title", authors=authors,
-                                      formats=frozenset({"epub"}), file_hashes=frozenset({f"hash-{e}"}),
-                                      isbn=None, added_at=f"2026-01-01T00:00:{i:02d}"))
-        assert cards(group_copies(records, {})) == sorted(
-            sorted(g) for g in _groups(case["catalogWorkId"])), f"case {n}: automatic grouping"
         for s, step in enumerate(case["steps"]):
-            assert cards(group_copies(records, step["rows"])) == step["cards"], f"case {n} step {s}"
-
-
-def _groups(work_of):
-    by = {}
-    for e, w in work_of.items():
-        by.setdefault(w, []).append(e)
-    return by.values()
+            present = case["editions"][:step["library"]]
+            records = []
+            for i, e in enumerate(present):
+                # Every edition shares one title; an author is shared exactly when two editions are linked.
+                authors = tuple(f"Author {min(x, y)} {max(x, y)}" for x, y in (sorted(p) for p in links) if e in (x, y))
+                entries = [(e, f"2026-01-01T00:00:{i:02d}")]
+                entries += [(c, f"2026-01-01T00:01:{i:02d}") for c, of in case["copies"].items() if of == e]
+                records += [CopyRecord(id=entry, bundle=f"bundle-{entry}", title="Same Title", authors=authors,
+                                       formats=frozenset({"epub"}), file_hashes=frozenset({f"hash-{e}"}),
+                                       isbn=None, added_at=added) for entry, added in entries]
+            g = group_copies(records, step["rows"])
+            cards_with_ids = {}
+            for e in present:
+                cards_with_ids.setdefault(g.work_id[e], []).append(e)
+            assert cards_with_ids == step["cards"], f"case {n} step {s}"
+            if step["op"]["kind"] == "publish":
+                assert g.work_id == step["catalogWorkId"], f"case {n} step {s}: catalog workId"
+            expected_links = {}
+            for x, y in (sorted(p) for p in links):
+                if x in present and y in present:
+                    expected_links.setdefault(x, []).append(y)
+                    expected_links.setdefault(y, []).append(x)
+            assert g.work_links == {e: sorted(v) for e, v in expected_links.items()}, f"case {n} step {s}: links"
