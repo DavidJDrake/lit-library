@@ -227,6 +227,12 @@ key once its correction row is gone; it still preserves comments and entry order
 then they live only in DynamoDB: the site applies them once its overlay loads, but the catalog, and
 anything reading it without the overlay, does not carry them.
 
+**Wrong ISBNs.** Publishers occasionally stamp two different books with the same ISBN, which makes
+them one edition — a merge the app can't undo, because split works on editions. Correct it in
+`overrides.yaml` with an `isbn:` key on the affected book (`isbn: null` drops the ISBN); the indexer
+uses the override both for grouping and for the enrichment lookup. The grouping report's "isbn"
+links are where these show up.
+
 A merged or split (managed) edition stops attracting newly published books that only match it
 through title and author — it still joins an identical file or shared ISBN, but the title-and-author
 rule leaves it alone. Reset the card to make it automatic again.

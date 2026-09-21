@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import date
 from pathlib import Path, PurePosixPath
 
-from .categorize import apply_overrides, derive_category, load_overrides
+from .categorize import apply_overrides, derive_category, load_overrides, override_isbn
 from .covers import thumbnail_webp
 from .enrich import Enricher
 from .extract_archive import classify_archive
@@ -64,6 +64,7 @@ def build_books(root: Path, overrides_path: Path,
                 break
             primary = files[0]  # epub-first ordering from group_files
             meta = _extract(primary)
+            meta.isbn = override_isbn(overrides, bid, meta.isbn)
             stem = PurePosixPath(primary.rel_path).stem
             fallback_title = prettify(stem)
             if enricher is not None:
