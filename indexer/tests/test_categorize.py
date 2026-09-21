@@ -89,3 +89,13 @@ def test_unknown_category_override_is_still_ignored():
 def test_valid_categories_without_the_key_is_the_builtin_set():
     assert valid_categories({}) == BUILTIN_CATEGORIES
     assert valid_categories({"categories": None}) == BUILTIN_CATEGORIES
+
+
+def test_isbn_override_replaces_or_drops_the_file_isbn():
+    from ebook_indexer.categorize import override_isbn
+    assert override_isbn({}, "abc123", "9781593277505") == "9781593277505"
+    assert override_isbn({"abc123": {"title": "T"}}, "abc123", "9781593277505") == "9781593277505"
+    assert override_isbn({"abc123": {"isbn": "978-0-306-40615-7"}}, "abc123", "9781593277505") == "978-0-306-40615-7"
+    assert override_isbn({"abc123": {"isbn": 9780306406157}}, "abc123", None) == "9780306406157"  # unquoted YAML number
+    assert override_isbn({"abc123": {"isbn": None}}, "abc123", "9781593277505") is None
+    assert override_isbn({"abc123": {"isbn": "  "}}, "abc123", "9781593277505") is None

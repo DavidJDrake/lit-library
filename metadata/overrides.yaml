@@ -2608,3 +2608,8 @@ fe6891f0836fba8b:
   publisher: Raspberry Pi Press
   title: The MagPi 037
   year: 2015
+# Packt stamped both of these EPUBs with 978-1-83882-599-7; ISBNs below are from each book's copyright page.
+cf1af0cd15748ec8:
+  isbn: '9781838827472'  # Learn Docker - Fundamentals of Docker 19.x
+f7a2e0fd6215c709:
+  isbn: '9781838821562'  # Hands-On Kubernetes on Windows

@@ -206,3 +206,35 @@ def test_work_override_in_overrides_yaml_is_honoured(tmp_path, make_epub):
     (tmp_path / "overrides.yaml").write_text(f"{later.id}:\n  work: {later.id}\n")
     second, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json")
     assert len({b.work_id for b in second}) == 2
+
+
+def test_isbn_override_separates_books_that_share_a_wrong_isbn(tmp_path, make_epub):
+    root = tmp_path / "library"
+    make_epub(dest=root / "Devops" / "EPUB" / "docker.epub", title="Learn Docker", authors=("Ann Author",),
+              isbn="9781838827472", with_cover=False)
+    make_epub(dest=root / "Devops" / "EPUB" / "kubernetes.epub", title="Kubernetes on Windows", authors=("Bob Writer",),
+              isbn="9781838827472", with_cover=False)
+    first, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json")
+    assert len({b.edition_id for b in first}) == 1  # the shared (wrong) ISBN makes them one edition
+    kube = next(b for b in first if b.title == "Kubernetes on Windows")
+    (tmp_path / "overrides.yaml").write_text(f"{kube.id}:\n  isbn: '9781838821562'\n")
+    second, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json")
+    assert len({b.edition_id for b in second}) == 2
+    assert len({b.work_id for b in second}) == 2
+
+
+def test_isbn_override_keys_the_enrichment_lookup(tmp_path, make_epub):
+    root = tmp_path / "library"
+    make_epub(dest=root / "Devops" / "EPUB" / "kubernetes.epub", title="Kubernetes on Windows", isbn="9781838827472",
+              with_cover=False)
+    first, _ = build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json")
+    (tmp_path / "overrides.yaml").write_text(f"{first[0].id}:\n  isbn: '9781838821562'\n")
+
+    class Recorder:
+        isbns: list = []
+        def enrich(self, meta, fallback_title):
+            self.isbns.append(meta.isbn)
+
+    rec = Recorder()
+    build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json", enricher=rec)
+    assert rec.isbns == ["9781838821562"]

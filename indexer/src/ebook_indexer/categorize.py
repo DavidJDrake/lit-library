@@ -70,6 +70,21 @@ def valid_categories(overrides: dict) -> set[str]:
     return set(BUILTIN_CATEGORIES) | {str(c) for c in extra}
 
 
+def override_isbn(overrides: dict, book_id: str, isbn: str | None) -> str | None:
+    """The ISBN to use for a book: an ``isbn:`` override replaces the file's ISBN.
+
+    Publishers occasionally stamp two different books with one ISBN, which would make them
+    one edition. ``isbn: null`` (or blank) drops the ISBN; an unquoted number is accepted.
+    """
+    entry = overrides.get(book_id)
+    if not isinstance(entry, dict) or "isbn" not in entry:
+        return isbn
+    value = entry["isbn"]
+    if value is None:
+        return None
+    return str(value).strip() or None
+
+
 def apply_overrides(book: Book, overrides: dict) -> None:
     valid = valid_categories(overrides)
     for field_name, value in (overrides.get(book.id) or {}).items():
