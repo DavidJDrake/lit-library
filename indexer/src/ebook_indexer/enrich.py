@@ -93,16 +93,21 @@ class Enricher:
     quota that this library has observed fully exhausted. The key is
     never required here (Open Library needs none, and Google Books calls
     are still attempted without one), just passed through when supplied.
+    offline: bool -- if True, a cache miss is treated as not found and
+    never fetched, slept on, or written; `offline=True` reads the cache only.
     """
 
     def __init__(self, cache_dir: Path, fetch_json=None, fetch_bytes=None, sleep=None,
-                 google_books_api_key: str | None = None):
+                 google_books_api_key: str | None = None, offline: bool = False):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.fetch_json = fetch_json or _default_fetch_json
         self.fetch_bytes = fetch_bytes or _default_fetch_bytes
         self.sleep = sleep if sleep is not None else time.sleep
         self.google_books_api_key = google_books_api_key
+        # Cache-only: a miss is treated as not found and never fetched or written. Used by
+        # the grouping report, which must not touch the network or the cache.
+        self.offline = offline
 
     def enrich(self, meta: ExtractedMeta, fallback_title: str) -> None:
         key = meta.isbn or f"{fallback_title}|{meta.authors[0] if meta.authors else ''}"
@@ -121,7 +126,7 @@ class Enricher:
             meta.publisher = data["publisher"]
         if not meta.year and data.get("year"):
             meta.year = data["year"]
-        if meta.cover is None and data.get("cover_url"):
+        if meta.cover is None and data.get("cover_url") and not self.offline:
             meta.cover = self.fetch_bytes(data["cover_url"])
 
     def clear_failed_cache(self) -> int:
@@ -143,6 +148,8 @@ class Enricher:
         cached = read_json_or(cache_file, None)
         if cached is not None:
             return cached
+        if self.offline:
+            return {"found": False}
         try:
             data = self._lookup(meta, fallback_title)
         except TransientFetchError:

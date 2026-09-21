@@ -246,3 +246,23 @@ describe("view round trip", () => {
     expect(viewFromSearch(searchFromView(original))).toEqual(original);
   });
 });
+
+describe("search and facets over work cards", () => {
+  const edition = (id: string, title: string) => ({
+    id, title, authors: ["Mikael Krief"], description: null, publisher: null, year: null, coverUrl: null, subjects: [],
+    category: "Tech & Programming", formats: [], bundles: [], copyIds: [id], addedAt: "2026-01-01", downloaded: false,
+  });
+  const work: Book = {
+    id: "w", title: "Learning DevOps", authors: ["Mikael Krief"], description: null, category: "Tech & Programming",
+    subjects: [], publisher: null, bundle: "A", year: 2022, formats: [], coverUrl: null, addedAt: "2026-01-01",
+    bundles: ["A", "B"], editions: [edition("w", "Learning DevOps"), edition("o", "Learning DevOps - Second Edition")],
+  };
+
+  it("lists a work under every bundle it appears in", () => {
+    expect(facetValues(work, "bundle")).toEqual(["A", "B"]);
+  });
+
+  it("finds a work by the title of an edition it is not showing", () => {
+    expect(searchBooks([work], "second edition").map((b) => b.id)).toEqual(["w"]);
+  });
+});

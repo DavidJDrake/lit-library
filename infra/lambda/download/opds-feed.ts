@@ -13,27 +13,50 @@ export interface FeedLinks {
   acquisitionOf(bookId: string, format: string): string;
 }
 
-function toPublication(book: CatalogBook, links: FeedLinks) {
+const FORMAT_ORDER = ["epub", "pdf", "cbz", "zip"];
+const formatRank = (type: string): number => {
+  const i = FORMAT_ORDER.indexOf(type);
+  return i === -1 ? FORMAT_ORDER.length : i;
+};
+
+// Copies of one edition are the same book, so the feed lists the edition once. Each format
+// links to the most recently added copy that has it (ties: smallest id), matching the site.
+function toPublication(copies: CatalogBook[], links: FeedLinks) {
+  const editionId = copies[0].editionId ?? copies[0].id;
+  const canonical = copies.find((b) => b.id === editionId) ?? copies[0];
+  const newestFirst = [...copies].sort((a, b) => (b.addedAt ?? "").localeCompare(a.addedAt ?? "") || a.id.localeCompare(b.id));
+  const chosen = new Map<string, CatalogBook>();
+  for (const copy of newestFirst) {
+    for (const f of copy.formats) if (!chosen.has(f.type)) chosen.set(f.type, copy);
+  }
+  const types = [...chosen.keys()].sort((a, b) => formatRank(a) - formatRank(b) || a.localeCompare(b));
   return {
     metadata: {
       "@type": "http://schema.org/Book",
-      title: book.title,
-      author: (book.authors ?? []).map((name) => ({ name })),
+      title: canonical.title,
+      author: (canonical.authors ?? []).map((name) => ({ name })),
     },
-    links: book.formats.map((f) => ({
+    links: types.map((type) => ({
       rel: "http://opds-spec.org/acquisition",
-      href: links.acquisitionOf(book.id, f.type),
-      type: mediaTypeOf(f.type),
+      href: links.acquisitionOf(chosen.get(type)!.id, type),
+      type: mediaTypeOf(type),
     })),
   };
 }
 
-// A single flat acquisition feed listing every book in the catalogue — no pagination or
-// per-category feeds, matching the brief's "single acquisition feed" requirement.
+// A single flat acquisition feed — one publication per edition, in catalogue order of each
+// edition's first copy. No pagination or per-category feeds.
 export function buildOpdsFeed(catalog: Catalog, title: string, links: FeedLinks) {
+  const editions = new Map<string, CatalogBook[]>();
+  for (const book of catalog.books) {
+    const key = book.editionId ?? book.id;
+    const copies = editions.get(key);
+    if (copies) copies.push(book);
+    else editions.set(key, [book]);
+  }
   return {
     metadata: { title },
     links: [{ rel: "self", href: links.self, type: OPDS_MEDIA_TYPE }],
-    publications: catalog.books.map((book) => toPublication(book, links)),
+    publications: [...editions.values()].map((copies) => toPublication(copies, links)),
   };
 }

@@ -73,10 +73,20 @@ catalog. *AWS Certified Security – Specialty* is in three bundles; *The Docker
 Workshop* and *The Kubernetes Workshop* in two each. Bundle sellers repackage the same
 titles, so browsing shows the same cover repeatedly and search results pad out.
 
-- [ ] Pick a match key (normalised title plus author) and count false merges on the real catalog
-- [ ] Group matches in the catalog builder: one book, several sources
-- [ ] One card in the UI; the dialog lists sources and the download picks one
-- [ ] Migrate reading statuses and download rows onto the surviving book id
+- [x] Pick a match key and count false merges on the real catalog — identical files or ISBN for editions; edition-insensitive title plus a shared author for works (subtitles kept: stripping them merged six Dune novels)
+- [x] Group matches in the catalog builder — `editionId` and `workId` on every entry, with a read-only grouping report
+- [x] One card per work in the UI, with an edition picker; each download names the copy it serves
+- [x] No migration needed — every copy keeps its id, and per-reader state resolves at card level
+- [x] Admin merge, split and reset in the app, folded back into `overrides.yaml` by `pull-edits.py`
+
+**Closed by:** spec and plan `2026-09-14-works-and-editions`.
+
+**Follow-ups (from the final review, not blocking):**
+
+- [ ] Split writes a row for the remainder's first edition only when it already has one, so a split card still takes in new matching editions (verified correct by simulation; today the remainder is frozen until Reset)
+- [ ] After splitting off a later edition, keep the dialog on the remainder card rather than the split-off one
+- [ ] A way to delete correction rows whose edition no longer exists (they show as `orphan:` on every `pull-edits.py` run)
+- [ ] Hash cache: a failed save in `build_books`'s `finally` should not hide the scan's original error
 
 **Effort:** M. Worth doing while only one reader has status rows to migrate.
 

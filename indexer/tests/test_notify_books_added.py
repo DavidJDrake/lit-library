@@ -127,3 +127,39 @@ def test_outputs_as_a_list_is_a_warning_not_a_failure(tmp_path):
     r = run(tmp_path, {"a": "x"}, {"a": "x", "b": "y"}, "--outputs", str(o))
     assert r.returncode == 0
     assert "warning" in r.stderr
+
+
+def test_new_edition_ids_skip_copies_joining_existing_editions():
+    m = load_module()
+    books = [{"id": "old", "editionId": "old"}, {"id": "copy", "editionId": "old"}, {"id": "new", "editionId": "new"}]
+    assert m.new_edition_ids(["copy", "new"], books) == ["new"]
+    assert m.new_edition_ids(["copy", "new"], None) == ["copy", "new"]
+    assert m.new_edition_ids(["unlisted"], books) == ["unlisted"]
+
+
+def test_dry_run_counts_editions_from_the_catalog(tmp_path):
+    cat = tmp_path / "catalog.json"
+    cat.write_text(json.dumps({"books": [
+        {"id": "old", "editionId": "old"}, {"id": "copy", "editionId": "old"}, {"id": "new", "editionId": "new"}]}))
+    r = run(tmp_path, {"old": "x"}, {"old": "x", "copy": "y", "new": "y"}, "--dry-run", "--catalog", str(cat))
+    assert r.returncode == 0
+    payload = json.loads(r.stdout)
+    assert payload["count"] == 1
+    assert payload["bookIds"] == ["new"]
+
+
+def test_only_joining_copies_means_nothing_to_notify(tmp_path):
+    cat = tmp_path / "catalog.json"
+    cat.write_text(json.dumps({"books": [{"id": "old", "editionId": "old"}, {"id": "copy", "editionId": "old"}]}))
+    r = run(tmp_path, {"old": "x"}, {"old": "x", "copy": "y"}, "--dry-run", "--catalog", str(cat))
+    assert r.returncode == 0
+    assert "no new editions (1 new copy joined existing editions); nothing to notify" in r.stdout
+
+
+def test_an_unreadable_catalog_counts_every_new_copy_with_a_warning(tmp_path):
+    bad = tmp_path / "catalog.json"
+    bad.write_text("{nope")
+    r = run(tmp_path, {}, {"a": "y", "b": "y"}, "--dry-run", "--catalog", str(bad))
+    assert r.returncode == 0
+    assert json.loads(r.stdout)["count"] == 2
+    assert "warning" in r.stderr

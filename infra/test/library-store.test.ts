@@ -267,3 +267,34 @@ describe("DynamoStore OPDS tokens", () => {
     expect(send.mock.calls[0][0]).toBeInstanceOf(GetCommand);
   });
 });
+
+describe("DynamoStore work edits", () => {
+  it("lists WORKEDIT rows", async () => {
+    const { ddb, send } = client(() => ({ Items: [{ pk: "WORKEDIT", sk: "aaaaaaaaaaaaaaaa", workId: "bbbbbbbbbbbbbbbb", by: "a@x", at: NOW }] }));
+    const out = await new DynamoStore(ddb, "T").listWorkEdits();
+    expect(out).toEqual([{ editionId: "aaaaaaaaaaaaaaaa", workId: "bbbbbbbbbbbbbbbb", by: "a@x", at: NOW }]);
+    expect((send.mock.calls[0][0] as QueryCommand).input.ExpressionAttributeValues).toEqual({ ":pk": "WORKEDIT" });
+  });
+
+  it("writes every edit in one transaction", async () => {
+    const { ddb, send } = client(() => ({}));
+    await new DynamoStore(ddb, "T").putWorkEdits([
+      { editionId: "aaaaaaaaaaaaaaaa", workId: "bbbbbbbbbbbbbbbb", by: "a@x", at: NOW },
+      { editionId: "bbbbbbbbbbbbbbbb", workId: "bbbbbbbbbbbbbbbb", by: "a@x", at: NOW },
+    ]);
+    expect(send).toHaveBeenCalledTimes(1);
+    const cmd = send.mock.calls[0][0] as TransactWriteCommand;
+    expect(cmd).toBeInstanceOf(TransactWriteCommand);
+    expect(cmd.input.TransactItems).toEqual([
+      { Put: { TableName: "T", Item: { pk: "WORKEDIT", sk: "aaaaaaaaaaaaaaaa", workId: "bbbbbbbbbbbbbbbb", by: "a@x", at: NOW } } },
+      { Put: { TableName: "T", Item: { pk: "WORKEDIT", sk: "bbbbbbbbbbbbbbbb", workId: "bbbbbbbbbbbbbbbb", by: "a@x", at: NOW } } },
+    ]);
+  });
+
+  it("deletes the named rows in one transaction", async () => {
+    const { ddb, send } = client(() => ({}));
+    await new DynamoStore(ddb, "T").deleteWorkEdits(["aaaaaaaaaaaaaaaa"]);
+    const cmd = send.mock.calls[0][0] as TransactWriteCommand;
+    expect(cmd.input.TransactItems).toEqual([{ Delete: { TableName: "T", Key: { pk: "WORKEDIT", sk: "aaaaaaaaaaaaaaaa" } } }]);
+  });
+});

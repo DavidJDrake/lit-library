@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Book } from "../catalog/types";
+import type { Book, Edition } from "../catalog/types";
 import BookCard from "./BookCard";
 
 const book: Book = {
@@ -68,6 +68,21 @@ describe("BookCard", () => {
       expect(cover.querySelector(".downloaded-chip")).not.toBeNull();
       expect(container.querySelector(".meta .status-chip, .badges .status-chip")).toBeNull();
       expect(container.querySelector(".meta .downloaded-chip, .badges .downloaded-chip")).toBeNull();
+    });
+  });
+
+  describe("editions chip", () => {
+    const edition = (id: string): Edition => ({
+      id, title: "T", authors: [], description: null, publisher: null, year: null, coverUrl: null, subjects: [],
+      category: "Fiction", formats: [], bundles: ["B"], copyIds: [id], addedAt: "2026-01-01", downloaded: false,
+    });
+
+    it("appears on the cover only for works with more than one edition", () => {
+      const { container, rerender } = render(<BookCard book={{ ...book, editions: [edition("1"), edition("2")] }} onOpen={() => {}} />);
+      expect(container.querySelector(".cover .editions-chip")).toHaveTextContent("2 editions");
+      expect(container.querySelector(".meta .editions-chip, .badges .editions-chip")).toBeNull();
+      rerender(<BookCard book={{ ...book, editions: [edition("1")] }} onOpen={() => {}} />);
+      expect(container.querySelector(".editions-chip")).toBeNull();
     });
   });
 });

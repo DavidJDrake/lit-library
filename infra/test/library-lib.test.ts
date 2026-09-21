@@ -66,6 +66,6 @@ describe("matchRoute", () => {
     expect(matchRoute("PUT", "/api/books/%/status")).toBeUndefined();
   });
   it("names the admin-only routes", () => {
-    expect([...ADMIN_ROUTES].sort()).toEqual(["accept", "createCategory", "reject"]);
+    expect([...ADMIN_ROUTES].sort()).toEqual(["accept", "createCategory", "putWorkEdits", "reject", "resetWorkEdits"]);
   });
 });
