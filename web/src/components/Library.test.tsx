@@ -674,6 +674,35 @@ describe("admin work corrections", () => {
     expect(within(dialog).queryByRole("button", { name: "Reset to automatic grouping" })).toBeNull();
   });
 
+  it("after splitting off a later edition, the dialog stays on the remainder card rather than following the split-off edition", async () => {
+    const linked: Catalog = {
+      generatedAt: "t",
+      books: [
+        { ...catalog.books[0], id: "1", editionId: "1", workId: "1", workLinks: ["3"] },
+        { ...catalog.books[0], id: "3", editionId: "3", workId: "3", workLinks: ["1"], title: "Attacking Network Protocols - Second Edition",
+          year: 2022, addedAt: "2026-04-01" },
+      ],
+    };
+    let workEdits: Record<string, string> = {};
+    const jsonRes = (body: unknown) => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => body });
+    const fetchFn = fetchFor(linked, undefined, {
+      "GET /library$": () => jsonRes({ ...overlay, workEdits }),
+      "PUT /works/edits$": (_u, init) => { workEdits = JSON.parse(String(init!.body)).edits; return { ok: true, status: 204, headers: new Headers() }; },
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, isAdmin: true });
+    expect(await screen.findByText("1 book")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Attacking Network Protocols/ }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.selectOptions(within(dialog).getByRole("combobox", { name: "Edition" }), "3");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Split this edition into its own card" }));
+    await waitFor(() => expect(screen.getByText("2 books")).toBeInTheDocument());
+    expect(dialog).toHaveAttribute("open");
+    expect(within(dialog).getByRole("heading", { name: "Attacking Network Protocols" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox", { name: "Edition" })).toBeNull(); // the remainder now holds just edition "1"
+    // The remainder (edition "1") had no row of its own before the split, so it stays unmanaged.
+    expect(workEdits).toEqual({ "3": "3" });
+  });
+
   it("shows no correction controls to readers who are not admins", async () => {
     renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
     await userEvent.click(await screen.findByRole("button", { name: /Attacking Network Protocols/ }));

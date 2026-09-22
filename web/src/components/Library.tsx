@@ -9,7 +9,7 @@ import {
   searchBooks, searchFromView, sortBooks, sortFromSearch,
 } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type ReadingStatus, type SortKey } from "../catalog/types";
-import { groupWorks, mergeEdits, resetEditionIds, splitEdits } from "../catalog/works";
+import { byAddedThenId, groupWorks, mergeEdits, resetEditionIds, splitEdits } from "../catalog/works";
 import type { KindleError } from "../kindle/api";
 import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
@@ -203,10 +203,14 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     return merged;
   }, [mutate, apiUrl, fetchFn]);
   const splitEdition = useCallback(async (card: Book, editionId: string) => {
-    const rows = splitEdits(card.id, (card.editions ?? []).map((e) => ({ id: e.id, addedAt: e.addedAt })), editionId);
+    const cardEditions = (card.editions ?? []).map((e) => ({ id: e.id, addedAt: e.addedAt, copyIds: e.copyIds }));
+    const rows = splitEdits(card.id, cardEditions, editionId, overlay?.workEdits ?? {});
     if (Object.keys(rows).length === 0) return;
-    if (await mutate((t) => putWorkEdits(apiUrl, t, rows, fetchFn), "Split into its own card")) setSelectedId(editionId);
-  }, [mutate, apiUrl, fetchFn]);
+    // Stay on the remainder card rather than following the newly split-off edition: unless
+    // the split-off edition was the card's own id, the remainder keeps card.id.
+    const remainderId = editionId !== card.id ? card.id : [...cardEditions].filter((e) => e.id !== editionId).sort(byAddedThenId)[0].id;
+    if (await mutate((t) => putWorkEdits(apiUrl, t, rows, fetchFn), "Split into its own card")) setSelectedId(remainderId);
+  }, [mutate, apiUrl, fetchFn, overlay]);
   const resetCard = useCallback(async (card: Book, shownEditionId: string | null) => {
     const ids = resetEditionIds(books ?? [], (card.editions ?? []).map((e) => e.id), overlay?.workEdits ?? {});
     if (ids.length === 0) return;
