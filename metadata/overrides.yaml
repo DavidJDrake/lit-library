@@ -17,6 +17,7 @@
   title: The Picture in the House
   year: 1921
 38a3d3bcaabb3d2d:
+  category: Cosmic Horror
   title: The Thing on the Doorstep
   year: 1937
 3caee6b5da54dd12:
@@ -38,6 +39,7 @@
   title: The Haunter of the Dark
   year: 1936
 8f664f6b5046bc13:
+  category: Cosmic Horror
   title: At the Mountains of Madness
   year: 1936
 940c6067fec9726b:
@@ -59,6 +61,7 @@ c6b6c5d223d882f8:
   title: The Colour Out of Space
   year: 1927
 cbc4b059fe46669a:
+  category: Cosmic Horror
   title: Cool Air
   year: 1928
 da4ec50e17f43f38:
@@ -68,6 +71,7 @@ db5990357aedaec6:
   title: The Shunned House
   year: 1937
 e0122247bd1cf067:
+  category: Cosmic Horror
   title: The Trap
   year: 1932
 e311ac227cee987e:
@@ -211,6 +215,7 @@ fa87ea832140e77d:
   title: Red Nails
   year: 1936
 114a9165872662f9:
+  category: Cosmic Horror
   description: '"A Witch Shall Be Born" by Robert E. Howard is a sword and sorcery novella written in
     1934. When an evil twin witch replaces the rightful queen of Khauran, Conan the Cimmerian refuses
     to serve the impostor and faces brutal crucifixion for his defiance. The story follows Conan''s survival
@@ -220,6 +225,7 @@ fa87ea832140e77d:
   title: A Witch Shall Be Born
   year: 1934
 17fd7a2728c1ebc0:
+  category: Cosmic Horror
   description: '"Can Such Things Be?" by Ambrose Bierce is a collection of supernatural tales written
     during the late 19th century. The stories delve into themes of death, the afterlife, and the intersection
     of reality with the paranormal, showcasing Bierce’s dark humor and philosophical musings on life and
@@ -474,6 +480,7 @@ fa87ea832140e77d:
   title: John Silence, Physician Extraordinary
   year: 1908
 36a9bfe046e89537:
+  category: Cosmic Horror
   description: '"A Thin Ghost and Others" by M. R. James is a horror short story collection published
     in 1919. This third collection from the British master of supernatural fiction features five tales,
     several representing what critics call James'' "puzzle-story phase"—oblique narratives demanding careful
@@ -509,6 +516,7 @@ fa87ea832140e77d:
   title: Selections from the Writings of Lord Dunsany
   year: 1912
 3abbfe5bcc6ef4e5:
+  category: Cosmic Horror
   description: '"A Dreamer''s Tales" by Lord Dunsany is a collection of fantasy short stories published
     in 1910. This fourth book by the Irish fantasy writer features sixteen tales of mysterious cities,
     ancient prophecies, and strange encounters. Stories range from a mountain that claims all who climb
@@ -575,6 +583,7 @@ fa87ea832140e77d:
   title: The Man Whom the Trees Loved
   year: 1912
 4f6f519e1c24cb0c:
+  category: Cosmic Horror
   description: '"Black Hound of Death" by Robert E. Howard is a dark horror tale written in the early
     20th century. This gripping short story delves into themes of vengeance, brutality, and the supernatural,
     exploring the terrifying transformation of a man into a beastly figure linked to ancient horrors.
@@ -866,6 +875,7 @@ fa87ea832140e77d:
   title: The Wendigo
   year: 1910
 8aa8ef480c3e364f:
+  category: Cosmic Horror
   description: '"Beyond the Black River" by Robert E. Howard is a short story first published in May–June
     1935. Set in the fictional Hyborian Age, it follows Conan the Cimmerian as he battles a savage Pictish
     tribe led by the wizard Zogar Sag in the unsettled wilderness beyond the Black River. When a frontier
@@ -874,6 +884,7 @@ fa87ea832140e77d:
   title: Beyond the Black River
   year: 1935
 8f1eadc3f2bab528:
+  category: Cosmic Horror
   description: '"A Warning to the Curious, and Other Ghost Stories" by M. R. James is a collection of
     supernatural short stories written in the early 20th century. This anthology follows various protagonists
     destined to confront eerie and unsettling events related to antiquities and the past, as they encounter
@@ -911,6 +922,7 @@ fa87ea832140e77d:
   title: The Hyborian Age
   year: 1936
 9712d7e2c8553aed:
+  category: Cosmic Horror
   description: '"Day and Night Stories" by Algernon Blackwood is a collection of short stories written
     in the early 20th century. The book explores the complexities of human emotions and relationships,
     often delving into themes of love, memory, and the supernatural. Each story is set against a backdrop
@@ -925,6 +937,7 @@ fa87ea832140e77d:
   title: Day and Night Stories
   year: 1917
 97299e139fb212e6:
+  category: Cosmic Horror
   description: '"Black Canaan" by Robert E. Howard is a short story published in 1936. Set in the backwoods
     of the American South, it follows Kirby Buckner as he returns home after receiving a cryptic warning.
     He discovers his homeland threatened by a mysterious conjure man named Saul Stark, who plans to lead
@@ -1045,9 +1058,11 @@ ac517322217a6cb4:
   title: Time and the Gods
   year: 1906
 af09cbb09814bcd5:
+  category: Cosmic Horror
   title: Crowd-Horror
   year: 1929
 af472184199f622c:
+  category: Cosmic Horror
   description: '"Carnacki, the Ghost Finder" by William Hope Hodgson is a collection of short stories
     published between 1910 and 1913. The work features Thomas Carnacki, an occult detective who investigates
     unusual hauntings using scientific methods, photography, and his fictional invention, the Electric
@@ -1171,6 +1186,7 @@ bcb278cbc8daea8c:
   title: The Human Chord
   year: 1910
 bd6b6995e9fe2163:
+  category: Cosmic Horror
   description: '"A Prisoner in Fairyland" by Algernon Blackwood is a novel written in the early 20th century,
     around 1913. The story intricately weaves the life of its protagonist, Henry Rogers, as he transitions
     from the world of rigid business responsibilities into one filled with the whimsical and nostalgic
@@ -2613,3 +2629,250 @@ cf1af0cd15748ec8:
   isbn: '9781838827472'  # Learn Docker - Fundamentals of Docker 19.x
 f7a2e0fd6215c709:
   isbn: '9781838821562'  # Hands-On Kubernetes on Windows
+00f7b955de7ecfc6:
+  category: Sci-Fi/Fantasy
+079c9e61d72f66cd:
+  category: Crafts & Hobbies (DIY)
+0a16562ac73aafa0:
+  category: Crafts & Hobbies (DIY)
+1be2fcdb766ef18f:
+  category: Sci-Fi/Fantasy
+24d8cd241f5f0895:
+  category: Crafts & Hobbies (DIY)
+26d3dab22d92e722:
+  category: Sci-Fi/Fantasy
+294a66c9a0b9712e:
+  category: Crafts & Hobbies (DIY)
+2c4f1d81372e302d:
+  category: Sci-Fi/Fantasy
+2f0e50fd1f04e608:
+  category: Crafts & Hobbies (DIY)
+337522a6fc2353f9:
+  category: Sci-Fi/Fantasy
+372ee411131a481d:
+  category: Crafts & Hobbies (DIY)
+39c86e26bf6d0bc1:
+  category: Sci-Fi/Fantasy
+3dc40964150c56a6:
+  category: Crafts & Hobbies (DIY)
+43dd008b50c6f2cb:
+  category: Crafts & Hobbies (DIY)
+4482d3865b5e3d60:
+  category: Crafts & Hobbies (DIY)
+44a40a0a7e9f2977:
+  category: Sci-Fi/Fantasy
+4ac5df9913f82bda:
+  category: Crafts & Hobbies (DIY)
+4e506d09c0985950:
+  category: Sci-Fi/Fantasy
+5241a11f0a2319aa:
+  category: Sci-Fi/Fantasy
+52a7de85776dcab6:
+  category: Sci-Fi/Fantasy
+52ef472dbbcf6b4a:
+  category: Crafts & Hobbies (DIY)
+55531b9250d33ec9:
+  category: Crafts & Hobbies (DIY)
+55633d2168283f48:
+  category: Sci-Fi/Fantasy
+64c3a8f084534ee1:
+  category: Crafts & Hobbies (DIY)
+64f6d418e6d2c8c3:
+  category: Sci-Fi/Fantasy
+65b4868f9ce996fd:
+  category: Sci-Fi/Fantasy
+66d58762f6cc5eed:
+  category: Crafts & Hobbies (DIY)
+6b90d5d074ce2177:
+  category: Sci-Fi/Fantasy
+6c8bd64ca6e3cb72:
+  work: 835c1f7dc0f0f675
+72f05509eee6cb23:
+  category: Sci-Fi/Fantasy
+75257c79e1f00ac6:
+  category: Crafts & Hobbies (DIY)
+75ebbadfa6afc0a7:
+  category: Sci-Fi/Fantasy
+78b59024084bbfc0:
+  category: Crafts & Hobbies (DIY)
+7f86b560444f279f:
+  category: Sci-Fi/Fantasy
+80957cdad6643132:
+  category: Sci-Fi/Fantasy
+898f9cc6bb1c5b29:
+  category: Sci-Fi/Fantasy
+8a23937a454c1edd:
+  category: Crafts & Hobbies (DIY)
+993eca20b3c7bffb:
+  category: Crafts & Hobbies (DIY)
+9d9cd5ab1387e366:
+  category: Crafts & Hobbies (DIY)
+9fa1289b707b47c5:
+  category: Sci-Fi/Fantasy
+9fde50002866b413:
+  category: Sci-Fi/Fantasy
+a3723e035131e87c:
+  category: Sci-Fi/Fantasy
+a42013719f697689:
+  category: Crafts & Hobbies (DIY)
+a8a7b7effb335696:
+  category: Crafts & Hobbies (DIY)
+aa49d9e847aaf6d3:
+  category: Sci-Fi/Fantasy
+ac5addabe7870b47:
+  category: Crafts & Hobbies (DIY)
+b9601eed8622a2df:
+  category: Sci-Fi/Fantasy
+ba3a0a914cf9472e:
+  category: Sci-Fi/Fantasy
+bb0b6716c3238664:
+  category: Crafts & Hobbies (DIY)
+bcca4112a07b6254:
+  category: Sci-Fi/Fantasy
+c021e3571ead8283:
+  category: Sci-Fi/Fantasy
+c02b9526acbff46e:
+  category: Crafts & Hobbies (DIY)
+c123f3ec43c33767:
+  category: Crafts & Hobbies (DIY)
+c6afb1dd88d0a085:
+  category: Sci-Fi/Fantasy
+categories:
+- Cosmic Horror
+- Crafts & Hobbies (DIY)
+- Sci-Fi/Fantasy
+d2afae98ea300433:
+  category: Sci-Fi/Fantasy
+d511c90cab486064:
+  category: Crafts & Hobbies (DIY)
+d81377bae7b2f328:
+  category: Sci-Fi/Fantasy
+d85b952760a1bc52:
+  category: Sci-Fi/Fantasy
+dcf3c5798627cb88:
+  category: Sci-Fi/Fantasy
+e1538ed2008b85aa:
+  category: Sci-Fi/Fantasy
+e35c02db23fa1f56:
+  category: Sci-Fi/Fantasy
+e3e3b05f572cd62f:
+  category: Crafts & Hobbies (DIY)
+e97d792bcc140fb6:
+  category: Crafts & Hobbies (DIY)
+ea53357450d06d79:
+  category: Sci-Fi/Fantasy
+ed8f56c5b3b0b20d:
+  category: Sci-Fi/Fantasy
+f221dc9376ad2e68:
+  category: Crafts & Hobbies (DIY)
+fe6075dfe253232c:
+  category: Crafts & Hobbies (DIY)
+ffe94888ece2aad7:
+  category: Sci-Fi/Fantasy
+
+# --- Edgar Allan Poe by Project Gutenberg: first-publication years, trimmed titles, short
+# descriptions. Years for the "Works of Edgar Allan Poe" (Raven Edition) volumes 1-5,
+# "Selections from Poe," and "The Complete Poetical Works of Edgar Allan Poe" are deliberately
+# left unset: no first-publication/edition year could be confirmed from the epub text or metadata.
+# The assembled "First Project Gutenberg Collection" is a modern sampler with no separate
+# original-publication year of its own. ---
+9bd477db9912cb9d:
+  year: 1848
+  description: Poe's book-length prose-poem essay proposing a unified account of the material
+    and spiritual universe; first delivered as a lecture in 1848 and published the same year.
+1aec7939ef3eae78:
+  description: 'A Project Gutenberg sampler collecting three of Poe''s best-known short pieces:
+    the poem "The Raven" and the tales "The Masque of the Red Death" and "The Cask of Amontillado."'
+a77eec9c34df0e9a:
+  authors:
+  - Edgar Allan Poe
+  - Stéphane Mallarmé
+  year: 1875
+  description: Stéphane Mallarmé's French prose translation of "The Raven," printed with the
+    English original and illustrated by Édouard Manet; first published in Paris by Richard Lesclide
+    in 1875.
+4b5a834bb2151a9c:
+  description: A school anthology of Poe's poems and tales, edited with a biographical and critical
+    introduction by J. Montgomery Gambrill, using the text of the Stedman-Woodberry edition.
+08f6b7f198f7dbaa:
+  year: 1912
+  description: A gift-book edition of Poe's poems illustrated by Edmund Dulac, published by
+    Hodder and Stoughton in 1912.
+6ec359df12d90fa4:
+  year: 1846
+  description: A tale of premeditated revenge told by its unrepentant narrator, Montresor; first
+    published in Godey's Lady's Book in 1846.
+8cc1dc51e4ddc096:
+  title: 'The Complete Poetical Works of Edgar Allan Poe: Including Essays on Poetry'
+  description: John H. Ingram's edition of Poe's collected poems, with a memoir, editorial notes,
+    and Poe's essays "The Poetic Principle" and "The Philosophy of Composition."
+1e3b958c8d93715d:
+  title: The Conchologist's First Book
+  year: 1839
+  description: A schoolbook on shell classification credited to Poe, closely adapted from Thomas
+    Brown's "The Conchologist's Text-Book" amid a long-running plagiarism controversy; first
+    published in 1839.
+9bfa70ac4cd6254f:
+  year: 1839
+  description: A tale of hereditary decay and collapse narrated by a visitor to the crumbling
+    Usher estate; first published in Burton's Gentleman's Magazine in 1839.
+c16ad4d0bfda4b9b:
+  year: 1842
+  description: A tale of a plague personified crashing a prince's masked ball; first published
+    in Graham's Magazine in 1842.
+9b62ca6ad7fc69f6:
+  title: The Narrative of Arthur Gordon Pym of Nantucket
+  year: 1838
+  description: Poe's only complete novel, a first-person account of a young stowaway's disastrous
+    voyage into the South Seas and Antarctic waters; first published in 1838.
+c832e8f85eb8ea4b:
+  title: The Poems of Edgar Allan Poe
+  year: 1900
+  description: An illustrated edition of Poe's poems with an introduction by H. Noel Williams
+    and illustrations by W. Heath Robinson; first published in 1900 by George Bell and Sons,
+    London.
+97f457e5f0297629:
+  title: The Poetical Works of Edgar Allan Poe
+  year: 1858
+  description: An illustrated edition of Poe's poems with steel engravings after Jasper Francis
+    Cropsey, Felix O. C. Darley, John Tenniel, and others; first published in 1858 by Sampson
+    Low, Son and Co., London.
+114603214a7f0fd7:
+  year: 1845
+  description: Poe's best-known poem, in which a talking raven visits a grieving narrator; first
+    published in 1845. This edition is a plain, unillustrated Project Gutenberg text.
+598fc471128dccf2:
+  year: 1906
+  description: An illustrated quarto edition pairing Poe's poem "The Raven" (1845) with his
+    essay on writing it, "The Philosophy of Composition" (1846); illustrated by Galen J. Perrett
+    with decorations by Will Jenkins, published in 1906 by Paul Elder and Company.
+381018274c672576:
+  title: 'The Raven: Illustrated by Gustave Doré'
+  year: 1884
+  description: '"The Raven" illustrated by Gustave Doré, with commentary by Edmund Clarence
+    Stedman; first published in 1884 by Harper and Brothers, New York.'
+eadb517e02a6f4b2:
+  title: 'The Raven: Illustrated by W. L. Taylor'
+  year: 1884
+  description: '"The Raven" illustrated by William Ladd Taylor, engraved under the supervision
+    of George T. Andrew; first published in 1884 by E. P. Dutton and Company, New York.'
+181262ad17781aff:
+  description: Volume 1 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    opening with a biographical memoir and collecting tales including "The Gold-Bug" and "The
+    Murders in the Rue Morgue."
+8ee0de802e3269b7:
+  description: Volume 2 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    collecting tales including "The Fall of the House of Usher," "The Masque of the Red Death,"
+    "The Cask of Amontillado," and "The Tell-Tale Heart."
+1112ef82b487e3c9:
+  description: Volume 3 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    containing the complete "Narrative of Arthur Gordon Pym" together with tales including "Ligeia"
+    and "Morella."
+31e30c34afd304b3:
+  description: Volume 4 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    collecting satirical and comic tales including "The System of Doctor Tarr and Professor
+    Fether" and "How to Write a Blackwood Article."
+37706f71bd234ca9:
+  description: Volume 5 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    containing tales including "Hop-Frog" and "The Man of the Crowd," Poe's essay "The Poetic
+    Principle," and his collected poems.
