@@ -339,7 +339,7 @@ def test_google_books_examines_later_items_when_first_is_a_bad_match(tmp_path):
             "authors": ["Raspberry Pi Foundation"],
         },
         {
-            "title": "The MagPi 037: Complete Guide",
+            "title": "The MagPi Issue 37",
             "authors": ["Raspberry Pi Press"],
             "description": "The real match, listed second.",
         },
@@ -348,7 +348,7 @@ def test_google_books_examines_later_items_when_first_is_a_bad_match(tmp_path):
     e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
     meta = ExtractedMeta()
     e.enrich(meta, fallback_title="The MagPi 037")
-    assert meta.title == "The MagPi 037: Complete Guide"
+    assert meta.title == "The MagPi Issue 37"
     assert meta.description == "The real match, listed second."
 
 
@@ -365,6 +365,70 @@ def test_google_books_near_miss_word_overlap_is_rejected(tmp_path):
     meta = ExtractedMeta()
     e.enrich(meta, fallback_title="Design Patterns")
     assert meta.title is None
+
+
+def test_google_books_rejects_wrong_volume_of_a_multi_volume_work(tmp_path):
+    # High fuzzy-string similarity (0.97) must not paper over the digit
+    # that actually distinguishes these two different books.
+    resp = _gb_items({
+        "title": "The Works of Edgar Allan Poe, Volume 2",
+        "authors": ["Edgar Allan Poe"],
+        "description": "Wrong volume.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="The Works of Edgar Allan Poe — Volume 1")
+    assert meta.title is None
+    assert meta.description is None
+
+
+def test_google_books_rejects_wrong_magazine_issue(tmp_path):
+    resp = _gb_items({
+        "title": "The MagPi 038",
+        "authors": [],
+        "description": "Wrong issue.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="The MagPi 037")
+    assert meta.title is None
+    assert meta.description is None
+
+
+def test_google_books_rejects_generic_series_record_for_a_numbered_issue(tmp_path):
+    # A series-level record with no issue number would otherwise overwrite
+    # every issue's metadata identically -- the failure that made the
+    # Google Books key unusable in practice.
+    resp = _gb_items({
+        "title": "Raspberry Pi Official Magazine",
+        "authors": [],
+        "description": "Generic series description, no issue number.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="Raspberry Pi Official Magazine 151")
+    assert meta.title is None
+    assert meta.description is None
+
+
+def test_google_books_accepts_same_issue_with_different_designator_wording(tmp_path):
+    # Decision: zero-padding and "Issue"/bare-number phrasing are the same
+    # designator once normalized ("037" and "Issue 37" both reduce to 37),
+    # so this is a genuine match, not a near-miss to reject.
+    resp = _gb_items({
+        "title": "The MagPi Issue 37",
+        "authors": [],
+        "description": "Same issue, different title wording.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="The MagPi 037")
+    assert meta.title == "The MagPi Issue 37"
+    assert meta.description == "Same issue, different title wording."
 
 
 def test_offline_enricher_applies_cached_fields_but_never_fetches_the_cover_on_a_hit(tmp_path):

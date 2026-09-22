@@ -32,6 +32,17 @@ _TITLE_MATCH_THRESHOLD = 0.85
 _MIN_PREFIX_WORDS = 2
 _MIN_PREFIX_CHARS = 8
 
+# A numbered-series marker at the end of a (normalized) title: either a
+# keyword ("volume"/"vol"/"issue"/"part"/"no"/"number"/"num", optionally
+# followed by "." before normalization strips it) immediately followed by
+# digits, or a bare trailing number (also catches "#37", since "#" is
+# stripped to a space by normalization). Both require the number to be
+# the last thing in the title -- that's what "trailing" means here and
+# matches how these series titles are actually phrased ("The MagPi 037",
+# "..., Volume 2").
+_DESIGNATOR_KEYWORD_RE = re.compile(r"\b(?:volume|vol|issue|part|no|number|num)\.?\s*0*(\d+)$")
+_TRAILING_NUMBER_RE = re.compile(r"(?:^|\s)0*(\d+)$")
+
 
 def _normalize_title(title: str | None) -> str:
     if not title:
@@ -43,6 +54,22 @@ def _normalize_title(title: str | None) -> str:
     s = re.sub(r"\s+", " ", s).strip()
     s = re.sub(r"^(the|a|an)\s+", "", s)
     return s
+
+
+def _split_designator(normalized_title: str) -> tuple[str, int | None]:
+    """Split a normalized title into (base_title, designator).
+
+    designator is the numbered-series marker at the end of the title, with
+    zero-padding stripped ("037" and "37" are the same designator, so "The
+    MagPi 037" and "The MagPi Issue 37" reduce to the same (base,
+    designator) pair). None means the title carries no such marker.
+    base_title is what's left after removing the marker -- what the title
+    calls itself once the issue/volume number is set aside.
+    """
+    m = _DESIGNATOR_KEYWORD_RE.search(normalized_title) or _TRAILING_NUMBER_RE.search(normalized_title)
+    if not m:
+        return normalized_title, None
+    return normalized_title[:m.start()].rstrip(), int(m.group(1))
 
 
 def _normalize_author(author: str | None) -> str:
@@ -63,16 +90,28 @@ def _title_score(query_title: str, candidate_title: str) -> float:
     or edition marker tacked on). Otherwise it's a plain fuzzy-string
     ratio, which is deliberately not trusted alone to call a match (see
     _TITLE_MATCH_THRESHOLD).
+
+    A numbered-series marker (issue/volume/part/#N) is checked first and
+    is decisive: a magazine issue or volume must never match a different
+    number in the same series, or a series record with no number at all,
+    no matter how similar the rest of the title looks -- fuzzy-string
+    similarity does not distinguish "Volume 1" from "Volume 2" (they
+    scored 0.97), which was the library's biggest source of wrong matches
+    (168 magazine issues, 5-volume sets).
     """
     nq, nc = _normalize_title(query_title), _normalize_title(candidate_title)
     if not nq or not nc:
         return 0.0
-    if nq == nc:
+    base_q, designator_q = _split_designator(nq)
+    base_c, designator_c = _split_designator(nc)
+    if designator_q != designator_c:
+        return 0.0
+    if base_q == base_c:
         return 1.0
-    if len(nq.split()) >= _MIN_PREFIX_WORDS or len(nq) >= _MIN_PREFIX_CHARS:
-        if nc.startswith(nq + " ") or nq.startswith(nc + " "):
+    if len(base_q.split()) >= _MIN_PREFIX_WORDS or len(base_q) >= _MIN_PREFIX_CHARS:
+        if base_c.startswith(base_q + " ") or base_q.startswith(base_c + " "):
             return 1.0
-    return difflib.SequenceMatcher(None, nq, nc).ratio()
+    return difflib.SequenceMatcher(None, base_q, base_c).ratio()
 
 
 def _authors_match(query_authors: list[str], candidate_authors: list[str]) -> bool:
