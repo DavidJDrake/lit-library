@@ -252,6 +252,121 @@ def test_offline_enricher_never_fetches_sleeps_or_writes_on_a_cache_miss(tmp_pat
     assert list((tmp_path / "cache").iterdir()) == []
 
 
+def _gb_items(*volume_infos):
+    return {"items": [{"volumeInfo": v} for v in volume_infos]}
+
+
+def test_google_books_rejects_unrelated_magazine_handbook_match(tmp_path):
+    # Real false-positive from the preview run: a MagPi issue must not be
+    # rewritten with an unrelated Raspberry Pi handbook's metadata.
+    resp = _gb_items({
+        "title": "The Official Raspberry Pi Handbook 2024",
+        "authors": ["Raspberry Pi Foundation"],
+        "description": "Wrong book.",
+        "publishedDate": "2024-01-01",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="The MagPi 037")
+    assert meta.title is None
+    assert meta.description is None
+    cached = json.loads(list(tmp_path.glob("*.json"))[0].read_text())
+    assert cached == {"found": False}  # definitive no-match, cached so it isn't re-queried
+
+
+def test_google_books_rejects_unrelated_magazine_book_match(tmp_path):
+    resp = _gb_items({
+        "title": "Raspberry Pi Book of Making 2027",
+        "authors": ["Raspberry Pi Press"],
+        "description": "Also the wrong book.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="Raspberry Pi Official Magazine 155")
+    assert meta.title is None
+    assert meta.description is None
+
+
+def test_google_books_accepts_subtitle_addition_with_matching_author(tmp_path):
+    resp = _gb_items({
+        "title": "Learning DevOps: The complete guide to accelerating software delivery",
+        "authors": ["Mikael Krief"],
+        "description": "A DevOps guide.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta(authors=["Mikael Krief"])
+    e.enrich(meta, fallback_title="Learning DevOps")
+    assert meta.title == "Learning DevOps: The complete guide to accelerating software delivery"
+    assert meta.description == "A DevOps guide."
+
+
+def test_google_books_accepts_edition_difference(tmp_path):
+    resp = _gb_items({
+        "title": "Cryptography Algorithms, Second Edition",
+        "authors": ["Massimo Bertaccini"],
+        "description": "Algorithms, second edition.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="Cryptography Algorithms")
+    assert meta.title == "Cryptography Algorithms, Second Edition"
+
+
+def test_google_books_rejects_matching_title_with_wrong_author(tmp_path):
+    # Title alone can coincide; when the query's author is known it must
+    # also match, or the candidate is not accepted.
+    resp = _gb_items({
+        "title": "Cryptography Algorithms, Second Edition",
+        "authors": ["Someone Else Entirely"],
+        "description": "Wrong author's book.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta(authors=["Massimo Bertaccini"])
+    e.enrich(meta, fallback_title="Cryptography Algorithms")
+    assert meta.title is None
+    assert meta.description is None
+
+
+def test_google_books_examines_later_items_when_first_is_a_bad_match(tmp_path):
+    resp = _gb_items(
+        {
+            "title": "The Official Raspberry Pi Handbook 2024",
+            "authors": ["Raspberry Pi Foundation"],
+        },
+        {
+            "title": "The MagPi 037: Complete Guide",
+            "authors": ["Raspberry Pi Press"],
+            "description": "The real match, listed second.",
+        },
+    )
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="The MagPi 037")
+    assert meta.title == "The MagPi 037: Complete Guide"
+    assert meta.description == "The real match, listed second."
+
+
+def test_google_books_near_miss_word_overlap_is_rejected(tmp_path):
+    # "Design Patterns" is a real substring of the candidate title but is a
+    # different, unrelated book -- word overlap alone must not be enough.
+    resp = _gb_items({
+        "title": "Head First Design Patterns",
+        "authors": ["Eric Freeman"],
+        "description": "A different book on the same broad topic.",
+    })
+    fetcher = FakeFetcher({"googleapis.com/books": resp})
+    e = Enricher(tmp_path, fetch_json=fetcher.json, fetch_bytes=fetcher.bytes, sleep=lambda s: None)
+    meta = ExtractedMeta()
+    e.enrich(meta, fallback_title="Design Patterns")
+    assert meta.title is None
+
+
 def test_offline_enricher_applies_cached_fields_but_never_fetches_the_cover_on_a_hit(tmp_path):
     import hashlib
     import json

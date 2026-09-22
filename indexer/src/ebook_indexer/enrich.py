@@ -1,6 +1,8 @@
+import difflib
 import hashlib
 import re
 import time
+import unicodedata
 import urllib.parse
 from pathlib import Path
 
@@ -10,6 +12,99 @@ from .jsonio import read_json_or, write_json_atomic
 from .models import ExtractedMeta
 
 _USER_AGENT = "ebook-share-indexer/0.1 (personal library indexer)"
+
+# Below this, a Google Books candidate's title is considered unrelated to
+# the query, not just a differently-worded edition of it. Chosen from
+# observed cases: real edition/subtitle differences ("Learning DevOps" vs
+# "Learning DevOps: The complete guide...", "Cryptography Algorithms" vs
+# "...Second Edition") normalize to a clean prefix match and score 1.0, so
+# they never rely on this threshold. Unrelated titles that merely share
+# words ("Design Patterns" vs "Head First Design Patterns" -> 0.73,
+# "Raspberry Pi Official Magazine 155" vs "Raspberry Pi Book of Making
+# 2027" -> 0.64) fall well short of it. 0.85 leaves comfortable margin on
+# both sides without leaning on the fuzzy-ratio path to do the real work.
+_TITLE_MATCH_THRESHOLD = 0.85
+
+# A prefix relationship (one title being the other plus a trailing
+# subtitle/edition marker) is only treated as a match when the shorter
+# side is long enough that a short, generic prefix can't fire on
+# unrelated titles by accident.
+_MIN_PREFIX_WORDS = 2
+_MIN_PREFIX_CHARS = 8
+
+
+def _normalize_title(title: str | None) -> str:
+    if not title:
+        return ""
+    s = unicodedata.normalize("NFKD", title)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = s.lower().replace("&", " and ")
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    s = re.sub(r"^(the|a|an)\s+", "", s)
+    return s
+
+
+def _normalize_author(author: str | None) -> str:
+    if not author:
+        return ""
+    s = unicodedata.normalize("NFKD", author)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = s.lower()
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _title_score(query_title: str, candidate_title: str) -> float:
+    """How plausibly candidate_title names the same book as query_title.
+
+    1.0 means "treat as the same title" -- either normalizing to the same
+    string, or one being a word-boundary prefix of the other (a subtitle
+    or edition marker tacked on). Otherwise it's a plain fuzzy-string
+    ratio, which is deliberately not trusted alone to call a match (see
+    _TITLE_MATCH_THRESHOLD).
+    """
+    nq, nc = _normalize_title(query_title), _normalize_title(candidate_title)
+    if not nq or not nc:
+        return 0.0
+    if nq == nc:
+        return 1.0
+    if len(nq.split()) >= _MIN_PREFIX_WORDS or len(nq) >= _MIN_PREFIX_CHARS:
+        if nc.startswith(nq + " ") or nq.startswith(nc + " "):
+            return 1.0
+    return difflib.SequenceMatcher(None, nq, nc).ratio()
+
+
+def _authors_match(query_authors: list[str], candidate_authors: list[str]) -> bool:
+    """True if any query author plausibly names the same person as any
+    candidate author. Substring containment handles initials/full-name
+    variants ("J.R.R. Tolkien" vs "Tolkien"); a shared last word catches
+    "A. Writer" vs "Writer, A.".
+    """
+    queries = [_normalize_author(a) for a in query_authors if a]
+    candidates = [_normalize_author(a) for a in candidate_authors if a]
+    for qa in queries:
+        for ca in candidates:
+            if not qa or not ca:
+                continue
+            if qa == ca or qa in ca or ca in qa:
+                return True
+            if qa.split()[-1] == ca.split()[-1] and len(qa.split()[-1]) >= 3:
+                return True
+    return False
+
+
+def _is_plausible_match(query_title: str, query_authors: list[str], volume_info: dict) -> bool:
+    score = _title_score(query_title, volume_info.get("title") or "")
+    if score < _TITLE_MATCH_THRESHOLD:
+        return False
+    if query_authors:
+        # The title alone -- even an exact/prefix match -- is not trusted
+        # when we already know the author: two different books can share
+        # a title (or one be a subtitle-prefix of the other), so a known
+        # author must corroborate it.
+        return _authors_match(query_authors, volume_info.get("authors") or [])
+    return True
 
 # HTTP statuses worth retrying: rate limiting and server-side trouble.
 # Anything else (400, 404, ...) is a definitive answer from the service,
@@ -223,7 +318,21 @@ class Enricher:
         items = resp.get("items") if isinstance(resp, dict) else None
         if not items:
             return {"found": False}
-        v = items[0].get("volumeInfo") or {}
+        v = None
+        best_score = -1.0
+        for item in items:
+            candidate = item.get("volumeInfo") or {}
+            if not _is_plausible_match(title, authors, candidate):
+                continue
+            score = _title_score(title, candidate.get("title") or "")
+            if score > best_score:
+                best_score = score
+                v = candidate
+        if v is None:
+            # Every candidate the search returned was implausible -- a
+            # definitive "no match", not a transient failure, so it's
+            # cached like any other genuine miss.
+            return {"found": False}
         thumb = (v.get("imageLinks") or {}).get("thumbnail")
         return {
             "found": True,
