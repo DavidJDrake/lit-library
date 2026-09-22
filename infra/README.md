@@ -243,6 +243,13 @@ in a newly published matching edition, instead of being frozen until Reset.
 Corrections are made through `PUT /api/works/edits` and `POST /api/works/edits/reset`, both
 admin-only.
 
+**Orphan corrections.** A row whose edition has since left the library (the book was deleted, or
+`prune --delete` removed it) can't be reached by Reset — there's no card left to open it from — and
+`pull-edits.py` reports it as `orphan: <id>` on every run until it's gone. The sidebar shows an
+admin-only "Orphan corrections" panel listing these by their (now meaningless) edition id, each with
+a button that deletes just that row through `POST /api/works/edits/reset`, the same endpoint Reset
+uses; it accepts any row key regardless of whether the edition still exists.
+
 **Known limitation.** A work's `workId` is its earliest-added copy's id. Deleting that copy (for
 example with `prune --delete`) moves the `workId` to the next-earliest copy, and any state stored
 against the old id — reading status, category, downloads — stops attaching. This is documented,

@@ -9,13 +9,14 @@ import {
   searchBooks, searchFromView, sortBooks, sortFromSearch,
 } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type ReadingStatus, type SortKey } from "../catalog/types";
-import { byAddedThenId, groupWorks, mergeEdits, resetEditionIds, splitEdits } from "../catalog/works";
+import { byAddedThenId, groupWorks, mergeEdits, orphanEditionIds, resetEditionIds, splitEdits } from "../catalog/works";
 import type { KindleError } from "../kindle/api";
 import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
 import CategorySuggestions from "./CategorySuggestions";
 import FacetGroup from "./FacetGroup";
+import OrphanCorrections from "./OrphanCorrections";
 import Toast from "./Toast";
 import { useGridWindow } from "./useGridWindow";
 
@@ -227,6 +228,16 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     () => (isAdmin && merged ? { works: merged, canReset, onMerge: mergeInto, onSplit: splitEdition, onReset: resetCard } : undefined),
     [isAdmin, merged, canReset, mergeInto, splitEdition, resetCard],
   );
+  // Rows whose edition is gone from the catalog: no card can ever surface them, so admins
+  // clear them from here instead — the same reset endpoint deletes by row key regardless of
+  // whether the edition still exists.
+  const orphanIds = useMemo(
+    () => (isAdmin && books && overlay ? orphanEditionIds(books, overlay.workEdits ?? {}) : []),
+    [isAdmin, books, overlay],
+  );
+  const removeOrphanEdits = useCallback(async (ids: string[]) => {
+    await mutate((t) => resetWorkEdits(apiUrl, t, ids, fetchFn), `Removed ${ids.length === 1 ? "orphan correction" : "orphan corrections"}`);
+  }, [mutate, apiUrl, fetchFn]);
 
   const kindleForDialog = useMemo(() => kindle && {
     devices: kindle.devices, defaultDeviceId: kindle.defaultDeviceId, sender: kindle.sender, loadFailed: kindle.loadFailed,
@@ -266,6 +277,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
                 onSuggest={(name) => suggest(name)} onCreate={addCategory} onResolve={resolve} />
             ) : undefined} />
         ))}
+        {isAdmin && <OrphanCorrections editionIds={orphanIds} onRemove={removeOrphanEdits} />}
       </aside>
       <section>
         <div className="toolbar">

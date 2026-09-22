@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { Book } from "./types";
-import { effectiveWorkIds, editionMarker, groupWorks, mergeEdits, resetEditionIds, splitEdits, type WorkOverlay } from "./works";
+import { effectiveWorkIds, editionMarker, groupWorks, mergeEdits, orphanEditionIds, resetEditionIds, splitEdits, type WorkOverlay } from "./works";
 
 interface FixtureStep {
   op: Record<string, string>;
@@ -221,6 +221,15 @@ describe("correction row builders", () => {
     ];
     expect(resetEditionIds(entries, ["a"], { a: "a", b2: "z", z: "z", gone: "a" })).toEqual(["a", "b2"]);
     expect(resetEditionIds(entries, ["z"], { a: "a", b: "b" })).toEqual([]);
+  });
+
+  it("orphan rows are those keyed by neither an edition nor a copy in the catalog, sorted", () => {
+    const entries = [
+      { id: "a", editionId: "a", addedAt: "1" },
+      { id: "b2", editionId: "b", addedAt: "2" },
+    ];
+    expect(orphanEditionIds(entries, { a: "a", b2: "z", gone: "a", z: "gone" })).toEqual(["gone", "z"]);
+    expect(orphanEditionIds(entries, {})).toEqual([]);
   });
 
   it("replays every operation in the shared fixture to the recorded rows", () => {

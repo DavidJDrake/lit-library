@@ -27,12 +27,9 @@ function warnOnce(message: string) {
   console.warn(message);
 }
 
-// Every edition's card under the indexer's own model (works.py group_copies), so a publish of the
-// folded rows gives exactly these cards and ids. Rows map through copy id -> edition id; when
-// several map to one edition the edition-id key wins, otherwise the smallest key. Managed editions
-// take no automatic links; each joins its row's target; a card is named after its earliest-added
-// edition (ties: smallest id). Mirrors scripts/gen-work-corrections-fixture.py, which the tests replay.
-function editionCards(entries: CatalogEntryRef[], workEdits: Record<string, string>) {
+// Every catalog id (an edition's own id and every non-canonical copy of it) mapped to its
+// edition id, plus each edition's earliest addedAt. Shared by editionCards and orphanEditionIds.
+function buildEditionMap(entries: CatalogEntryRef[]) {
   const edition = new Map<string, string>();
   const added = new Map<string, string>();
   for (const e of entries) {
@@ -42,6 +39,16 @@ function editionCards(entries: CatalogEntryRef[], workEdits: Record<string, stri
     const at = added.get(ed);
     if (at === undefined || e.addedAt < at) added.set(ed, e.addedAt);
   }
+  return { edition, added };
+}
+
+// Every edition's card under the indexer's own model (works.py group_copies), so a publish of the
+// folded rows gives exactly these cards and ids. Rows map through copy id -> edition id; when
+// several map to one edition the edition-id key wins, otherwise the smallest key. Managed editions
+// take no automatic links; each joins its row's target; a card is named after its earliest-added
+// edition (ties: smallest id). Mirrors scripts/gen-work-corrections-fixture.py, which the tests replay.
+function editionCards(entries: CatalogEntryRef[], workEdits: Record<string, string>) {
+  const { edition, added } = buildEditionMap(entries);
 
   const chosen = new Map<string, string>();
   for (const key of Object.keys(workEdits).sort()) {
@@ -186,6 +193,14 @@ export function splitEdits(cardId: string, cardEditions: EditionRef[], editionId
     rows[e.id] = remainderId;
   }
   return rows;
+}
+
+// Rows keyed by neither an edition nor a non-canonical copy in the catalog: the edition they
+// were made on is gone (e.g. the book was deleted), so no card can ever show them and Reset can
+// never reach them either. pull-edits.py reports these as `orphan:` on every run until removed.
+export function orphanEditionIds(entries: CatalogEntryRef[], workEdits: Record<string, string>): string[] {
+  const { edition } = buildEditionMap(entries);
+  return Object.keys(workEdits).filter((key) => !edition.has(key)).sort();
 }
 
 // Reset card C: every row whose edition lies in the automatic work (links only, ignoring rows) of

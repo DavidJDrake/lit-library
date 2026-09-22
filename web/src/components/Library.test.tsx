@@ -703,6 +703,39 @@ describe("admin work corrections", () => {
     expect(workEdits).toEqual({ "3": "3" });
   });
 
+  it("lets an admin remove an orphan correction row", async () => {
+    let workEdits: Record<string, string> = { zzz: "yyy" };
+    const jsonRes = (body: unknown) => ({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => body });
+    const fetchFn = fetchFor(catalog, undefined, {
+      "GET /library$": () => jsonRes({ ...overlay, workEdits }),
+      "POST /works/edits/reset$": (_u, init) => {
+        const ids: string[] = JSON.parse(String(init!.body)).editionIds;
+        workEdits = Object.fromEntries(Object.entries(workEdits).filter(([k]) => !ids.includes(k)));
+        return { ok: true, status: 204, headers: new Headers() };
+      },
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn, isAdmin: true });
+    expect(await screen.findByText("1 correction on an edition no longer in the library.")).toBeInTheDocument();
+    expect(screen.getByText("zzz")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remove zzz" }));
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledWith("https://api/works/edits/reset", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ editionIds: ["zzz"] }),
+    })));
+    await waitFor(() => expect(screen.queryByText(/correction on an edition/)).toBeNull());
+  });
+
+  it("hides the orphan corrections panel from readers who are not admins", async () => {
+    const fetchFn = fetchFor(catalog, undefined, {
+      "GET /library$": () => ({
+        ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ ...overlay, workEdits: { zzz: "yyy" } }),
+      }),
+    });
+    renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn });
+    expect(await screen.findByText("2 books")).toBeInTheDocument();
+    expect(screen.queryByText(/correction on an edition/)).toBeNull();
+  });
+
   it("shows no correction controls to readers who are not admins", async () => {
     renderLibrary({ apiUrl: "https://api", getIdToken: async () => "tok", fetchFn: fetchFor(catalog) });
     await userEvent.click(await screen.findByRole("button", { name: /Attacking Network Protocols/ }));
