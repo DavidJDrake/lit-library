@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from ebook_indexer.catalog import write_outputs
+from ebook_indexer.hashes import HashCache
 from ebook_indexer.pipeline import build_books, prettify
 
 
@@ -165,6 +168,33 @@ def test_an_interrupted_run_keeps_the_hashes_it_computed(tmp_path, make_epub, ma
     except KeyboardInterrupt:
         pass
     assert cache.exists() and len(json.loads(cache.read_text())) >= 1
+
+
+def test_a_hash_cache_save_failure_does_not_mask_the_scan_s_own_error(tmp_path, make_epub, make_pdf, monkeypatch, capsys):
+    import ebook_indexer.pipeline as pipeline
+    root = make_library(tmp_path, make_epub, make_pdf)
+
+    def extract_then_fail(primary):
+        raise ValueError("scan blew up")
+
+    def save_then_fail(self, prune=True):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pipeline, "_extract", extract_then_fail)
+    monkeypatch.setattr(HashCache, "save", save_then_fail)
+
+    with pytest.raises(ValueError, match="scan blew up"):
+        build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json",
+                    hash_cache_path=tmp_path / "hashes.json")
+    assert "disk full" in capsys.readouterr().err
+
+
+def test_a_hash_cache_save_failure_still_raises_when_the_scan_itself_succeeded(tmp_path, make_epub, make_pdf, monkeypatch):
+    root = make_library(tmp_path, make_epub, make_pdf)
+    monkeypatch.setattr(HashCache, "save", lambda self, prune=True: (_ for _ in ()).throw(OSError("disk full")))
+    with pytest.raises(OSError, match="disk full"):
+        build_books(root=root, overrides_path=tmp_path / "overrides.yaml", added_path=tmp_path / "added.json",
+                    hash_cache_path=tmp_path / "hashes.json")
 
 
 def test_a_limited_run_does_not_prune_the_hash_cache(tmp_path, make_epub, make_pdf):
