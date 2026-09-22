@@ -2769,3 +2769,110 @@ fe6075dfe253232c:
   category: Crafts & Hobbies (DIY)
 ffe94888ece2aad7:
   category: Sci-Fi/Fantasy
+
+# --- Edgar Allan Poe by Project Gutenberg: first-publication years, trimmed titles, short
+# descriptions. Years for the "Works of Edgar Allan Poe" (Raven Edition) volumes 1-5,
+# "Selections from Poe," and "The Complete Poetical Works of Edgar Allan Poe" are deliberately
+# left unset: no first-publication/edition year could be confirmed from the epub text or metadata.
+# The assembled "First Project Gutenberg Collection" is a modern sampler with no separate
+# original-publication year of its own. ---
+9bd477db9912cb9d:
+  year: 1848
+  description: Poe's book-length prose-poem essay proposing a unified account of the material
+    and spiritual universe; first delivered as a lecture in 1848 and published the same year.
+1aec7939ef3eae78:
+  description: 'A Project Gutenberg sampler collecting three of Poe''s best-known short pieces:
+    the poem "The Raven" and the tales "The Masque of the Red Death" and "The Cask of Amontillado."'
+a77eec9c34df0e9a:
+  authors:
+  - Edgar Allan Poe
+  - Stéphane Mallarmé
+  year: 1875
+  description: Stéphane Mallarmé's French prose translation of "The Raven," printed with the
+    English original and illustrated by Édouard Manet; first published in Paris by Richard Lesclide
+    in 1875.
+4b5a834bb2151a9c:
+  description: A school anthology of Poe's poems and tales, edited with a biographical and critical
+    introduction by J. Montgomery Gambrill, using the text of the Stedman-Woodberry edition.
+08f6b7f198f7dbaa:
+  year: 1912
+  description: A gift-book edition of Poe's poems illustrated by Edmund Dulac, published by
+    Hodder and Stoughton in 1912.
+6ec359df12d90fa4:
+  year: 1846
+  description: A tale of premeditated revenge told by its unrepentant narrator, Montresor; first
+    published in Godey's Lady's Book in 1846.
+8cc1dc51e4ddc096:
+  title: 'The Complete Poetical Works of Edgar Allan Poe: Including Essays on Poetry'
+  description: John H. Ingram's edition of Poe's collected poems, with a memoir, editorial notes,
+    and Poe's essays "The Poetic Principle" and "The Philosophy of Composition."
+1e3b958c8d93715d:
+  title: The Conchologist's First Book
+  year: 1839
+  description: A schoolbook on shell classification credited to Poe, closely adapted from Thomas
+    Brown's "The Conchologist's Text-Book" amid a long-running plagiarism controversy; first
+    published in 1839.
+9bfa70ac4cd6254f:
+  year: 1839
+  description: A tale of hereditary decay and collapse narrated by a visitor to the crumbling
+    Usher estate; first published in Burton's Gentleman's Magazine in 1839.
+c16ad4d0bfda4b9b:
+  year: 1842
+  description: A tale of a plague personified crashing a prince's masked ball; first published
+    in Graham's Magazine in 1842.
+9b62ca6ad7fc69f6:
+  title: The Narrative of Arthur Gordon Pym of Nantucket
+  year: 1838
+  description: Poe's only complete novel, a first-person account of a young stowaway's disastrous
+    voyage into the South Seas and Antarctic waters; first published in 1838.
+c832e8f85eb8ea4b:
+  title: The Poems of Edgar Allan Poe
+  year: 1900
+  description: An illustrated edition of Poe's poems with an introduction by H. Noel Williams
+    and illustrations by W. Heath Robinson; first published in 1900 by George Bell and Sons,
+    London.
+97f457e5f0297629:
+  title: The Poetical Works of Edgar Allan Poe
+  year: 1858
+  description: An illustrated edition of Poe's poems with steel engravings after Jasper Francis
+    Cropsey, Felix O. C. Darley, John Tenniel, and others; first published in 1858 by Sampson
+    Low, Son and Co., London.
+114603214a7f0fd7:
+  year: 1845
+  description: Poe's best-known poem, in which a talking raven visits a grieving narrator; first
+    published in 1845. This edition is a plain, unillustrated Project Gutenberg text.
+598fc471128dccf2:
+  year: 1906
+  description: An illustrated quarto edition pairing Poe's poem "The Raven" (1845) with his
+    essay on writing it, "The Philosophy of Composition" (1846); illustrated by Galen J. Perrett
+    with decorations by Will Jenkins, published in 1906 by Paul Elder and Company.
+381018274c672576:
+  title: 'The Raven: Illustrated by Gustave Doré'
+  year: 1884
+  description: '"The Raven" illustrated by Gustave Doré, with commentary by Edmund Clarence
+    Stedman; first published in 1884 by Harper and Brothers, New York.'
+eadb517e02a6f4b2:
+  title: 'The Raven: Illustrated by W. L. Taylor'
+  year: 1884
+  description: '"The Raven" illustrated by William Ladd Taylor, engraved under the supervision
+    of George T. Andrew; first published in 1884 by E. P. Dutton and Company, New York.'
+181262ad17781aff:
+  description: Volume 1 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    opening with a biographical memoir and collecting tales including "The Gold-Bug" and "The
+    Murders in the Rue Morgue."
+8ee0de802e3269b7:
+  description: Volume 2 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    collecting tales including "The Fall of the House of Usher," "The Masque of the Red Death,"
+    "The Cask of Amontillado," and "The Tell-Tale Heart."
+1112ef82b487e3c9:
+  description: Volume 3 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    containing the complete "Narrative of Arthur Gordon Pym" together with tales including "Ligeia"
+    and "Morella."
+31e30c34afd304b3:
+  description: Volume 4 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    collecting satirical and comic tales including "The System of Doctor Tarr and Professor
+    Fether" and "How to Write a Blackwood Article."
+37706f71bd234ca9:
+  description: Volume 5 of a five-volume collected "Works of Edgar Allan Poe" (the "Raven Edition"),
+    containing tales including "Hop-Frog" and "The Man of the Crowd," Poe's essay "The Poetic
+    Principle," and his collected poems.
