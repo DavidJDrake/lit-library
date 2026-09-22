@@ -127,9 +127,18 @@ def op_split(lib, rows, edition):
     if not rest:
         return dict(rows)
     remainder = card if edition != card else min(rest, key=lib.added)
+    # The remainder's own row (R -> R) is only written when some row already maps to R's
+    # edition (a key that resolves, copy ids included, to R): that clears the stale row
+    # instead of leaving it in effect (it would otherwise still be chosen over an edition-
+    # id-keyed row of R that this split does not write). Otherwise R stays unmanaged, so a
+    # newly published matching edition still joins it automatically instead of being frozen
+    # out until Reset.
+    already_has_a_row = any(lib.edition_of.get(k) == remainder for k in rows)
     new = dict(rows)
     new[edition] = edition
     for e in rest:
+        if e == remainder and not already_has_a_row:
+            continue
         new[e] = remainder
     return new
 

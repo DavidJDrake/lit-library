@@ -16,7 +16,7 @@ const editionOf = (e: CatalogEntryRef) => e.editionId ?? e.id;
 const catalogWorkOf = (e: CatalogEntryRef) => e.workId ?? e.id;
 // Plain string comparison, not localeCompare, to order ids and dates exactly as the indexer does.
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const byAddedThenId = (a: { addedAt: string; id: string }, b: { addedAt: string; id: string }) =>
+export const byAddedThenId = (a: { addedAt: string; id: string }, b: { addedAt: string; id: string }) =>
   compare(a.addedAt, b.addedAt) || compare(a.id, b.id);
 
 // groupWorks runs on every overlay change; say each problem with the corrections once.
@@ -160,22 +160,31 @@ function toWork(workId: string, byEdition: Map<string, Book[]>, overlay: WorkOve
   };
 }
 
-export interface EditionRef { id: string; addedAt: string }
+export interface EditionRef { id: string; addedAt: string; copyIds?: string[] }
 
 // Merge card X into card W: every edition of X is assigned to W.
 export function mergeEdits(fromEditionIds: string[], intoWorkId: string): Record<string, string> {
   return Object.fromEntries(fromEditionIds.map((id) => [id, intoWorkId]));
 }
 
-// Split edition S out of card C. The whole remainder gets explicit rows, the remainder's own card
-// id included: without them, a split of an edition that was the only automatic link between two
-// others would leave them apart, and a remainder edition whose row pointed at S would stay with it.
-export function splitEdits(cardId: string, cardEditions: EditionRef[], editionId: string): Record<string, string> {
+// Split edition S out of card C. Every other edition of the remainder gets an explicit row to R:
+// without them, a split of an edition that was the only automatic link between two others would
+// leave them apart. R itself gets a row only when some row (a copy-keyed one included) already
+// names R's edition — clearing a stale target that would otherwise survive the split — since
+// writing one unconditionally would freeze R out of automatically joining a newly published
+// matching edition until Reset. Mirrors scripts/gen-work-corrections-fixture.py's op_split.
+export function splitEdits(cardId: string, cardEditions: EditionRef[], editionId: string, workEdits: Record<string, string>): Record<string, string> {
   const rest = cardEditions.filter((e) => e.id !== editionId);
   if (rest.length === 0) return {};
   const remainderId = editionId !== cardId ? cardId : [...rest].sort(byAddedThenId)[0].id;
+  const remainder = rest.find((e) => e.id === remainderId);
+  const remainderKeys = new Set([remainderId, ...(remainder?.copyIds ?? [])]);
+  const remainderAlreadyHasARow = Object.keys(workEdits).some((key) => remainderKeys.has(key));
   const rows: Record<string, string> = { [editionId]: editionId };
-  for (const e of rest) rows[e.id] = remainderId;
+  for (const e of rest) {
+    if (e.id === remainderId && !remainderAlreadyHasARow) continue;
+    rows[e.id] = remainderId;
+  }
   return rows;
 }
 

@@ -37,8 +37,10 @@ def test_fixture_has_the_documented_shape():
 
 
 def test_known_bridge_split_case_is_recorded_correctly():
-    # a-b and b-c are linked, a-c are not: splitting b must leave a and c together.
+    # a-b and b-c are linked, a-c are not: splitting b must leave a and c together. The
+    # remainder (a) had no row of its own before the split, so it gets none now either —
+    # only c, which needs its own row to stay off b, and b itself.
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--explain-bridge"], check=True, capture_output=True, text=True,
     )
-    assert json.loads(result.stdout) == {"rows": {"a": "a", "b": "b", "c": "a"}, "cards": {"a": ["a", "c"], "b": ["b"]}}
+    assert json.loads(result.stdout) == {"rows": {"b": "b", "c": "a"}, "cards": {"a": ["a", "c"], "b": ["b"]}}
