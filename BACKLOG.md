@@ -46,13 +46,14 @@ year, 331 (24%) no author, 99 (7%) no cover, and 91 titles are still filename-is
 contributed a description because no `GOOGLE_BOOKS_API_KEY` is set (see #6, which fixed
 the caching bug behind it).
 
-- [ ] **Blocker — make the Google Books lookup require a real title match.** It accepts the first
-  hit of an `intitle:` search with no similarity check (`enrich.py`, `_google_books`). Measured
-  2026-09-13: with a key, 153 of 168 magazine issues would have been renamed to unrelated books
-  ("Raspberry Pi Official Magazine 151" became *The Official Raspberry Pi Projects Book Volume 1*).
-  A library-wide retry would do the same to any book without an embedded title or ISBN. The
-  magazine is protected by overrides; nothing else is. **Never run the indexer with the key set
-  until this is fixed.**
+- [x] **Blocker — make the Google Books lookup require a real title match.** Was: it accepted the
+  first hit of an `intitle:` search with no similarity check (`enrich.py`, `_google_books`);
+  measured 2026-09-13, with a key 153 of 168 magazine issues would have been renamed to unrelated
+  books. Fixed in PR #66: every candidate is scored on a normalised title (exact or prefix match,
+  else 0.85 similarity), a known author must match, and a series/issue/volume number must agree
+  exactly — so a wrong volume, a wrong issue, or a generic series record is rejected.
+  Before re-running with the key, clear the Google Books cache: entries written by the old matcher
+  may hold wrong hits and nothing distinguishes them from good ones.
 - [ ] Use the key. It exists — restricted to the Books API in the `ebook-share` Google Cloud
   project, saved at `~/.config/ebook-share/google-books-api-key`, deliberately not exported by
   any shell profile. Pass it as `GOOGLE_BOOKS_API_KEY=$(cat ~/.config/ebook-share/google-books-api-key)`
@@ -81,12 +82,12 @@ titles, so browsing shows the same cover repeatedly and search results pad out.
 
 **Closed by:** spec and plan `2026-09-14-works-and-editions`.
 
-**Follow-ups (from the final review, not blocking):**
+**Follow-ups (from the final review):** closed by PR #67.
 
-- [ ] Split writes a row for the remainder's first edition only when it already has one, so a split card still takes in new matching editions (verified correct by simulation; today the remainder is frozen until Reset)
-- [ ] After splitting off a later edition, keep the dialog on the remainder card rather than the split-off one
-- [ ] A way to delete correction rows whose edition no longer exists (they show as `orphan:` on every `pull-edits.py` run)
-- [ ] Hash cache: a failed save in `build_books`'s `finally` should not hide the scan's original error
+- [x] Split writes a row for the remainder's first edition only when it already has one, so a split card still takes in new matching editions (verified correct by simulation; today the remainder is frozen until Reset)
+- [x] After splitting off a later edition, keep the dialog on the remainder card rather than the split-off one
+- [x] A way to delete correction rows whose edition no longer exists (they show as `orphan:` on every `pull-edits.py` run)
+- [x] Hash cache: a failed save in `build_books`'s `finally` should not hide the scan's original error
 
 **Effort:** M. Worth doing while only one reader has status rows to migrate.
 
