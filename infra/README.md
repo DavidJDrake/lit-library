@@ -233,12 +233,22 @@ them one edition — a merge the app can't undo, because split works on editions
 uses the override both for grouping and for the enrichment lookup. The grouping report's "isbn"
 links are where these show up.
 
-A merged or split (managed) edition stops attracting newly published books that only match it
-through title and author — it still joins an identical file or shared ISBN, but the title-and-author
-rule leaves it alone. Reset the card to make it automatic again.
+A managed edition stops attracting newly published books that only match it through title and
+author — it still joins an identical file or shared ISBN, but the title-and-author rule leaves it
+alone. Reset the card to make it automatic again. Merging manages every edition of the card that
+moved. Splitting manages the split-off edition and every other edition of the remainder except the
+remainder itself, which stays automatic unless it already had a row — so a split card still takes
+in a newly published matching edition, instead of being frozen until Reset.
 
 Corrections are made through `PUT /api/works/edits` and `POST /api/works/edits/reset`, both
 admin-only.
+
+**Orphan corrections.** A row whose edition has since left the library (the book was deleted, or
+`prune --delete` removed it) can't be reached by Reset — there's no card left to open it from — and
+`pull-edits.py` reports it as `orphan: <id>` on every run until it's gone. The sidebar shows an
+admin-only "Orphan corrections" panel listing these by their (now meaningless) edition id, each with
+a button that deletes just that row through `POST /api/works/edits/reset`, the same endpoint Reset
+uses; it accepts any row key regardless of whether the edition still exists.
 
 **Known limitation.** A work's `workId` is its earliest-added copy's id. Deleting that copy (for
 example with `prune --delete`) moves the `workId` to the next-earliest copy, and any state stored

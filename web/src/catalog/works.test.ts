@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { Book } from "./types";
-import { effectiveWorkIds, editionMarker, groupWorks, mergeEdits, resetEditionIds, splitEdits, type WorkOverlay } from "./works";
+import { effectiveWorkIds, editionMarker, groupWorks, mergeEdits, orphanEditionIds, resetEditionIds, splitEdits, type WorkOverlay } from "./works";
 
 interface FixtureStep {
   op: Record<string, string>;
@@ -188,18 +188,30 @@ describe("correction row builders", () => {
     expect(mergeEdits(["x", "y"], "w")).toEqual({ x: "w", y: "w" });
   });
 
-  it("split of a later edition writes it alone and the whole remainder to the card", () => {
+  it("split of a later edition writes it alone and pins the rest to the card, leaving the remainder itself unmanaged", () => {
     const eds = [{ id: "a", addedAt: "1" }, { id: "b", addedAt: "2" }, { id: "c", addedAt: "3" }];
-    expect(splitEdits("a", eds, "b")).toEqual({ a: "a", b: "b", c: "a" });
+    expect(splitEdits("a", eds, "b", {})).toEqual({ b: "b", c: "a" });
   });
 
-  it("split of the card's earliest edition moves the remainder to the next-earliest", () => {
+  it("split of the card's earliest edition moves the remainder to the next-earliest, still unmanaged", () => {
     const eds = [{ id: "a", addedAt: "1" }, { id: "b", addedAt: "2" }, { id: "c", addedAt: "3" }];
-    expect(splitEdits("a", eds, "a")).toEqual({ a: "a", b: "b", c: "b" });
+    expect(splitEdits("a", eds, "a", {})).toEqual({ a: "a", c: "b" });
   });
 
   it("split of a card's only edition writes nothing", () => {
-    expect(splitEdits("a", [{ id: "a", addedAt: "1" }], "a")).toEqual({});
+    expect(splitEdits("a", [{ id: "a", addedAt: "1" }], "a", {})).toEqual({});
+  });
+
+  it("writes the remainder's own row only when it already had one, clearing a stale target", () => {
+    const eds = [{ id: "r", addedAt: "1" }, { id: "s", addedAt: "2" }];
+    // r already pointed at s (the edition about to be split off); left alone that row
+    // would still say so afterwards, so it must be overwritten, not just left out.
+    expect(splitEdits("r", eds, "s", { r: "s" })).toEqual({ s: "s", r: "r" });
+  });
+
+  it("resolves the remainder's existing row through its non-canonical copies too", () => {
+    const eds = [{ id: "r", addedAt: "1", copyIds: ["r", "r2"] }, { id: "s", addedAt: "2", copyIds: ["s"] }];
+    expect(splitEdits("r", eds, "s", { r2: "z" })).toEqual({ s: "s", r: "r" });
   });
 
   it("reset returns every row whose edition shares an automatic work with the card, copy-keyed rows included", () => {
@@ -209,6 +221,15 @@ describe("correction row builders", () => {
     ];
     expect(resetEditionIds(entries, ["a"], { a: "a", b2: "z", z: "z", gone: "a" })).toEqual(["a", "b2"]);
     expect(resetEditionIds(entries, ["z"], { a: "a", b: "b" })).toEqual([]);
+  });
+
+  it("orphan rows are those keyed by neither an edition nor a copy in the catalog, sorted", () => {
+    const entries = [
+      { id: "a", editionId: "a", addedAt: "1" },
+      { id: "b2", editionId: "b", addedAt: "2" },
+    ];
+    expect(orphanEditionIds(entries, { a: "a", b2: "z", gone: "a", z: "gone" })).toEqual(["gone", "z"]);
+    expect(orphanEditionIds(entries, {})).toEqual([]);
   });
 
   it("replays every operation in the shared fixture to the recorded rows", () => {
@@ -226,7 +247,10 @@ describe("correction row builders", () => {
           rows = { ...rows, ...mergeEdits(card(op.from).editions!.map((e) => e.id), op.into) };
         } else if (op.kind === "split") {
           const w = holding(op.edition);
-          rows = { ...rows, ...splitEdits(w.id, w.editions!.map((e) => ({ id: e.id, addedAt: e.addedAt })), op.edition) };
+          rows = {
+            ...rows,
+            ...splitEdits(w.id, w.editions!.map((e) => ({ id: e.id, addedAt: e.addedAt, copyIds: e.copyIds })), op.edition, rows),
+          };
         } else if (op.kind === "reset") {
           const drop = new Set(resetEditionIds(catalog, card(op.card).editions!.map((e) => e.id), rows));
           rows = Object.fromEntries(Object.entries(rows).filter(([e]) => !drop.has(e)));

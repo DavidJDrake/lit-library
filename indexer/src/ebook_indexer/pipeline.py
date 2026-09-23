@@ -99,7 +99,19 @@ def build_books(root: Path, overrides_path: Path,
             books.append(book)
         complete = limit is None
     finally:
-        hash_cache.save(prune=complete)
+        # Checked before the save is attempted: inside the except below, sys.exc_info()
+        # would report the save's own exception, not whatever this finally was already
+        # unwinding for.
+        scan_failed = sys.exc_info()[0] is not None
+        try:
+            hash_cache.save(prune=complete)
+        except Exception as save_error:
+            # A scan failure already propagating out of this finally is what matters; a
+            # save failure on top of it would otherwise replace it as the one the caller
+            # sees. Report the save failure without hiding the original.
+            if not scan_failed:
+                raise
+            print(f"warning: could not save the hash cache: {save_error}", file=sys.stderr)
 
     # Grouping reads titles and authors after overrides, so a corrected title groups correctly.
     work_overrides = {k: str(v["work"]) for k, v in overrides.items() if isinstance(v, dict) and v.get("work")}

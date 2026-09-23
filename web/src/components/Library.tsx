@@ -9,13 +9,14 @@ import {
   searchBooks, searchFromView, sortBooks, sortFromSearch,
 } from "../catalog/search";
 import { FACET_KEYS, type Book, type FacetKey, type Filters, type ReadingStatus, type SortKey } from "../catalog/types";
-import { groupWorks, mergeEdits, resetEditionIds, splitEdits } from "../catalog/works";
+import { byAddedThenId, groupWorks, mergeEdits, orphanEditionIds, resetEditionIds, splitEdits } from "../catalog/works";
 import type { KindleError } from "../kindle/api";
 import { LOAD_FAILED_MESSAGE, type KindleState } from "../kindle/KindleProvider";
 import BookCard from "./BookCard";
 import BookDetail from "./BookDetail";
 import CategorySuggestions from "./CategorySuggestions";
 import FacetGroup from "./FacetGroup";
+import OrphanCorrections from "./OrphanCorrections";
 import Toast from "./Toast";
 import { useGridWindow } from "./useGridWindow";
 
@@ -203,10 +204,14 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     return merged;
   }, [mutate, apiUrl, fetchFn]);
   const splitEdition = useCallback(async (card: Book, editionId: string) => {
-    const rows = splitEdits(card.id, (card.editions ?? []).map((e) => ({ id: e.id, addedAt: e.addedAt })), editionId);
+    const cardEditions = (card.editions ?? []).map((e) => ({ id: e.id, addedAt: e.addedAt, copyIds: e.copyIds }));
+    const rows = splitEdits(card.id, cardEditions, editionId, overlay?.workEdits ?? {});
     if (Object.keys(rows).length === 0) return;
-    if (await mutate((t) => putWorkEdits(apiUrl, t, rows, fetchFn), "Split into its own card")) setSelectedId(editionId);
-  }, [mutate, apiUrl, fetchFn]);
+    // Stay on the remainder card rather than following the newly split-off edition: unless
+    // the split-off edition was the card's own id, the remainder keeps card.id.
+    const remainderId = editionId !== card.id ? card.id : [...cardEditions].filter((e) => e.id !== editionId).sort(byAddedThenId)[0].id;
+    if (await mutate((t) => putWorkEdits(apiUrl, t, rows, fetchFn), "Split into its own card")) setSelectedId(remainderId);
+  }, [mutate, apiUrl, fetchFn, overlay]);
   const resetCard = useCallback(async (card: Book, shownEditionId: string | null) => {
     const ids = resetEditionIds(books ?? [], (card.editions ?? []).map((e) => e.id), overlay?.workEdits ?? {});
     if (ids.length === 0) return;
@@ -223,6 +228,16 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
     () => (isAdmin && merged ? { works: merged, canReset, onMerge: mergeInto, onSplit: splitEdition, onReset: resetCard } : undefined),
     [isAdmin, merged, canReset, mergeInto, splitEdition, resetCard],
   );
+  // Rows whose edition is gone from the catalog: no card can ever surface them, so admins
+  // clear them from here instead — the same reset endpoint deletes by row key regardless of
+  // whether the edition still exists.
+  const orphanIds = useMemo(
+    () => (isAdmin && books && overlay ? orphanEditionIds(books, overlay.workEdits ?? {}) : []),
+    [isAdmin, books, overlay],
+  );
+  const removeOrphanEdits = useCallback(async (ids: string[]) => {
+    await mutate((t) => resetWorkEdits(apiUrl, t, ids, fetchFn), `Removed ${ids.length === 1 ? "orphan correction" : "orphan corrections"}`);
+  }, [mutate, apiUrl, fetchFn]);
 
   const kindleForDialog = useMemo(() => kindle && {
     devices: kindle.devices, defaultDeviceId: kindle.defaultDeviceId, sender: kindle.sender, loadFailed: kindle.loadFailed,
@@ -262,6 +277,7 @@ export default function Library({ apiUrl, getIdToken, fetchFn = fetch, navigate,
                 onSuggest={(name) => suggest(name)} onCreate={addCategory} onResolve={resolve} />
             ) : undefined} />
         ))}
+        {isAdmin && <OrphanCorrections editionIds={orphanIds} onRemove={removeOrphanEdits} />}
       </aside>
       <section>
         <div className="toolbar">

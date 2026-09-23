@@ -321,7 +321,9 @@ becomes managed.
   merged card's id is its earliest edition, which may be one of X's.
 - **Split edition S out of card C** — let the remainder be C's other editions. If the remainder is
   empty, do nothing. Let R be C if S is not C, otherwise the earliest-added edition of the
-  remainder. Write `S → S`, and `e → R` for every edition `e` of the remainder, R included.
+  remainder. Write `S → S`, and `e → R` for every edition `e` of the remainder other than R. Write
+  `R → R` too, but only when some row already maps to R's edition (a row keyed by one of R's
+  non-canonical copies included) — otherwise leave R with no row of its own.
 - **Reset card C to automatic grouping** — the scope is every edition in the automatic work (links
   only, ignoring rows) of any edition of C. Delete every row whose mapped key lies in the scope.
   Afterwards every edition in the scope is unmanaged, so each of C's editions is at least on one card
@@ -331,9 +333,12 @@ becomes managed.
 
 Writing explicit rows for the whole remainder, not only for S, is what keeps a split correct when S
 was the only automatic link joining two other editions (A matches S and S matches B, but A does not
-match B). Writing `R → R` too is what keeps a split correct when R already had a row pointing at S.
-Making every touched edition managed is what keeps a later merge from reviving automatic links that
-an earlier split removed.
+match B). Writing `R → R` unconditionally kept a split correct when R already had a row pointing at
+S, but froze R out of automatically joining a newly published matching edition until Reset, even
+when nothing had ever pointed at R. Writing it only when R already had a row — from R itself or one
+of its copies — keeps the split correct in exactly the cases that need it (clearing the stale row)
+without freezing a remainder that had never been touched. Making every touched edition managed is
+what keeps a later merge from reviving automatic links that an earlier split removed.
 
 **A managed edition is frozen.** A new copy arriving later will not join it through the
 title-and-author rule, though it still joins through identical files or ISBN, and still joins any
