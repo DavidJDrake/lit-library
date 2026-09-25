@@ -108,6 +108,9 @@ reader.
 
 **Effort:** M, and the first task is free.
 
+Groundwork for the ask, plus what the existing data does and doesn't show and a
+costed look at the three features, is in [`docs/reader-engagement.md`](docs/reader-engagement.md).
+
 ### 32. Add related public-domain works
 
 **Goal:** grow the fiction shelves along lines readers already follow, rather than one-off pulls.
