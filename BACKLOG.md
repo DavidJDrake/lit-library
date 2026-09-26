@@ -183,11 +183,95 @@ Criteria for each lead:
 - **Metadata:** it's good enough, or the batch can be pinned with overrides (see the enrichment hazard in epic 29).
 - **Fit:** it belongs in an existing category.
 
-- [ ] Verify each lead against the criteria and record the verdict here
-- [ ] Turn each accepted source into its own epic, as 32 does for public-domain fiction
-- [ ] Record rejected sources and why, so they aren't researched twice
+- [x] Verify each lead against the criteria and record the verdict here
+- [x] Turn each accepted source into its own epic, as 32 does for public-domain fiction (34–37 below; the three "worth a trial" sources are noted but not yet turned into epics — see why under each)
+- [x] Record rejected sources and why, so they aren't researched twice
 
-**Effort:** S to survey; each accepted source is its own piece of work.
+**Verified 2026-09-25**, against each source's own pages (URLs below), not second-hand lists.
+
+| Lead | Verdict | Why |
+|---|---|---|
+| Standard Ebooks | **Take** → epic 34 | CC0 public domain; EPUB/azw3/kepub; documented monthly and per-collection bulk-download zips plus an OPDS catalogue (`standardebooks.org/bulk-downloads`, `/ebooks/opds`); curated metadata, better than Gutenberg's. |
+| Raspberry Pi Press, beyond the magazine | **Take** → epic 35 | Out-of-print books (Beginner's Guide, Projects Book, etc.) are pushed as actual PDFs to `github.com/raspberrypipress/released-pdfs` under CC BY-NC-SA 3.0 — git-clonable, ~40 titles. (Current in-print book PDFs on `magazine.raspberrypi.com/books` are gated behind a £/€/$5 monthly contribution, so those are out — only the released-pdfs repo qualifies.) |
+| PoC\|\|GTFO | **Take** → epic 36 | Every issue's own text says it is "to be Freely Distributed to all Good Readers, and to be Freely Copied by all Good Bookleggers," and mirroring is explicitly encouraged. PDF format (some issues are polyglot files — also valid ISO/ZIP/etc — but remain valid PDFs). 23 issues (0x00–0x22) on the official site plus a maintained clean-PDF mirror (`github.com/angea/pocorgtfo`). The later No Starch print compilations (Volumes 1–2) are commercial and excluded. |
+| Paged Out! | **Take** → epic 36 | Site states issues are "free to download, share, and print." PDF, 9 issues so far (2019–2026), one page per article — small enough that the issues page itself is the catalogue. Licence is a plain-language grant rather than a formal CC licence — good enough for a small private group, but noted as informal. |
+| Full Circle Magazine | **Take** → epic 37 | Explicit "All the materials shared are in Creative Commons Share Alike" (CC BY-SA). PDF and EPUB both offered natively. 233+ monthly issues since April 2007 at predictable URLs (`dl.fullcirclemagazine.org/issueNNN_en.pdf`), which stands in for a catalogue even without a documented API. |
+| Internet Archive | **Worth a trial, not an epic yet** | Public-domain scanned texts are real and downloadable, and the metadata/API (`archive.org/services/docs/api/`) supports bulk fetching by rights field. But IA mixes true public-domain items with lend-only in-copyright books in the same collections, and its own terms disclaim any guarantee of an item's copyright status — so every item needs its rights field checked individually before pulling, not just the collection. A trial should be scoped to one named, explicitly-public-domain collection rather than the site broadly. |
+| OpenStax | **Worth a trial, not an epic yet** | Current licence is CC BY-NC-SA 4.0 (`help.openstax.org`, confirmed) — non-commercial, share-alike, which a small private group satisfies. PDF confirmed free for all ~60 titles at openstax.org; EPUB availability wasn't confirmed and needs checking per book. No documented bulk API — the catalogue page would need to be scraped for a title list. Fits Tech & Programming / Other, but the per-book format check and the scrape make it more than a trivial pull. |
+| Baen Free Library | **Worth a trial, not an epic yet** | Publisher states "no conditions, no strings attached" on the free titles — an unambiguous grant. DRM-free, multiple formats including EPUB and MOBI. ~82 titles across paginated listing pages, no documented API, so a pull means walking the listing rather than following a catalogue export. Fiction fit is good (SF/fantasy) but 82 titles behind pagination is more setup than the "Take" sources above for the same size payoff. |
+| Wikisource | **Skip** | Licence is fine (CC BY-SA / public domain, redistribution explicitly permitted), but there is no catalogue of pre-built ebooks — only per-work wikitext, converted to EPUB/PDF one title at a time via the community `ws-export` tool (`wikisource.org/wiki/Wikisource:WS_Export`). That's a scraping-shaped pipeline, not a bulk source, and it would mostly duplicate fiction Gutenberg and Standard Ebooks already cover well. Worth revisiting only for a specific work neither of those has. |
+| Faded Page | **Reject** | Its own front page states plainly: "These books are public domain **in Canada** (because we follow the Canadian copyright laws)" and tells non-Canadian readers to check their own country's law. Canadian copyright (life+50 at the time most of this catalogue was built) clears books this library's jurisdiction (US-hosted, US-based operator) has not yet cleared — the same 1929–1977-ish gap Gutenberg deliberately stays behind. Taking it would mean hosting books still in US copyright. No per-title US-status recheck was done here; that would be a different, much smaller task than "take the source." |
+| HathiTrust | **Reject** | Its own Acceptable Use Policy (`hathitrust.org/the-collection/terms-conditions/acceptable-use-policy/`) prohibits automated or bulk download of material, including public-domain full-view works, "other than specific products intended for this purpose such as the Hathifiles and Datasets" — and those are metadata/text-mining products, not book files. Fails the bulk-download criterion outright; no per-book manual download at this scale is worth the labor. |
+| Open Textbook Library | **Skip** | It's an index, not a host: entries link out to the books' actual publishers/platforms (OpenStax, Pressbooks, LibreTexts, individual authors), and licences vary per book (CC BY, BY-SA, BY-NC, GNU FDL — ND excluded by their submission policy). No single licence or bulk mechanism to build a pull around; each linked book would need the same individual verification as any other publisher site. Same shape as the free-programming-books list below — good for spotting individual candidates, not a source in itself. |
+| EbookFoundation free-programming-books | **Skip** | Confirmed on the repo itself: it's a curated *index* (CC BY 4.0 covers the list text, not the linked books) — no files hosted, links go to hundreds of separate sites with unverified, unstated-in-aggregate licences. Doesn't meet "fit" as a single source; treating it as one would mean re-running this whole epic's verification per link. |
+
+**Effort:** S to survey (done); each accepted source is its own piece of work below.
+
+### 34. Add Standard Ebooks
+
+**Goal:** better-produced editions of public-domain fiction, and new titles Gutenberg doesn't carry.
+
+**Why:** verified 2026-09-25 (epic 33) — CC0 public domain, EPUB/azw3/kepub, curated metadata, and a
+documented bulk mechanism: monthly and per-collection zips at `standardebooks.org/bulk-downloads`
+plus an OPDS catalogue. Overlaps heavily with what Gutenberg and epic 32's reading lists already
+plan to add, so the main decision is overlap, not eligibility.
+
+- [ ] Decide the policy for titles already in the library from Gutenberg: replace with the Standard
+  Ebooks edition, keep both, or leave as-is — pick one rule and apply it consistently
+- [ ] Pull the Gothic/detective/weird-fiction authors from epic 32's table that Standard Ebooks
+  carries, as a first batch (check `standardebooks.org/ebooks` per author before assuming coverage)
+- [ ] Preview enrichment before publish, publish only from the main checkout (epic 29's rule)
+
+**Effort:** S.
+
+### 35. Add Raspberry Pi Press's out-of-print books
+
+**Goal:** extend the existing Raspberry Pi magazine collection with the publisher's other free titles.
+
+**Why:** verified 2026-09-25 (epic 33) — `github.com/raspberrypipress/released-pdfs` holds actual
+PDFs of ~40 out-of-print titles (Beginner's Guide, Projects Book, and others, some in multiple
+languages) under CC BY-NC-SA 3.0, the same licence basis already accepted for the magazine.
+Current in-print book PDFs are contributor-gated and out of scope.
+
+- [ ] Git-clone the repo, drop non-English duplicates unless a language shelf is wanted
+- [ ] Pin titles/years/descriptions with overrides, the same as the magazine batch
+- [ ] Preview enrichment before publish, publish only from the main checkout
+
+**Effort:** S.
+
+### 36. Add security/hacking zines (PoC||GTFO, Paged Out!)
+
+**Goal:** give Security & Hacking recent, freely-distributable material beyond what's already there.
+
+**Why:** verified 2026-09-25 (epic 33) — both explicitly invite free distribution and mirroring, both
+are PDF, and both are small (23 + 9 issues), so this is one batch, not two epics.
+
+- [ ] Pull all 23 PoC||GTFO issues (0x00–0x22); use the clean-PDF mirror
+  (`github.com/angea/pocorgtfo`) if the official polyglot PDFs give the indexer trouble — check
+  first, since polyglot files are still valid PDFs
+- [ ] Pull all 9 Paged Out! issues
+- [ ] Confirm neither publication credits per-article authors in a way that needs individual
+  attribution beyond the issue-level licence note
+- [ ] Preview enrichment before publish, publish only from the main checkout
+
+**Effort:** S.
+
+### 37. Add Full Circle Magazine
+
+**Goal:** a second free technical magazine alongside Raspberry Pi Official Magazine, for Tech &
+Programming readers who aren't on a Pi.
+
+**Why:** verified 2026-09-25 (epic 33) — explicit CC BY-SA, native PDF and EPUB, monthly since April
+2007 (233+ issues as of this survey) at predictable URLs (`dl.fullcirclemagazine.org/issueNNN_en.pdf`).
+
+- [ ] Confirm the full issue range and numbering gaps (special editions, "Coding Academy" spin-offs)
+  before scripting the pull
+- [ ] Decide whether to pull EPUB or PDF as the primary copy (EPUB avoids the magazine-PDF layout
+  problems noted for the Pi magazine, if any were)
+- [ ] Pin titles/issue numbers/dates with overrides
+- [ ] Preview enrichment before publish, publish only from the main checkout
+
+**Effort:** M — larger back-catalogue than the others, worth checking issue count precisely first.
 
 ## Product polish
 
