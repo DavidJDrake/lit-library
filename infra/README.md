@@ -181,6 +181,26 @@ from the repo root: it indexes any new bundles and publishes the updated
 catalog in one step, printing how many books were newly added and
 confirming the CloudFront invalidation for `catalog.json`.
 
+## Enrichment preview
+
+Preview what Open Library / Google Books enrichment would fill in before running `index` for
+real:
+
+```bash
+GOOGLE_BOOKS_API_KEY=$(cat ~/.config/ebook-share/google-books-api-key) \
+  scripts/preview-enrichment.py --config config.yaml --limit 40
+```
+
+It builds the catalogue in memory with enrichment enabled — never writing `added.json`,
+`covers/`, `out/`, or touching AWS — and diffs each book against the currently published
+`out/catalog.json` (in the main checkout by default; pass `--catalog` for a different one).
+It writes `enrichment-preview.md` (gitignored) next to `--config`, grouped by field (title,
+authors, year, publisher, subjects, description) with old value vs new, plus a list of books
+not yet in the published catalog. `--offline` runs cache-only, with no network calls at all —
+useful for a quick pass, or once the cache is already warm. `--limit N` caps how many books are
+built, for a fast look at a small batch. The Google Books key is read only from
+`GOOGLE_BOOKS_API_KEY` in the environment; never put it in a file.
+
 ## Works and editions
 
 A card is now a **work**, not a copy: every edition of a title by the same author shares one

@@ -14,5 +14,6 @@ infra/outputs.json
 web/.env*.local
 web/dist/
 metadata/publish.log
+enrichment-preview.md
 /config.yaml
 infra/config.local.json
