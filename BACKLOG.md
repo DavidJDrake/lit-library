@@ -141,8 +141,20 @@ other writers (for example *The Lock and Key Library*, *Famous Modern Ghost Stor
 eight 1836 issues of the *Southern Literary Messenger* he edited), and 17 translations —
 Baudelaire's French versions are literary works in their own right.
 
-- [ ] Write a reading list per direction in the shape of `docs/reading-lists/lovecraft-circle-gutenberg.md`, choosing titles rather than taking every entry
-- [ ] Decide on the Poe anthologies and translations
+- [x] Write a reading list per direction in the shape of `docs/reading-lists/lovecraft-circle-gutenberg.md`, choosing titles rather than taking every entry — see
+      `docs/reading-lists/detective-fiction-poe-gutenberg.md` (24 titles: Doyle, Collins, Green),
+      `docs/reading-lists/gothic-before-poe-gutenberg.md` (16 titles: Walpole, Radcliffe, Shelley,
+      Brockden Brown), and `docs/reading-lists/alongside-after-poe-gutenberg.md` (31 titles:
+      Hawthorne, Irving, Le Fanu, Stoker, Stevenson). Gutenberg IDs verified via Gutendex
+      2026-09-25; a few multi-volume works (Radcliffe's *The Italian* vol. 3, Walpole's *The
+      Mysterious Mother*) are flagged as needing a follow-up lookup rather than guessed at.
+- [x] Decide on the Poe anthologies and translations — recommendation in
+      `docs/reading-lists/poe-leftovers.md`: leave out the *Southern Literary Messenger* issues
+      and the other anthologies by default (they'd file under "Various," not Poe, and would
+      clutter both shelves); take Baudelaire's French translations as their own small bundle
+      (literary works in their own right, credited to both Poe and Baudelaire); leave out the
+      remaining translations (no comparable literary-historical case). Not yet pulled or
+      published — a human should confirm before any batch is added.
 - [ ] Add each batch with overrides for titles, first-publication years and descriptions, as the Lovecraft bundles did
 - [ ] Preview enrichment before each publish, and publish only from the main checkout (see epic 29)
 
